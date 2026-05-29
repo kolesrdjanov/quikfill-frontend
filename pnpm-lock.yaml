@@ -105,6 +105,9 @@ importers:
       '@quikfill/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@quikfill/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
       '@quikfill/autofill-core':
         specifier: workspace:*
         version: link:../../packages/autofill-core
@@ -120,6 +123,9 @@ importers:
       '@quikfill/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      lucide-vue-next:
+        specifier: ^1.0.0
+        version: 1.0.0(vue@3.5.35(typescript@6.0.3))
       vue:
         specifier: ^3.5.32
         version: 3.5.35(typescript@6.0.3)
@@ -220,6 +226,8 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)
+
+  packages/assets: {}
 
   packages/autofill-core:
     dependencies:
