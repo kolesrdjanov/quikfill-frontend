@@ -10,6 +10,8 @@ export interface ResolveContext {
   records?: Record<string, Record<string, unknown>>
   /** Options of the field currently being resolved (for selectOption). */
   fieldOptions?: string[]
+  /** Per-field discriminator so same-rule fields get distinct generated values. */
+  salt?: string
 }
 
 export interface ResolvedValue {
@@ -28,7 +30,12 @@ export function resolveFillSource(source: FillSource, ctx: ResolveContext = {}):
       const rule = ctx.rules?.[source.ruleKey]
       if (!rule) return fail(`No generator rule "${source.ruleKey}" available.`)
       return ok(
-        runGenerator(rule, { seed: ctx.seed, locale: ctx.locale, fieldOptions: ctx.fieldOptions }),
+        runGenerator(rule, {
+          seed: ctx.seed,
+          locale: ctx.locale,
+          fieldOptions: ctx.fieldOptions,
+          salt: ctx.salt,
+        }),
       )
     }
 

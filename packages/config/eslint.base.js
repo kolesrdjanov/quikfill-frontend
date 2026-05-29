@@ -29,6 +29,7 @@ export default [
         localStorage: 'readonly',
         crypto: 'readonly',
         fetch: 'readonly',
+        URL: 'readonly',
         process: 'readonly',
         chrome: 'readonly',
         HTMLElement: 'readonly',

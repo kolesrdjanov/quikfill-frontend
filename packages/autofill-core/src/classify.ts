@@ -1,4 +1,4 @@
-import type { DetectedField, GeneratorKind } from '@quikfill/schemas'
+import type { DetectedField, GeneratorKind, GeneratorRule } from '@quikfill/schemas'
 
 export interface FieldClassification {
   fieldId: string
@@ -137,4 +137,15 @@ export function classifyField(field: DetectedField): FieldClassification {
 /** Classify every detected field. */
 export function classifyFields(fields: DetectedField[]): FieldClassification[] {
   return fields.map(classifyField)
+}
+
+/**
+ * Rebuild the default GeneratorRule for a semantic type. Lets saved mappings
+ * that reference `generatorRule` with `ruleKey = semanticType` resolve again in
+ * a later session without persisting the rule definition.
+ */
+export function generatorRuleForSemanticType(semanticType: string): GeneratorRule | null {
+  const mapped = KIND_BY_SEMANTIC[semanticType]
+  if (!mapped) return null
+  return { fieldKey: semanticType, kind: mapped.kind, options: mapped.options }
 }

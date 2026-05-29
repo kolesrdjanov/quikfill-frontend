@@ -19,6 +19,8 @@ export interface GenerateContext {
   locale?: string
   /** Options available on the target field, used by `selectOption`. */
   fieldOptions?: string[]
+  /** Extra per-field discriminator so fields sharing a rule get distinct values. */
+  salt?: string
 }
 
 type Options = Record<string, unknown>
@@ -39,7 +41,7 @@ function strArray(o: Options, key: string): string[] | undefined {
 /** Generate a single value for a rule. Deterministic when `ctx.seed` is set. */
 export function runGenerator(rule: GeneratorRule, ctx: GenerateContext = {}): string {
   const o: Options = rule.options ?? {}
-  const rng = createRng(ctx.seed, `${rule.fieldKey}:${rule.kind}`)
+  const rng = createRng(ctx.seed, `${rule.fieldKey}:${rule.kind}:${ctx.salt ?? ''}`)
   return GENERATORS[rule.kind](rng, o, ctx)
 }
 

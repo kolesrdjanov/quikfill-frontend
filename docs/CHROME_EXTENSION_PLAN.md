@@ -14,13 +14,13 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 
 ## Status
 
-| #   | Iteration                                                  | Status     |
-| --- | ---------------------------------------------------------- | ---------- |
-| 3   | Scanner prototype (scan + inspect detected fields)         | ✅ Done    |
-| 4   | Fill plan preview (generators + heuristics + preview UI)   | ✅ Done    |
-| 5   | Fill execution + undo (native fill, verify, undo, results) | ✅ Done    |
-| 6   | Local form profiles (save/match/reuse mappings)            | ⏳ Next    |
-| 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ⏳ Planned |
+| #   | Iteration                                                  | Status  |
+| --- | ---------------------------------------------------------- | ------- |
+| 3   | Scanner prototype (scan + inspect detected fields)         | ✅ Done |
+| 4   | Fill plan preview (generators + heuristics + preview UI)   | ✅ Done |
+| 5   | Fill execution + undo (native fill, verify, undo, results) | ✅ Done |
+| 6   | Local form profiles (save/match/reuse mappings)            | ✅ Done |
+| 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ⏳ Next |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)

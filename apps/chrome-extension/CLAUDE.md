@@ -41,6 +41,6 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
 
 ## Current state
 
-Iterations 3–5 (scan, fill-plan preview, fill execution + undo) are **done**.
-Next: Iteration 6 — local form profiles (save/match/reuse mappings). See the plan's
-status table.
+Iterations 3–6 (scan, fill-plan preview, fill execution + undo, local form
+profiles) are **done**. Next: Iteration 7 — Gemini assistance (privacy-aware AI,
+review/accept/reject). See the plan's status table.

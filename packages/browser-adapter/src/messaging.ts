@@ -55,6 +55,18 @@ export async function getActiveTabId(): Promise<number | undefined> {
   return tab?.id
 }
 
+export interface ActiveTab {
+  id?: number
+  url?: string
+  title?: string
+}
+
+/** The active tab's id, url, and title (url/title need activeTab or host access). */
+export async function getActiveTab(): Promise<ActiveTab> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  return { id: tab?.id, url: tab?.url, title: tab?.title }
+}
+
 /** Ask a specific tab to scan; resolves with its ScanResult. */
 export async function requestScan(tabId: number, options?: ScanOptions): Promise<ScanResult> {
   return chrome.tabs.sendMessage(tabId, {

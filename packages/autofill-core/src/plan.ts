@@ -1,12 +1,13 @@
 import type {
   DetectedField,
+  FieldMapping,
   FillPlan,
   FillPlanItem,
   FillSource,
   FillStrategy,
   GeneratorRule,
 } from '@quikfill/schemas'
-import { classifyFields } from './classify'
+import { classifyFields, generatorRuleForSemanticType } from './classify'
 import { resolveFillSource, type ResolveContext } from './resolve'
 
 /** A field paired with the source chosen to fill it. */
@@ -34,7 +35,8 @@ export function buildFillPlan(assignments: PlanAssignment[], ctx: ResolveContext
 function buildItem(assignment: PlanAssignment, ctx: ResolveContext): FillPlanItem {
   const { field, fillSource } = assignment
   const fieldOptions = field.options?.map((o) => o.value)
-  const resolved = resolveFillSource(fillSource, { ...ctx, fieldOptions })
+  // salt by field id so two same-kind fields get distinct generated values.
+  const resolved = resolveFillSource(fillSource, { ...ctx, fieldOptions, salt: field.id })
 
   const warnings = [...resolved.warnings]
   let requiresConfirmation = resolved.requiresConfirmation
@@ -64,26 +66,46 @@ function buildItem(assignment: PlanAssignment, ctx: ResolveContext): FillPlanIte
 export interface PreviewOptions {
   seed?: string | number
   locale?: string
+  /** Saved mappings to apply first, keyed by field fingerprint (`domFingerprint`). */
+  savedMappings?: Map<string, FieldMapping>
 }
 
 /**
- * High-level Iteration-4 entry: classify fields, assign a default generator
- * source per field, and resolve a preview plan. Fields we can't classify get an
- * empty static source flagged for the user to choose.
+ * High-level entry: apply any saved mapping first (matched by fingerprint),
+ * otherwise classify the field and assign a default generator source, then
+ * resolve a preview plan. Never writes the page.
  */
 export function buildPreviewPlan(fields: DetectedField[], opts: PreviewOptions = {}): FillPlan {
-  const classifications = classifyFields(fields)
-  const byId = new Map(classifications.map((c) => [c.fieldId, c]))
+  const byId = new Map(classifyFields(fields).map((c) => [c.fieldId, c]))
   const rules: Record<string, GeneratorRule> = {}
   const assignments: PlanAssignment[] = []
 
   for (const field of fields) {
-    const c = byId.get(field.id)
-    if (c?.suggestedKind) {
-      rules[field.id] = { fieldKey: field.id, kind: c.suggestedKind, options: c.generatorOptions }
+    const saved = opts.savedMappings?.get(field.domFingerprint)
+    if (saved) {
+      if (saved.fillSource.sourceType === 'generatorRule') {
+        const rule = generatorRuleForSemanticType(saved.fillSource.ruleKey)
+        if (rule) rules[saved.fillSource.ruleKey] = rule
+      }
       assignments.push({
         field,
-        fillSource: { sourceType: 'generatorRule', ruleKey: field.id },
+        fillSource: saved.fillSource,
+        fillStrategy: saved.fillStrategy,
+        confidence: saved.confidence,
+      })
+      continue
+    }
+
+    const c = byId.get(field.id)
+    if (c?.suggestedKind) {
+      rules[c.semanticType] = {
+        fieldKey: c.semanticType,
+        kind: c.suggestedKind,
+        options: c.generatorOptions,
+      }
+      assignments.push({
+        field,
+        fillSource: { sourceType: 'generatorRule', ruleKey: c.semanticType },
         confidence: c.confidence,
       })
     } else {
