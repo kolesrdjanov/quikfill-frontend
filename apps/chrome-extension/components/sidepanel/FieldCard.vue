@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Badge } from '@quikfill/ui'
+import { X } from 'lucide-vue-next'
+import { Badge, Button } from '@quikfill/ui'
 import type { AiSuggestion, DetectedField } from '@quikfill/schemas'
 import AiSuggestionInset from './AiSuggestionInset.vue'
 
@@ -10,7 +11,7 @@ const props = defineProps<{
   suggestion?: AiSuggestion
   acceptedType?: string
 }>()
-defineEmits<{ accept: []; reject: [] }>()
+defineEmits<{ accept: []; reject: []; remove: [] }>()
 
 const skipped = computed(() => !props.field.visible)
 const label = computed(
@@ -25,6 +26,15 @@ const label = computed(
       <span class="text-muted-foreground shrink-0 font-mono text-[11px]">
         {{ skipped ? 'hidden' : field.inputType }}
       </span>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="text-muted-foreground hover:text-foreground size-7 shrink-0"
+        aria-label="Remove field"
+        @click="$emit('remove')"
+      >
+        <X class="size-4" />
+      </Button>
     </div>
 
     <div class="mt-2 flex flex-wrap gap-1.5">

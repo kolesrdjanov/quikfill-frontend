@@ -454,6 +454,34 @@ export function useFillSession() {
     excluded.value = next
   }
 
+  /**
+   * Drop a field from the session entirely (distinct from `toggle`, which just
+   * un-includes it). Splices it out of both source-of-truth arrays so every
+   * derived value updates for free; rescanning the page brings it back.
+   */
+  function remove(id: string) {
+    fields.value = fields.value.filter((f) => f.id !== id)
+    if (planItems.value) {
+      planItems.value = planItems.value.filter((i) => i.detectedFieldId !== id)
+    }
+    if (excluded.value.has(id)) {
+      const next = new Set(excluded.value)
+      next.delete(id)
+      excluded.value = next
+    }
+    if (aiProposals.value.has(id)) {
+      const next = new Map(aiProposals.value)
+      next.delete(id)
+      aiProposals.value = next
+    }
+    if (aiSuggestions.value.has(id)) {
+      const next = new Map(aiSuggestions.value)
+      next.delete(id)
+      aiSuggestions.value = next
+    }
+    if (aiFieldStatus.value.has(id)) setAiFieldStatus(id, null)
+  }
+
   function includedItems(): FillPlanItem[] {
     return (planItems.value ?? []).filter((i) => !excluded.value.has(i.detectedFieldId))
   }
@@ -639,6 +667,7 @@ export function useFillSession() {
     acceptSuggestion,
     rejectSuggestion,
     toggle,
+    remove,
     fill,
     undo,
     saveProfile,

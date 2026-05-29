@@ -260,6 +260,7 @@ const fieldContext = computed(() => {
           :accepted-type="s.aiProposals.value.get(field.id)?.semanticType"
           @accept="s.acceptSuggestion(field.id)"
           @reject="s.rejectSuggestion(field.id)"
+          @remove="s.remove(field.id)"
         />
 
         <LimitationsDisclosure :limitations="s.limitations.value" />
@@ -309,6 +310,7 @@ const fieldContext = computed(() => {
           @accept="s.acceptSuggestion(item.detectedFieldId)"
           @reject="s.rejectSuggestion(item.detectedFieldId)"
           @retry="s.classifyField(item.detectedFieldId)"
+          @remove="s.remove(item.detectedFieldId)"
         />
 
         <LimitationsDisclosure :limitations="s.limitations.value" />
@@ -434,6 +436,10 @@ const fieldContext = computed(() => {
       </template>
 
       <template v-else-if="s.phase.value === 'results'">
+        <Button class="w-full" :disabled="s.scanning.value" @click="s.scan()">
+          <ScanLine class="size-4" />
+          Scan again
+        </Button>
         <Button
           v-if="s.undoSnapshot.value"
           variant="outline"

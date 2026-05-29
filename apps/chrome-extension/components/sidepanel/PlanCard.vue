@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Loader2, RotateCw, ShieldAlert, TriangleAlert } from 'lucide-vue-next'
-import { Badge, Checkbox } from '@quikfill/ui'
+import { Loader2, RotateCw, ShieldAlert, TriangleAlert, X } from 'lucide-vue-next'
+import { Badge, Button, Checkbox } from '@quikfill/ui'
 import type { AiSuggestion, FillPlanItem } from '@quikfill/schemas'
 import type { AiFieldStatus } from '../../lib/useFillSession'
 import { SOURCE_META, mask } from '../../lib/display-maps'
@@ -16,7 +16,7 @@ const props = defineProps<{
   suggestion?: AiSuggestion
   aiStatus?: AiFieldStatus
 }>()
-defineEmits<{ toggle: []; cycle: []; accept: []; reject: []; retry: [] }>()
+defineEmits<{ toggle: []; cycle: []; accept: []; reject: []; retry: []; remove: [] }>()
 
 const meta = computed(() => SOURCE_META[props.item.fillSource.sourceType])
 const proposed = computed(() => mask(props.item.proposedValue, !!props.hideValues) || '—')
@@ -30,6 +30,15 @@ const proposed = computed(() => mask(props.item.proposedValue, !!props.hideValue
         <span class="truncate">{{ item.label }}</span>
       </label>
       <SourcePill :source-type="item.fillSource.sourceType" @cycle="$emit('cycle')" />
+      <Button
+        variant="ghost"
+        size="icon"
+        class="text-muted-foreground hover:text-foreground size-7 shrink-0"
+        aria-label="Remove field"
+        @click="$emit('remove')"
+      >
+        <X class="size-4" />
+      </Button>
     </div>
 
     <div class="mt-2 flex flex-wrap items-center gap-1.5 text-[12px]">
