@@ -19,16 +19,16 @@ export default defineBackground(() => {
   // Single session owner: tokens + state snapshot live in chrome.storage.local.
   const store = createChromeAuthStore()
 
-  // The authenticated REST client. `auth` is assigned just below; the closures
-  // defer reading it until a 401 actually fires, breaking the construction cycle.
-  let auth: ReturnType<typeof createBackgroundAuth>
+  // Authenticated REST client. Its refresh hooks reference `auth` (declared just
+  // below) only when a 401 actually fires — by then it is initialised — which
+  // breaks the construction cycle between the client and the session manager.
   const api = createApiClient({
     baseUrl: API_BASE_URL,
     getAuthToken: () => store.getAccess(),
     refreshAuth: () => auth.refreshAuth(),
     onAuthError: () => void auth.onAuthError(),
   })
-  auth = createBackgroundAuth({ api, store })
+  const auth = createBackgroundAuth({ api, store })
 
   // The AI client shares the same session, so classify calls now carry the token.
   const ai = createAiClient({ baseUrl: API_BASE_URL, getAuthToken: () => store.getAccess() })
