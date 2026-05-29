@@ -9,6 +9,13 @@ export type ScanScope = z.infer<typeof scanScopeSchema>
 export const scanOptionsSchema = z.object({
   /** Include fields that are present but not visible. Default false. */
   includeHidden: z.boolean().default(false),
+  /**
+   * Include fields the user cannot act on — `disabled` or `readonly`. Omitted /
+   * false: such fields are never fillable, so surfacing them only adds noise
+   * (e.g. site-computed City/State/Zip). Set true if a caller genuinely needs
+   * to inspect them.
+   */
+  includeNonFillable: z.boolean().optional(),
   /** Which container to scan. Treated as 'auto' when omitted. */
   scope: scanScopeSchema.optional(),
 })

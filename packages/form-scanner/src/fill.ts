@@ -5,6 +5,7 @@ import type {
   UndoEntry,
   UndoSnapshot,
 } from '@quikfill/schemas'
+import { coerceToMask, getMaskSpec, valuesMatch } from './mask'
 
 export interface FillOutcome {
   results: FillResult[]
@@ -62,7 +63,7 @@ export async function applyFill(
     entries.push(capture(ins, el))
 
     try {
-      results.push(writeAndVerify(ins, el))
+      results.push(await writeAndVerify(ins, el))
     } catch (e) {
       results.push(fail(ins.detectedFieldId, e instanceof Error ? e.message : 'Fill failed.'))
     }
@@ -101,7 +102,7 @@ export async function applyUndo(
   return results
 }
 
-function writeAndVerify(ins: FillInstruction, el: Fillable): FillResult {
+async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillResult> {
   if (isToggle(el)) {
     const desired = TRUTHY.has(ins.proposedValue.toLowerCase().trim())
     setChecked(el as HTMLInputElement, desired)
@@ -110,15 +111,20 @@ function writeAndVerify(ins: FillInstruction, el: Fillable): FillResult {
       : fail(ins.detectedFieldId, 'Checkbox/radio did not accept the toggle.')
   }
 
-  setValue(el, ins.proposedValue)
+  // Coerce to the field's input mask (maska et al.) so the right characters land
+  // — otherwise the mask reshapes our raw value (e.g. a phone country code shifts
+  // into the area code). `valuesMatch` then ignores the delimiters the mask
+  // inserts, so a correctly-filled-but-reformatted field is not a false failure.
+  const spec = getMaskSpec(el)
+  const target = (spec && coerceToMask(ins.proposedValue, spec)) || ins.proposedValue
+
+  setValue(el, target)
+  await settle()
   const accepted = readValue(el)
-  if (accepted !== ins.proposedValue) {
-    return fail(
-      ins.detectedFieldId,
-      `Value not accepted (wanted "${ins.proposedValue}", got "${accepted}").`,
-    )
+  if (valuesMatch(accepted, target)) {
+    return success(ins.detectedFieldId, accepted)
   }
-  return success(ins.detectedFieldId, accepted)
+  return fail(ins.detectedFieldId, `Value not accepted (wanted "${target}", got "${accepted}").`)
 }
 
 function capture(ins: FillInstruction, el: Fillable): UndoEntry {

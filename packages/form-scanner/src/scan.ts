@@ -72,7 +72,9 @@ export function scanForms(
   const isSuppressed = (el: Element): boolean => suppressed.some((root) => root.contains(el))
 
   const push = (field: DetectedField, el: Element): void => {
-    if ((options.includeHidden || field.visible) && !isJunkField(field)) {
+    const visibleEnough = options.includeHidden || field.visible
+    const fillable = options.includeNonFillable || (!field.disabled && !field.readonly)
+    if (visibleEnough && fillable && !isJunkField(field)) {
       fields.push(field)
       fieldEls.push(el)
       counter++

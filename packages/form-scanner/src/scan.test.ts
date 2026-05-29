@@ -53,12 +53,23 @@ describe('scanForms', () => {
     expect(search.ariaLabel).toBe('Search')
   })
 
-  it('flags disabled and readonly state', () => {
+  it('excludes non-fillable (disabled/readonly) fields by default, keeps fillable ones', () => {
     setBody(`
+      <input name="ok" />
       <input name="a" disabled />
       <input name="b" readonly />
     `)
     const { fields } = scanForms(document)
+    // Disabled and read-only fields are not actionable — they never reach the UI.
+    expect(fields.map((f) => f.name)).toEqual(['ok'])
+  })
+
+  it('includes and flags disabled/readonly state on request', () => {
+    setBody(`
+      <input name="a" disabled />
+      <input name="b" readonly />
+    `)
+    const { fields } = scanForms(document, { includeHidden: false, includeNonFillable: true })
     expect(fields.find((f) => f.name === 'a')!.disabled).toBe(true)
     expect(fields.find((f) => f.name === 'b')!.readonly).toBe(true)
   })
@@ -143,6 +154,46 @@ describe('scanForms', () => {
     expect(ids).not.toContain(':r9:')
     expect(ids).toContain('real') // real label → kept
     expect(ids).toContain('_r_z_') // generated id but usable name → kept
+  })
+
+  it('resolves a cousin <label> when it is neither linked nor wrapping', () => {
+    // Mirrors app.stemlessco.xyz: label and input are siblings' cousins, the EIN
+    // input has no name/id at all, and Address 1 has an opaque id="map".
+    setBody(`
+      <div class="col-span-6">
+        <label class="flex items-center">EIN #<span>*</span>
+          <span class="base-icon"><svg viewBox="0 0 24 24"></svg></span>
+        </label>
+        <div class="relative">
+          <input data-maska="##-#######" placeholder="XX-XXXXXXX" type="text" />
+          <div class="input-icon--wrapper"></div>
+        </div>
+      </div>
+      <div class="col-span-6">
+        <label>Address Line 1*</label>
+        <div class="relative"><input type="text" id="map" placeholder="Start typing" /></div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    const labels = fields.map((f) => f.labelText)
+    expect(labels).toContain('EIN #')
+    expect(labels).toContain('Address Line 1')
+    // No field should fall through to an opaque auto id / dom id as its label.
+    expect(fields.every((f) => f.labelText && !/^qf-\d+$/.test(f.labelText))).toBe(true)
+  })
+
+  it('does not borrow a label from a container that spans multiple fields', () => {
+    setBody(`
+      <div class="row">
+        <label>Group Heading</label>
+        <input name="x" />
+        <input name="y" />
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    // Two controls share the container, so neither may claim "Group Heading".
+    expect(fields.find((f) => f.name === 'x')!.labelText).toBeUndefined()
+    expect(fields.find((f) => f.name === 'y')!.labelText).toBeUndefined()
   })
 
   it('scopes the scan to a passed element root', () => {

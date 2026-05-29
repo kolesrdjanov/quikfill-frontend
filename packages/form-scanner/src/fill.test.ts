@@ -121,6 +121,35 @@ describe('applyFill', () => {
     expect((document.getElementById('ws') as HTMLInputElement).value).toBe('keep')
   })
 
+  it('fills a mask-formatted input without a false failure (maska-style)', async () => {
+    document.body.innerHTML = '<input id="phone" type="tel" data-maska="(###) ###-####" />'
+    const el = document.getElementById('phone') as HTMLInputElement
+    // Simulate the maska directive: reformat to the mask on every input event.
+    el.addEventListener('input', () => {
+      const digits = el.value.replace(/\D/g, '').slice(0, 10)
+      let out = ''
+      const mask = '(###) ###-####'
+      let di = 0
+      for (const c of mask) {
+        if (c === '#') {
+          if (di >= digits.length) break
+          out += digits[di++]
+        } else {
+          out += c
+        }
+      }
+      el.value = out
+    })
+    const { results } = await applyFill([
+      // Raw profile value with a country code — the mask would mangle it if written as-is.
+      instruction({ detectedFieldId: 'phone', proposedValue: '+1-976-729-2722' }),
+    ])
+    expect(results[0].status).toBe('success')
+    // Country code dropped; the national number landed correctly.
+    expect(results[0].acceptedValue).toBe('(976) 729-2722')
+    expect(el.value).toBe('(976) 729-2722')
+  })
+
   it('writes through a framework-controlled value setter', async () => {
     document.body.innerHTML = '<input id="react" />'
     const el = document.getElementById('react') as HTMLInputElement

@@ -43,7 +43,13 @@ export function getCurrentValue(el: FormControl): string | null {
   return null
 }
 
-/** Resolve a control's label via <label for>, wrapping <label>, or aria-label(ledby). */
+/**
+ * Resolve a control's label. Tries, in order: `<label for=id>`, a wrapping
+ * `<label>`, then the nearest container `<label>` (for layouts where the label
+ * is a *sibling/cousin* of the input, not linked by `for=` and not wrapping it).
+ * That last fallback is what lets fields with no `name`/`id` (or an opaque id
+ * like `map`) still get a human label instead of falling through to `qf-N`.
+ */
 export function getLabelText(el: FormControl, root: Document | ShadowRoot): string | undefined {
   const id = el.getAttribute('id')
   if (id) {
@@ -54,7 +60,48 @@ export function getLabelText(el: FormControl, root: Document | ShadowRoot): stri
   const wrapping = el.closest('label')
   const wrapText = wrapping?.textContent?.trim()
   if (wrapText) return wrapText
+  return getContainerLabel(el)
+}
+
+/**
+ * Climb to the smallest ancestor that still wraps this one control and read its
+ * `<label>`. Handles the common "label and input are cousins" layout:
+ *   `<div><label>Email*</label><div class="relative"><input></div></div>`
+ * Stops before any ancestor that spans multiple controls, so a field can only
+ * claim a label that unambiguously belongs to it.
+ */
+function getContainerLabel(el: FormControl): string | undefined {
+  let node = el.parentElement
+  for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+    if (countFormControls(node) > 1) break
+    const label = node.querySelector('label')
+    if (label) {
+      const text = cleanLabelText(label)
+      if (text) return text
+    }
+  }
   return undefined
+}
+
+function countFormControls(root: Element): number {
+  let n = 0
+  for (const el of Array.from(root.querySelectorAll('*'))) {
+    if (isFormControl(el)) n++
+  }
+  return n
+}
+
+/** Label text minus nested control values, icon/SVG noise, and a trailing required `*`. */
+function cleanLabelText(label: Element): string {
+  const clone = label.cloneNode(true) as Element
+  for (const junk of Array.from(clone.querySelectorAll('svg, input, textarea, select'))) {
+    junk.remove()
+  }
+  return (clone.textContent ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\s*\*\s*$/, '')
+    .trim()
 }
 
 export function getAriaLabel(el: Element): string | undefined {
