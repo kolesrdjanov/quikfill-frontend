@@ -231,17 +231,31 @@ export function useFillSession() {
       structureHash.value = result.structureHash ?? ''
       scannedScope.value = result.scope ?? null
       scanned.value = true
-      if (autoMatch.value) await matchSavedProfile()
-    } catch {
+    } catch (e) {
+      console.error('[quikfill] scan request failed:', e)
       error.value =
         'Could not scan this page. Open the panel from the toolbar icon, then reload the page so the content script is active.'
       fields.value = []
       limitations.value = []
       scannedScope.value = null
       resetMatch()
-    } finally {
       scanning.value = false
+      return
     }
+
+    // Matching a saved profile is best-effort enrichment of a scan that already
+    // succeeded — a failure here must NOT be reported as a scan failure (that
+    // masked the real error and made a working scan look broken once a profile
+    // existed). Log it and carry on with the unmatched fields.
+    if (autoMatch.value) {
+      try {
+        await matchSavedProfile()
+      } catch (e) {
+        console.error('[quikfill] profile matching failed (scan succeeded):', e)
+        resetMatch()
+      }
+    }
+    scanning.value = false
   }
 
   /** Switch the scan scope (Whole page / This form / This dialog) and re-scan. */
