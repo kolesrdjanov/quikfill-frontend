@@ -99,6 +99,28 @@ describe('applyFill', () => {
     expect(results[2].reason).toMatch(/disabled/i)
   })
 
+  it('skips a field with no proposed value instead of reporting success', async () => {
+    document.body.innerHTML = '<input id="note" value="" />'
+    const { results, undoSnapshot } = await applyFill([
+      instruction({ detectedFieldId: 'note', proposedValue: '' }),
+    ])
+    expect(results[0].status).toBe('skipped')
+    expect(results[0].reason).toMatch(/no value|nothing to fill/i)
+    // Nothing was written, so there is nothing to undo.
+    expect(undoSnapshot.entries).toHaveLength(0)
+    expect((document.getElementById('note') as HTMLInputElement).value).toBe('')
+  })
+
+  it('skips a whitespace-only proposed value', async () => {
+    document.body.innerHTML = '<input id="ws" value="keep" />'
+    const { results } = await applyFill([
+      instruction({ detectedFieldId: 'ws', proposedValue: '   ' }),
+    ])
+    expect(results[0].status).toBe('skipped')
+    // The existing value is left untouched.
+    expect((document.getElementById('ws') as HTMLInputElement).value).toBe('keep')
+  })
+
   it('writes through a framework-controlled value setter', async () => {
     document.body.innerHTML = '<input id="react" />'
     const el = document.getElementById('react') as HTMLInputElement

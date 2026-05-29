@@ -30,6 +30,14 @@ export async function applyFill(
   const entries: UndoEntry[] = []
 
   for (const ins of instructions) {
+    // No value to write (unknown field, AI-draft stub, missing generator) — skip
+    // rather than write "" and falsely report success. Toggles are exempt: an
+    // empty value there is a meaningful "unchecked".
+    if (ins.fillStrategy !== 'clickToggle' && ins.proposedValue.trim() === '') {
+      results.push(skip(ins.detectedFieldId, 'Nothing to fill — no value was proposed.'))
+      continue
+    }
+
     if (ins.fillStrategy === 'customSelect' && ins.customWidget) {
       const { result, entry } = await fillCustomSelect(ins, ins.customWidget, root)
       results.push(result)
