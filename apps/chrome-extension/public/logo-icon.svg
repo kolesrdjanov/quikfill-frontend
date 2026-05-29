@@ -1,11 +1,11 @@
-<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QuikFill">
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QuikFill">
   <defs>
-    <linearGradient id="qfTile" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+    <linearGradient id="qfTile" x1="6" y1="2" x2="42" y2="46" gradientUnits="userSpaceOnUse">
       <stop stop-color="#3F66E0"></stop>
-      <stop offset="1" stop-color="#2A4BC4"></stop>
+      <stop offset="1" stop-color="#2544C0"></stop>
     </linearGradient>
   </defs>
-  <rect width="40" height="40" rx="11" fill="url(#qfTile)"></rect>
-  <path d="M23.4 8.2 12.6 22.1c-.5.65-.04 1.6.78 1.6h5.04l-1.6 8.2c-.18.93 1.02 1.46 1.6.7l10.9-13.95c.5-.64.05-1.6-.77-1.6h-5.08l1.55-8.13c.18-.93-1.02-1.46-1.6-.72Z" fill="#fff"></path>
-  <circle cx="29.5" cy="11.2" r="2.3" fill="#13C296"></circle>
+  <rect width="48" height="48" rx="13" fill="url(#qfTile)"></rect>
+  <path d="M25.25 11.5 12.75 26.5H24l-1.25 10 12.5-15H24l1.25-9.5Z" fill="#fff" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"></path>
+  <circle cx="35.4" cy="12.6" r="3.4" fill="#13C296"></circle>
 </svg>
