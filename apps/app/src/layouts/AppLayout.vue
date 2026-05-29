@@ -1,35 +1,124 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
+import { computed } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import {
+  Database,
+  Dices,
+  FileText,
+  Globe,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Moon,
+  Sun,
+} from 'lucide-vue-next'
+import { Avatar, Button } from '@quikfill/ui'
+import { useAuthStore } from '@/stores/auth'
+import { useTheme } from '@/composables/useTheme'
+
+const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+const { isDark, toggle } = useTheme()
 
 const nav = [
-  { label: 'Home', to: '/dashboard' },
-  { label: 'Data', to: '/dashboard' },
-  { label: 'Generators', to: '/dashboard' },
-  { label: 'Apps', to: '/dashboard' },
-  { label: 'Form Profiles', to: '/dashboard' },
-  { label: 'Fill History', to: '/dashboard' },
-  { label: 'Subscription', to: '/dashboard' },
-  { label: 'Settings', to: '/dashboard' },
+  { label: 'Home', to: '/', icon: LayoutDashboard },
+  { label: 'Data', to: '/data', icon: Database },
+  { label: 'Generators', to: '/generators', icon: Dices },
+  { label: 'Apps', to: '/apps', icon: Globe },
+  { label: 'Form Profiles', to: '/form-profiles', icon: FileText },
+  { label: 'Fill History', to: '/fill-history', icon: History },
 ]
+
+function isActive(to: string): boolean {
+  if (to === '/') return route.path === '/'
+  return route.path === to || route.path.startsWith(`${to}/`)
+}
+
+const title = computed(() => (route.meta.title as string | undefined) ?? 'Quikfill')
+
+const displayName = computed(() => {
+  const user = auth.user
+  if (!user) return 'Account'
+  const name = [user.firstName, user.lastName].filter(Boolean).join(' ')
+  return name || user.email || 'Account'
+})
+
+async function signOut(): Promise<void> {
+  await auth.logout()
+  await router.push({ name: 'sign-in' })
+}
 </script>
 
 <template>
-  <div class="flex min-h-screen">
-    <aside class="bg-sidebar text-sidebar-foreground w-56 shrink-0 border-r p-4">
-      <div class="text-foreground mb-6 px-2 text-lg font-semibold">Quikfill</div>
-      <nav class="flex flex-col gap-1">
+  <div class="bg-surface flex min-h-screen">
+    <aside class="bg-sidebar flex w-60 shrink-0 flex-col border-r px-3.5 py-4">
+      <RouterLink
+        to="/"
+        class="flex items-center gap-2.5 px-2 pb-4 text-base font-extrabold tracking-tight"
+      >
+        <span
+          class="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-lg text-xs"
+        >
+          Q
+        </span>
+        <span>Quik<span class="text-primary">Fill</span></span>
+      </RouterLink>
+
+      <nav class="flex flex-col gap-0.5">
         <RouterLink
           v-for="item in nav"
-          :key="item.label"
+          :key="item.to"
           :to="item.to"
-          class="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md px-2 py-1.5 text-sm"
+          :aria-current="isActive(item.to) ? 'page' : undefined"
+          :class="[
+            'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+            isActive(item.to)
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+          ]"
         >
+          <component :is="item.icon" class="size-[18px]" />
           {{ item.label }}
         </RouterLink>
       </nav>
+
+      <div class="mt-auto border-t pt-3">
+        <div class="flex items-center gap-2.5 px-1 py-1.5">
+          <Avatar :name="displayName" class="size-9" />
+          <div class="min-w-0">
+            <div class="truncate text-[13px] leading-tight font-semibold">{{ displayName }}</div>
+            <div class="text-muted-foreground truncate text-[11px]">{{ auth.user?.email }}</div>
+          </div>
+        </div>
+      </div>
     </aside>
-    <main class="flex-1 p-6">
-      <slot />
-    </main>
+
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header
+        class="bg-background flex h-16 shrink-0 items-center justify-between gap-4 border-b px-6"
+      >
+        <h1 class="text-lg font-bold tracking-tight">{{ title }}</h1>
+        <div class="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+            @click="toggle"
+          >
+            <Moon v-if="isDark" class="size-[18px]" />
+            <Sun v-else class="size-[18px]" />
+          </Button>
+          <Button variant="outline" size="sm" @click="signOut">
+            <LogOut class="size-4" />
+            Sign out
+          </Button>
+        </div>
+      </header>
+
+      <main class="min-h-0 flex-1 overflow-y-auto p-6">
+        <slot />
+      </main>
+    </div>
   </div>
 </template>

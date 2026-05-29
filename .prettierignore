@@ -7,3 +7,5 @@
 **/playwright-report/**
 **/test-results/**
 pnpm-lock.yaml
+# Vendored static design prototype (hand-authored reference, not maintained source).
+design/**

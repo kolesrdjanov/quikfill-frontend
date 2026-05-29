@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { Toaster } from '@quikfill/ui'
 import AppLayout from '@/layouts/AppLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 
@@ -12,4 +13,5 @@ const layout = computed(() => (route.meta.layout === 'app' ? AppLayout : AuthLay
   <component :is="layout">
     <router-view />
   </component>
+  <Toaster />
 </template>

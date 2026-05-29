@@ -37,9 +37,17 @@ repo's iterations 4–6.
 | 5   | Fill Execution + Undo               | extension       | ✅ Done    |
 | 6   | Local Form Profiles                 | extension       | ✅ Done    |
 | 7   | Gemini Assistance                   | extension       | ✅ Done    |
-| 8   | Dashboard Management                | app             | ⏳ Next    |
+| 8   | Dashboard Management                | app             | ✅ Done    |
 | 9   | Website                             | website         | ⏳ Planned |
-| 10  | Backend Sync + Billing              | extension + app | ⏳ Planned |
+| 10  | Backend Sync + Billing              | extension + app | 🚧 Partial |
+
+> **Iteration 8 note:** built directly against the live backend (`quikfill-services`
+> at `/api/v1`) rather than a local mock — per the product owner. This pulls the
+> app's slice of Iteration 10 forward: magic-link auth (store + guard + queued
+> 401-refresh) and backend-backed CRUD for data, generators, apps, form profiles
+> (incl. mapping review) and fill history are **done**. Still outstanding for
+> Iteration 10: Stripe billing, the `SyncAdapter`, and the extension's backend
+> swap. Subscription + Settings dashboard screens are deferred with them.
 
 Update this table (and each surface plan's own status) as work lands.
 

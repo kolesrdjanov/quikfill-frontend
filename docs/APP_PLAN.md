@@ -11,10 +11,19 @@ Engine: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 
 ## Status
 
-| #   | Iteration                                                                          | Status     |
-| --- | ---------------------------------------------------------------------------------- | ---------- |
-| 8   | Dashboard management (data, generators, apps, profiles, mappings, history, shells) | ⏳ Planned |
-| 10  | Auth + backend-backed data + Stripe billing (with extension)                       | ⏳ Planned |
+| #   | Iteration                                                                  | Status     |
+| --- | -------------------------------------------------------------------------- | ---------- |
+| 8   | Dashboard management (data, generators, apps, profiles, mappings, history) | ✅ Done    |
+| 10  | Auth + backend-backed data + Stripe billing (with extension)               | 🚧 Partial |
+
+> **Built against the live backend** (`/api/v1`, Vite proxy → `localhost:4010`),
+> not a local mock — the product owner chose live wiring. Done: magic-link auth
+> (`SignIn` + `AuthVerify`, token store, router guard, queued 401-refresh in
+> `@quikfill/api-client`), brand design tokens ported to `packages/config/theme.css`,
+> shadcn-vue UI kit expanded, and backend-backed CRUD for **Home, Data
+> (types+records), Generators, Apps, Form Profiles + `/form-profiles/:id` mapping
+> review, Fill History**. Deferred to a follow-up: **Subscription** (no billing
+> endpoints exist yet) and **Settings** screens, plus the `SyncAdapter` and Stripe.
 
 ## Stack & conventions
 

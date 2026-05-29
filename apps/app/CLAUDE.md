@@ -41,6 +41,18 @@ pnpm --filter @quikfill/app build   # build runs vue-tsc typecheck first
 
 ## Current state
 
-Iteration 8 (dashboard management) is **planned**; today `src/` is an auth/layout
-shell (`SignIn`, `Dashboard`, `NotFound` placeholders). Magic-link auth + backend
-data + Stripe billing land in Iteration 10. See the plan's status table.
+Iteration 8 is **done**, built against the **live backend** (`/api/v1`, Vite proxy
+→ `localhost:4010`; dev server pinned to `:5173` for the magic-link `devLink` +
+CORS). Implemented:
+
+- **Auth:** magic-link (`SignIn` → `AuthVerify`), `stores/auth.ts`, token module
+  (`lib/auth-tokens.ts`), router guard, and the `@quikfill/api-client` singleton
+  (`lib/api.ts`) with a queued 401-refresh.
+- **Views:** `Home`, `Data` (entity types + records), `Generators`, `Apps`,
+  `FormProfiles` + `FormProfileDetail` (mapping review), `FillHistory`.
+- **Stores:** one Pinia setup store per resource; **forms** via
+  `useFormValidation(schema)` with Zod schemas in `src/schemas/forms.ts`;
+  `useApiError()` + `useTheme()` composables; UI from `@quikfill/ui` (shadcn-vue).
+
+Deferred to a follow-up: **Subscription** (no billing endpoints exist yet) and
+**Settings** screens, plus the `SyncAdapter` and Stripe (Iteration 10).
