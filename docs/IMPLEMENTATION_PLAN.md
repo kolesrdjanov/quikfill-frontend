@@ -32,8 +32,8 @@ repo's iterations 4–6.
 | --- | ----------------------------------- | --------------- | ---------- |
 | 1   | Monorepo Foundation                 | all             | ✅ Done    |
 | 2   | Shared Schemas (`packages/schemas`) | all             | ✅ Done    |
-| 3   | Scanner Prototype                   | extension       | ⏳ Next    |
-| 4   | Fill Plan Preview                   | extension       | ⏳ Planned |
+| 3   | Scanner Prototype                   | extension       | ✅ Done    |
+| 4   | Fill Plan Preview                   | extension       | ⏳ Next    |
 | 5   | Fill Execution + Undo               | extension       | ⏳ Planned |
 | 6   | Local Form Profiles                 | extension       | ⏳ Planned |
 | 7   | Gemini Assistance                   | extension       | ⏳ Planned |

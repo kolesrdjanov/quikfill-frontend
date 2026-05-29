@@ -16,8 +16,8 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 
 | #   | Iteration                                                  | Status     |
 | --- | ---------------------------------------------------------- | ---------- |
-| 3   | Scanner prototype (scan + inspect detected fields)         | ⏳ Planned |
-| 4   | Fill plan preview (generators + heuristics + preview UI)   | ⏳ Planned |
+| 3   | Scanner prototype (scan + inspect detected fields)         | ✅ Done    |
+| 4   | Fill plan preview (generators + heuristics + preview UI)   | ⏳ Next    |
 | 5   | Fill execution + undo (native fill, verify, undo, results) | ⏳ Planned |
 | 6   | Local form profiles (save/match/reuse mappings)            | ⏳ Planned |
 | 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ⏳ Planned |

@@ -1,5 +1,12 @@
-/**
- * Placeholder export for Iteration 1. DOM-aware scanning lands in Iteration 3.
- * DOM is allowed here; Chrome and Vue are not.
- */
-export const FORM_SCANNER_PACKAGE = '@quikfill/form-scanner' as const
+export { scanForms } from './scan'
+export { fingerprint, structureHash, type FingerprintInput } from './fingerprint'
+export { fnv1aHex } from './hash'
+export {
+  isFormControl,
+  getInputType,
+  getCurrentValue,
+  getLabelText,
+  getSelectorCandidates,
+  isVisible,
+  type FormControl,
+} from './extract'
