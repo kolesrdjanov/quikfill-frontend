@@ -80,6 +80,8 @@ export const COMPANY_SUFFIXES = ['Labs', 'Systems', 'Group', 'Works', 'Industrie
 
 export const EMAIL_DOMAINS = ['example.com', 'example.org', 'mail.example.com']
 
+export const URL_TLDS = ['com', 'io', 'co', 'net', 'org']
+
 export const LOREM_WORDS = [
   'lorem',
   'ipsum',

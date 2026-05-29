@@ -20,6 +20,7 @@ const KIND_BY_SEMANTIC: Record<string, { kind: GeneratorKind; options?: Record<s
     'person.lastName': { kind: 'person', options: { part: 'last' } },
     'person.fullName': { kind: 'person', options: { part: 'full' } },
     company: { kind: 'company' },
+    url: { kind: 'url' },
     'address.line1': { kind: 'address', options: { part: 'line1' } },
     'address.city': { kind: 'address', options: { part: 'city' } },
     'address.state': { kind: 'address', options: { part: 'state' } },

@@ -8,6 +8,7 @@ export const generatorKindSchema = z.enum([
   'phone',
   'address',
   'company',
+  'url',
   'unit',
   'number',
   'date',

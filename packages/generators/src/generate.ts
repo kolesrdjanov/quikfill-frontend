@@ -10,6 +10,7 @@ import {
   STATES,
   STREET_NAMES,
   STREET_SUFFIXES,
+  URL_TLDS,
 } from './data'
 import { createRng, type Rng } from './rng'
 
@@ -84,6 +85,14 @@ const GENERATORS: Record<GeneratorKind, (rng: Rng, o: Options, ctx: GenerateCont
   },
   company(rng) {
     return `${rng.pick(COMPANY_PREFIXES)} ${rng.pick(COMPANY_SUFFIXES)}`
+  },
+  url(rng, o) {
+    const slug = `${rng.pick(COMPANY_PREFIXES)}${rng.pick(COMPANY_SUFFIXES)}`.toLowerCase()
+    const tld = str(o, 'tld') ?? rng.pick(URL_TLDS)
+    // `subdomain` defaults to "www"; pass '' to omit it.
+    const sub = o.subdomain === undefined ? 'www' : str(o, 'subdomain')
+    const prefix = sub ? `${sub}.` : ''
+    return `https://${prefix}${slug}.${tld}`
   },
   unit(rng, o) {
     return `${str(o, 'prefix') ?? 'Apt'} ${rng.int(1, 999)}`

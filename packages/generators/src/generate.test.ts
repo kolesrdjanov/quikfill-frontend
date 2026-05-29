@@ -58,6 +58,18 @@ describe('catalog kinds', () => {
     expect(runGenerator(rule('currency'), { seed: 'a' })).toMatch(/^\$\d+\.\d{2}$/)
   })
 
+  it('url is an https website address', () => {
+    expect(runGenerator(rule('url'), { seed: 'a' })).toMatch(
+      /^https:\/\/www\.[a-z]+\.(com|io|co|net|org)$/,
+    )
+  })
+
+  it('url honors a custom tld and an omitted subdomain', () => {
+    expect(runGenerator(rule('url', { tld: 'dev', subdomain: '' }), { seed: 'a' })).toMatch(
+      /^https:\/\/[a-z]+\.dev$/,
+    )
+  })
+
   it('selectOption only ever returns one of the field options', () => {
     const opts = ['admin', 'editor', 'viewer']
     for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {

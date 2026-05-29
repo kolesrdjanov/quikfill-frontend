@@ -30,6 +30,15 @@ describe('suggestionToProposal', () => {
     expect(proposal.fillStrategy).toBe('nativeInput')
   })
 
+  it('maps a website/URL suggestion to the url generator (not a dead aiGenerated source)', () => {
+    const proposal = suggestionToProposal(
+      suggestion({ fieldId: 'a', semanticType: 'url', confidence: 0.9 }),
+      field({ id: 'a' }),
+    )
+    expect(proposal.fillSource).toEqual({ sourceType: 'generatorRule', ruleKey: 'url' })
+    expect(proposal.generatorRule?.kind).toBe('url')
+  })
+
   it('falls back to an advisory aiGenerated source when no generator maps', () => {
     const proposal = suggestionToProposal(
       suggestion({ fieldId: 'a', semanticType: 'unknown' }),
