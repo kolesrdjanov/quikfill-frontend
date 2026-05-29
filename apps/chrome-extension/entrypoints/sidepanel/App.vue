@@ -288,10 +288,12 @@ const fieldContext = computed(() => {
           :excluded="s.excluded.value.has(item.detectedFieldId)"
           :hide-values="s.hideValues.value"
           :suggestion="s.aiSuggestions.value.get(item.detectedFieldId)"
+          :ai-status="s.aiFieldStatus.value.get(item.detectedFieldId)"
           @toggle="s.toggle(item.detectedFieldId)"
           @cycle="s.cycleSource(item.detectedFieldId)"
           @accept="s.acceptSuggestion(item.detectedFieldId)"
           @reject="s.rejectSuggestion(item.detectedFieldId)"
+          @retry="s.classifyField(item.detectedFieldId)"
         />
 
         <LimitationsDisclosure :limitations="s.limitations.value" />

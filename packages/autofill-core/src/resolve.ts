@@ -50,7 +50,7 @@ export function resolveFillSource(source: FillSource, ctx: ResolveContext = {}):
       return needsInput(`Needs input: ${source.promptLabel}`)
 
     case 'aiGenerated':
-      return needsInput('AI suggestion not generated yet (Iteration 7).')
+      return needsInput("AI couldn't determine a value for this field.")
 
     case 'composed': {
       const parts = source.parts.map((p) => resolveFillSource(p, ctx))

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ShieldAlert, TriangleAlert } from 'lucide-vue-next'
+import { Loader2, RotateCw, ShieldAlert, TriangleAlert } from 'lucide-vue-next'
 import { Badge, Checkbox } from '@quikfill/ui'
 import type { AiSuggestion, FillPlanItem } from '@quikfill/schemas'
+import type { AiFieldStatus } from '../../lib/useFillSession'
 import { SOURCE_META, mask } from '../../lib/display-maps'
 import ConfidenceMeter from './ConfidenceMeter.vue'
 import SourcePill from './SourcePill.vue'
@@ -13,8 +14,9 @@ const props = defineProps<{
   excluded?: boolean
   hideValues?: boolean
   suggestion?: AiSuggestion
+  aiStatus?: AiFieldStatus
 }>()
-defineEmits<{ toggle: []; cycle: []; accept: []; reject: [] }>()
+defineEmits<{ toggle: []; cycle: []; accept: []; reject: []; retry: [] }>()
 
 const meta = computed(() => SOURCE_META[props.item.fillSource.sourceType])
 const proposed = computed(() => mask(props.item.proposedValue, !!props.hideValues) || '—')
@@ -46,19 +48,38 @@ const proposed = computed(() => mask(props.item.proposedValue, !!props.hideValue
       <ConfidenceMeter :confidence="item.confidence" />
     </div>
 
-    <div v-if="item.warnings.length" class="mt-1.5 flex flex-wrap gap-1.5">
-      <Badge v-for="(w, i) in item.warnings" :key="i" variant="gray">
-        <TriangleAlert />
-        {{ w }}
-      </Badge>
-    </div>
+    <!-- On-demand single-field AI status takes over the warning area while it resolves. -->
     <p
-      v-if="item.requiresConfirmation && !excluded"
-      class="text-warning mt-1.5 flex items-center gap-1.5 text-[12px] font-medium"
+      v-if="aiStatus === 'loading'"
+      class="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-[12px] font-medium"
     >
-      <ShieldAlert class="size-3.5" />
-      Needs your confirmation before submit
+      <Loader2 class="size-3.5 animate-spin" />
+      Asking AI…
     </p>
+    <button
+      v-else-if="aiStatus === 'unavailable'"
+      type="button"
+      class="text-warning hover:text-warning/80 mt-1.5 flex items-center gap-1.5 text-[12px] font-medium"
+      @click="$emit('retry')"
+    >
+      <RotateCw class="size-3.5" />
+      AI unavailable — click to retry
+    </button>
+    <template v-else>
+      <div v-if="item.warnings.length" class="mt-1.5 flex flex-wrap gap-1.5">
+        <Badge v-for="(w, i) in item.warnings" :key="i" variant="gray">
+          <TriangleAlert />
+          {{ w }}
+        </Badge>
+      </div>
+      <p
+        v-if="item.requiresConfirmation && !excluded"
+        class="text-warning mt-1.5 flex items-center gap-1.5 text-[12px] font-medium"
+      >
+        <ShieldAlert class="size-3.5" />
+        Needs your confirmation before submit
+      </p>
+    </template>
 
     <AiSuggestionInset
       v-if="suggestion"

@@ -39,6 +39,8 @@ import { SOURCE_CYCLE } from './display-maps'
 
 export type SessionPhase = 'prescan' | 'scanning' | 'detected' | 'preview' | 'filling' | 'results'
 type AiState = 'idle' | 'loading' | 'ready' | 'unavailable'
+/** Status of an on-demand, single-field AI classification triggered from the source pill. */
+export type AiFieldStatus = 'loading' | 'unavailable'
 
 /**
  * The side-panel fill session: scan → match → classify → (AI) → preview → fill →
@@ -83,6 +85,8 @@ export function useFillSession() {
   const aiState = ref<AiState>('idle')
   const aiSuggestions = ref<Map<string, AiSuggestion>>(new Map())
   const aiProposals = ref<Map<string, SuggestionProposal>>(new Map())
+  // Per-field status while a single field is being classified via the source pill.
+  const aiFieldStatus = ref<Map<string, AiFieldStatus>>(new Map())
 
   const hideValues = ref(false)
 
@@ -148,6 +152,15 @@ export function useFillSession() {
     aiState.value = 'idle'
     aiSuggestions.value = new Map()
     aiProposals.value = new Map()
+    aiFieldStatus.value = new Map()
+  }
+
+  /** Set or clear a single field's on-demand AI status (immutable map swap for reactivity). */
+  function setAiFieldStatus(fieldId: string, status: AiFieldStatus | null) {
+    const next = new Map(aiFieldStatus.value)
+    if (status) next.set(fieldId, status)
+    else next.delete(fieldId)
+    aiFieldStatus.value = next
   }
 
   async function initSite() {
@@ -235,6 +248,23 @@ export function useFillSession() {
     await scan()
   }
 
+  /** Resolve a single accepted AI proposal into a concrete plan item (value via its generator). */
+  function buildItemFromProposal(field: DetectedField, proposal: SuggestionProposal): FillPlanItem {
+    const rules = proposal.generatorRule ? { [proposal.semanticType]: proposal.generatorRule } : {}
+    const [rebuilt] = buildFillPlan(
+      [
+        {
+          field,
+          fillSource: proposal.fillSource,
+          fillStrategy: proposal.fillStrategy,
+          confidence: proposal.confidence,
+        },
+      ],
+      { seed: seed.value, locale: locale.value, rules },
+    ).items
+    return rebuilt
+  }
+
   /** Override matched plan items with any accepted AI proposals (review-first). */
   function applyAiOverrides(items: FillPlanItem[]): FillPlanItem[] {
     if (!aiProposals.value.size) return items
@@ -243,21 +273,7 @@ export function useFillSession() {
       const proposal = aiProposals.value.get(item.detectedFieldId)
       const field = byId.get(item.detectedFieldId)
       if (!proposal || !field) return item
-      const rules = proposal.generatorRule
-        ? { [proposal.semanticType]: proposal.generatorRule }
-        : {}
-      const [rebuilt] = buildFillPlan(
-        [
-          {
-            field,
-            fillSource: proposal.fillSource,
-            fillStrategy: proposal.fillStrategy,
-            confidence: proposal.confidence,
-          },
-        ],
-        { seed: seed.value, locale: locale.value, rules },
-      ).items
-      return rebuilt
+      return buildItemFromProposal(field, proposal)
     })
   }
 
@@ -335,7 +351,12 @@ export function useFillSession() {
     const idx = planItems.value.findIndex((i) => i.detectedFieldId === fieldId)
     const field = fields.value.find((f) => f.id === fieldId)
     if (idx < 0 || !field) return
-    const current = planItems.value[idx].fillSource.sourceType
+    // A field carrying an AI proposal resolves to its generator (badge reads
+    // "Generator"), but for cycling purposes it sits at the 'aiGenerated' stop —
+    // otherwise the cycle would bounce between AI and generator forever.
+    const current = aiProposals.value.has(fieldId)
+      ? 'aiGenerated'
+      : planItems.value[idx].fillSource.sourceType
     const pos = SOURCE_CYCLE.indexOf(current)
     const next = SOURCE_CYCLE[(pos + 1) % SOURCE_CYCLE.length]
     const { source, rules, confidence } = buildSourceOfType(field, next)
@@ -352,6 +373,42 @@ export function useFillSession() {
     }
     const nextItems = planItems.value.slice()
     nextItems[idx] = rebuilt
+    planItems.value = nextItems
+    // Landing on AI kicks off an on-demand classification for just this field.
+    if (next === 'aiGenerated') void classifyField(fieldId)
+    else setAiFieldStatus(fieldId, null)
+  }
+
+  /**
+   * Classify a single field on demand (the per-field "AI" source). Reuses the
+   * privacy-safe classify flow: redacted summary → background → /ai/classify-fields.
+   * A mapped suggestion resolves to a generator-backed value; anything else leaves
+   * the field on its AI placeholder with an honest warning.
+   */
+  async function classifyField(fieldId: string) {
+    const field = fields.value.find((f) => f.id === fieldId)
+    if (!field) return
+    setAiFieldStatus(fieldId, 'loading')
+    const response = await requestAiClassify(buildFieldSummaries([field]))
+    // The field may have been re-cycled away from AI while the request was in flight.
+    if (aiFieldStatus.value.get(fieldId) !== 'loading') return
+    const suggestion = response.ok
+      ? response.suggestions.find((s) => s.fieldId === fieldId)
+      : undefined
+    if (!suggestion) {
+      setAiFieldStatus(fieldId, 'unavailable')
+      return
+    }
+    const proposal = suggestionToProposal(suggestion, field)
+    const proposals = new Map(aiProposals.value)
+    proposals.set(fieldId, proposal)
+    aiProposals.value = proposals
+    setAiFieldStatus(fieldId, null)
+    if (!planItems.value) return
+    const idx = planItems.value.findIndex((i) => i.detectedFieldId === fieldId)
+    if (idx < 0) return
+    const nextItems = planItems.value.slice()
+    nextItems[idx] = buildItemFromProposal(field, proposal)
     planItems.value = nextItems
   }
 
@@ -556,6 +613,7 @@ export function useFillSession() {
     aiState,
     aiSuggestions,
     aiProposals,
+    aiFieldStatus,
     hideValues,
     // derived
     phase,
@@ -573,6 +631,7 @@ export function useFillSession() {
     preview,
     regenerate,
     cycleSource,
+    classifyField,
     askAi,
     acceptSuggestion,
     rejectSuggestion,
