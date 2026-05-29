@@ -1,8 +1,10 @@
 /* Quikfill shared Tailwind v4 theme tokens. Import after `@import 'tailwindcss'`.
    Brand palette ported from the design system (design/theme.css), mapped onto the
-   shadcn-vue semantic token names so every surface inherits the QuikFill look. */
+   shadcn-vue semantic token names so every surface inherits the QuikFill look.
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap');
+   The Plus Jakarta Sans / JetBrains Mono webfonts are loaded via a <link> in each
+   surface's HTML (a CSS @import here would be hoisted after Tailwind's rules and
+   dropped by the bundler). */
 
 @theme {
   --font-family-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
