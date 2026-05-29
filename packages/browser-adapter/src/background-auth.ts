@@ -36,6 +36,19 @@ function statusOf(error: unknown): number | undefined {
 }
 
 /**
+ * Classify a failure from the *public* auth endpoints (`/auth/magic-link`,
+ * `/auth/verify`). These have no session, so a 401 (the backend's uniform
+ * `INVALID_TOKEN` for wrong/expired/unknown codes) means "bad code", not a dead
+ * session — surface it as `invalid-code`. A genuine `unauthorized` only comes
+ * from authenticated requests / a failed refresh (see {@link createBackgroundAuth}'s
+ * `onAuthError`). Quota / payment / unavailable / network pass through unchanged.
+ */
+function endpointErrorKind(error: unknown) {
+  const kind = authErrorKind(statusOf(error))
+  return kind === 'unauthorized' ? 'invalid-code' : kind
+}
+
+/**
  * The single owner of the extension session. Lives in the background worker:
  * performs auth via the injected api client, persists tokens + a token-free
  * state snapshot through {@link AuthStore}, and exposes the `refreshAuth` /
@@ -86,7 +99,7 @@ export function createBackgroundAuth({
       await setState({ status: 'code-sent', pendingEmail: email })
       return { ok: true, devCode }
     } catch (error) {
-      const kind = authErrorKind(statusOf(error))
+      const kind = endpointErrorKind(error)
       await setState({ status: 'error', error: kind })
       return { ok: false, error: kind }
     }
@@ -100,7 +113,7 @@ export function createBackgroundAuth({
       const next = await setState({ status: 'signed-in', user: tokens.user })
       return { ok: true, state: next }
     } catch (error) {
-      const kind = authErrorKind(statusOf(error))
+      const kind = endpointErrorKind(error)
       await setState({ status: 'error', error: kind })
       return { ok: false, error: kind }
     }

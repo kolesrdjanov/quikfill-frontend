@@ -104,6 +104,12 @@ describe('requestCode', () => {
       error: 'quota-exceeded',
     })
   })
+
+  it('treats a 401 on the public endpoint as invalid-code, not session-expired', async () => {
+    const api = makeApi({ requestMagicLink: vi.fn().mockRejectedValue(httpError(401)) })
+    const { auth } = setup(api)
+    expect(await auth.handlers.requestCode('a@b.com')).toEqual({ ok: false, error: 'invalid-code' })
+  })
 })
 
 describe('verify', () => {
@@ -123,6 +129,26 @@ describe('verify', () => {
       error: 'invalid-code',
     })
     expect(await store.hasSession()).toBe(false)
+  })
+
+  it('maps the backend INVALID_TOKEN (401) on verify to invalid-code, not unauthorized', async () => {
+    // The backend returns the same INVALID_TOKEN (401) for wrong/expired/unknown
+    // — on the public verify endpoint that means "bad code", never a dead session.
+    const api = makeApi({ verify: vi.fn().mockRejectedValue(httpError(401)) })
+    const { auth } = setup(api)
+    expect(await auth.handlers.verify('a@b.com', '000000')).toEqual({
+      ok: false,
+      error: 'invalid-code',
+    })
+  })
+
+  it('still surfaces a 429 on verify as quota-exceeded (rate limit / too many attempts)', async () => {
+    const api = makeApi({ verify: vi.fn().mockRejectedValue(httpError(429)) })
+    const { auth } = setup(api)
+    expect(await auth.handlers.verify('a@b.com', '000000')).toEqual({
+      ok: false,
+      error: 'quota-exceeded',
+    })
   })
 })
 

@@ -49,6 +49,8 @@ export interface AuthState {
 
 `authErrorKind(status?: number): AuthErrorKind` — pure status→kind mapping (no `status` ⇒ `network`). Lives here (no chrome dependency) so background, messaging, and tests share one source of truth. Exported from the schemas index.
 
+**Context note (401):** the backend returns a uniform `INVALID_TOKEN` (HTTP 401) for every `/auth/verify` failure (wrong / expired / unknown — deliberate, to prevent account enumeration). On the _public_ auth endpoints (`magic-link`, `verify`) a 401 therefore means "bad code", so the background manager remaps it to `invalid-code` (`endpointErrorKind`). A genuine `unauthorized` only arises from an authenticated request / a failed token refresh, which `onAuthError` surfaces as the "session expired" state.
+
 ### B. Messaging protocol — `@quikfill/browser-adapter` (`auth-messaging.ts`)
 
 Surface → background request/response, modeled on `ai-messaging.ts` (never throws; missing receiver resolves to a typed failure). Message kinds:
