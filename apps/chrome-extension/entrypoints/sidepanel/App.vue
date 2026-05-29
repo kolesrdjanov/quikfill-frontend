@@ -416,7 +416,11 @@ const fieldContext = computed(() => {
           <CheckCheck class="size-4" />
           {{ s.filling.value ? 'Filling…' : `Fill ${s.includedCount.value} fields` }}
         </Button>
-        <div class="flex gap-2">
+        <!-- Grid (not flex): Button's base `shrink-0` stops two `w-full` flex
+             items from shrinking, so a flex row overflows to ~200% width and
+             pushes "Ask AI" off-screen. Grid tracks size independently of
+             flex-shrink; cols collapse to 1 when Ask AI is hidden. -->
+        <div class="grid gap-2" :class="canAskAi ? 'grid-cols-2' : 'grid-cols-1'">
           <Button variant="outline" size="sm" class="w-full" @click="s.saveProfile()">
             <Bookmark class="size-4" />
             {{ s.matchedProfileId.value ? 'Update profile' : 'Save profile' }}
