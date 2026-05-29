@@ -46,6 +46,24 @@ local form profiles, and Gemini assistance (privacy-aware AI — redacted
 summaries, schema-validated suggestions, review/accept/reject; the background
 worker owns the api-client call, fails gracefully when the backend is offline).
 
+**Scanner & filler robustness** (lives in `@quikfill/form-scanner` /
+`@quikfill/autofill-core`, not here):
+
+- Scans **exclude non-fillable fields** (`disabled`/`readonly`) by default — so
+  site-computed inputs don't show as noise. `ScanOptions.includeNonFillable`
+  opts back in.
+- **Label resolution** falls back to the nearest single-control container
+  `<label>`, so "cousin layout" fields with no `name`/`id` still get a real label
+  instead of `qf-N`.
+- Fills are **mask-aware**: the proposed value is coerced to a `data-maska`
+  pattern (e.g. a phone country code is dropped, not shifted into the area code),
+  then verified ignoring formatting — a reformatted value is a success, not a
+  false "failed".
+- Autocomplete-driven inputs (Google Places, flagged via
+  `DetectedField.autocompleteHint`) use the **`assistedAutocomplete`** strategy:
+  type the value to surface the suggestion dropdown for the user to pick, never
+  auto-completing them. Reported with the `assisted` fill-result status.
+
 The **UI design-system pass** is also done: popup, side panel, and options are
 rebuilt against the shared tokens + `@quikfill/ui` to match the dashboard. The
 side panel runs on a `useFillSession` composable (`lib/useFillSession.ts`) that
