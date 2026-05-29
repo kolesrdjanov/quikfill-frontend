@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QuikFill — Chrome Extension</title>
+  <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="components.css" />
+  <style>
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    header.site { position: sticky; top: 0; z-index: 40; background: color-mix(in srgb, var(--background) 86%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    .site-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -0.02em; color: var(--foreground); text-decoration: none; }
+    .brand img { width: 30px; height: 30px; }
+    .brand .fill { color: var(--qf-primary); }
+    .crumb { color: var(--muted-foreground); font-weight: 500; font-size: 14px; }
+    .crumb b { color: var(--foreground); font-weight: 700; }
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .backlink { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted-foreground); text-decoration: none; }
+    .backlink:hover { color: var(--qf-primary); }
+    .backlink i { width: 15px; height: 15px; }
+    .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground); cursor: pointer; transition: all .18s ease; }
+    .theme-toggle:hover { color: var(--qf-primary); border-color: var(--qf-primary); }
+    .theme-toggle i { width: 17px; height: 17px; }
+    .theme-toggle .moon { display: none; }
+    .dark .theme-toggle .sun { display: none; }
+    .dark .theme-toggle .moon { display: inline-flex; }
+
+    .pagehead { padding: 40px 0 6px; }
+    .pagehead h1 { font-size: 32px; }
+    .pagehead p { margin: 8px 0 0; color: var(--muted-foreground); font-size: 16px; max-width: 660px; }
+
+    .block { padding: 34px 0; }
+    .blocktitle { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-foreground); margin: 0 0 18px; display:flex; align-items:center; gap:10px; }
+    .blocktitle .ln { flex:1; height:1px; background: var(--border); }
+
+    /* ---- Browser window (hero) ---- */
+    .bwin { border-radius: 14px; border: 1px solid var(--border); background: var(--card); box-shadow: var(--shadow-3); overflow: hidden; }
+    .bwin-bar { display: flex; align-items: center; gap: 14px; padding: 0 16px; height: 48px; background: var(--qf-gray-1); border-bottom: 1px solid var(--border); }
+    .dark .bwin-bar { background: var(--qf-gray-2); }
+    .dots { display: flex; gap: 7px; }
+    .dots span { width: 12px; height: 12px; border-radius: 50%; }
+    .urlbar { flex: 1; display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 12px; background: var(--card); border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--muted-foreground); }
+    .urlbar i { width: 14px; height: 14px; color: var(--qf-success); }
+    .bwin-body { display: flex; min-height: 560px; }
+    .page { flex: 1; padding: 34px 38px; background: var(--background); overflow: hidden; }
+    .page h2 { font-size: 22px; }
+    .page .sublabel { color: var(--muted-foreground); font-size: 14px; margin: 4px 0 26px; }
+    .pageform { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 20px; max-width: 520px; }
+    .pageform .full { grid-column: 1 / -1; }
+    .pageform label { font-size: 12.5px; font-weight: 600; color: var(--foreground); display:block; margin-bottom: 6px; }
+    .pageform .fld { height: 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); display:flex; align-items:center; padding: 0 12px; font-size: 13px; color: var(--qf-body-2); }
+    .pageform .fld.tall { height: 70px; align-items: flex-start; padding-top: 10px; }
+    .pageform .fld.lit { border-color: var(--qf-primary); box-shadow: 0 0 0 3px var(--qf-primary-soft); color: var(--foreground); font-family: var(--font-mono); }
+
+    /* ---- Side panel ---- */
+    .ext-panel { width: 376px; flex-shrink: 0; background: var(--background); display: flex; flex-direction: column; }
+    .ext-panel--card { border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-3); overflow: hidden; height: 620px; }
+    .ext-panel--docked { border-left: 1px solid var(--border); }
+    .panel-head { padding: 13px 16px; border-bottom: 1px solid var(--border); background: var(--card); }
+    .panel-top { display: flex; align-items: center; justify-content: space-between; }
+    .panel-brand { display:flex; align-items:center; gap: 8px; font-weight: 800; font-size: 15px; letter-spacing:-0.02em; }
+    .panel-brand img { width: 24px; height: 24px; }
+    .panel-brand .fill { color: var(--qf-primary); }
+    .panel-icons { display:flex; gap: 4px; }
+    .panel-iconbtn { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; color: var(--muted-foreground); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+    .panel-iconbtn:hover { background: var(--muted); color: var(--foreground); }
+    .panel-iconbtn i { width: 16px; height: 16px; }
+    .site-chip { display:flex; align-items:center; gap: 8px; margin-top: 11px; font-size: 12.5px; color: var(--muted-foreground); }
+    .site-chip .fav { width: 16px; height: 16px; border-radius: 5px; background: var(--qf-primary-soft); color: var(--qf-primary); display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; }
+    .site-chip .host { font-family: var(--font-mono); color: var(--foreground); }
+    .panel-body { flex: 1; padding: 14px; overflow-y: auto; display:flex; flex-direction: column; gap: 12px; }
+    .panel-foot { padding: 12px 14px; border-top: 1px solid var(--border); background: var(--card); display:flex; flex-direction: column; gap: 8px; }
+    .panel-foot .frow { display:flex; gap: 8px; }
+
+    .panel-meta { display:flex; align-items:center; justify-content: space-between; }
+    .panel-meta .cnt { font-size: 12px; color: var(--muted-foreground); }
+
+    /* field / plan rows */
+    .frow-card { border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; background: var(--card); }
+    .frow-card.muted { opacity: .55; }
+    .frow-top { display:flex; align-items:center; justify-content: space-between; gap: 8px; }
+    .frow-label { display:flex; align-items:center; gap: 9px; font-size: 13.5px; font-weight: 600; min-width:0; flex: 1 1 auto; }
+    .frow-label .nm { white-space: nowrap; }
+    .frow-type { font-size: 11px; color: var(--qf-body-2); font-family: var(--font-mono); flex-shrink: 0; }
+    .frow-vals { margin-top: 8px; font-size: 12px; display:flex; align-items:center; gap: 7px; flex-wrap: wrap; }
+    .frow-vals .cur { color: var(--qf-body-2); }
+    .frow-vals .arr { color: var(--qf-body-2); }
+    .frow-vals .prop { font-family: var(--font-mono); color: var(--foreground); font-weight: 600; background: var(--qf-primary-soft); padding: 2px 7px; border-radius: 6px; }
+    .frow-foot { margin-top: 9px; display:flex; align-items:center; gap: 8px; }
+    .frow-foot .qf-meter { flex: 1; }
+    .frow-foot .pct { font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+    .frow-chips { display:flex; gap:6px; margin-top: 7px; flex-wrap: wrap; }
+
+    /* empty state */
+    .empty { flex:1; display:flex; flex-direction: column; align-items:center; justify-content:center; text-align:center; gap: 8px; padding: 30px 24px; }
+    .empty .orb { width: 76px; height: 76px; border-radius: 22px; background: var(--qf-primary-soft); color: var(--qf-primary); display:flex; align-items:center; justify-content:center; margin-bottom: 6px; }
+    .empty .orb i { width: 34px; height: 34px; }
+    .empty h3 { font-size: 17px; }
+    .empty p { margin: 0; font-size: 13px; color: var(--muted-foreground); max-width: 250px; }
+    .empty .tip { margin-top: 12px; }
+
+    .panel-grid { display: flex; flex-wrap: wrap; gap: 26px; }
+    .panel-wrap { display:flex; flex-direction: column; gap: 10px; }
+    .panel-cap { font-size: 12.5px; font-weight: 700; color: var(--foreground); display:flex; align-items:center; gap: 8px; }
+    .panel-cap .qf-badge { font-weight: 600; }
+    .panel-sub { font-size: 12px; color: var(--muted-foreground); max-width: 376px; margin-top:-4px; }
+
+    /* popup */
+    .popup { width: 300px; border:1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-3); background: var(--card); overflow:hidden; }
+    .popup-body { padding: 16px; display:flex; flex-direction: column; gap: 12px; }
+    .popup-row { display:flex; align-items:center; gap: 10px; padding: 9px 10px; border-radius: 9px; }
+    .popup-row:hover { background: var(--muted); }
+    .popup-row i { width: 17px; height: 17px; color: var(--muted-foreground); }
+    .popup-row .t { font-size: 13px; font-weight: 600; }
+    .popup-row .s { font-size: 11px; color: var(--muted-foreground); }
+
+    /* options */
+    .options { max-width: 720px; border:1px solid var(--border); border-radius: 16px; background: var(--card); box-shadow: var(--shadow-2); overflow:hidden; }
+    .opt-row { display:flex; align-items:center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .opt-row:last-child { border-bottom: none; }
+    .opt-row .t { font-size: 14px; font-weight: 600; }
+    .opt-row .s { font-size: 12.5px; color: var(--muted-foreground); margin-top: 2px; max-width: 420px; }
+
+    footer.site { border-top: 1px solid var(--border); padding: 26px 0; margin-top: 10px; }
+    footer.site .wrap { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    footer.site p { margin: 0; font-size: 13px; color: var(--muted-foreground); }
+    .pagernav { display:flex; gap: 10px; }
+    @media (max-width: 700px) { .bwin-body { flex-direction: column; } .ext-panel { width: 100%; } .ext-panel--docked { border-left:none; border-top: 1px solid var(--border);} .page { display:none; } }
+  </style>
+</head>
+<body>
+  <header class="site">
+    <div class="wrap site-inner">
+      <a class="brand" href="index.html"><img src="assets/logo-icon.svg" alt="" /><span>Quik<span class="fill">Fill</span></span></a>
+      <span class="crumb">Chrome Extension / <b>Side panel, popup, options</b></span>
+      <div class="nav-actions">
+        <a class="backlink" href="index.html"><i data-lucide="arrow-left"></i> Overview</a>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode"><i data-lucide="sun" class="sun"></i><i data-lucide="moon" class="moon"></i></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="pagehead">
+      <span class="qf-eyebrow">Primary surface</span>
+      <h1>Chrome Extension</h1>
+      <p>The side panel runs the whole flow — scan, match, preview, fill, verify, undo. Docked at 376px, it stays readable while the page stays visible.</p>
+    </div>
+
+    <!-- HERO: docked panel -->
+    <section class="block">
+      <div class="blocktitle">Docked side panel · fill preview <span class="ln"></span></div>
+      <div class="bwin">
+        <div class="bwin-bar">
+          <div class="dots"><span style="background:#FF5F57"></span><span style="background:#FEBC2E"></span><span style="background:#28C840"></span></div>
+          <div class="urlbar"><i data-lucide="lock"></i> careers.globex.io/apply</div>
+          <div class="panel-icons"><span class="panel-iconbtn"><i data-lucide="star"></i></span></div>
+        </div>
+        <div class="bwin-body">
+          <div class="page">
+            <h2>Apply — Senior Product Designer</h2>
+            <p class="sublabel">Globex Corporation · Remote</p>
+            <div class="pageform">
+              <div><label>First name</label><div class="fld">&nbsp;</div></div>
+              <div><label>Last name</label><div class="fld">&nbsp;</div></div>
+              <div class="full"><label>Email address</label><div class="fld">&nbsp;</div></div>
+              <div><label>Phone</label><div class="fld">&nbsp;</div></div>
+              <div><label>Location</label><div class="fld">&nbsp;</div></div>
+              <div class="full"><label>LinkedIn / portfolio</label><div class="fld">&nbsp;</div></div>
+              <div class="full"><label>Why do you want to work here?</label><div class="fld tall">&nbsp;</div></div>
+            </div>
+          </div>
+
+          <!-- panel: preview -->
+          <div class="ext-panel ext-panel--docked">
+            <div class="panel-head">
+              <div class="panel-top">
+                <div class="panel-brand"><img src="assets/logo-icon.svg" alt="" /><span>Quik<span class="fill">Fill</span></span></div>
+                <div class="panel-icons">
+                  <button class="panel-iconbtn" aria-label="Settings"><i data-lucide="settings"></i></button>
+                  <button class="panel-iconbtn" aria-label="Close"><i data-lucide="x"></i></button>
+                </div>
+              </div>
+              <div class="site-chip"><span class="fav">G</span> <span class="host">careers.globex.io</span> · 12 fields</div>
+            </div>
+            <div class="panel-body qf-scroll">
+              <div class="qf-alert qf-alert--info" style="padding:11px 13px;font-size:12.5px"><i data-lucide="shield-check"></i><div><strong>Matched “Job application”.</strong> 8 saved mappings applied.</div></div>
+              <div class="panel-meta">
+                <span class="cnt">11 of 12 included</span>
+                <button class="qf-btn qf-btn--ghost qf-btn--sm"><i data-lucide="refresh-cw"></i> Regenerate</button>
+              </div>
+
+              <div class="frow-card">
+                <div class="frow-top"><label class="frow-label"><input type="checkbox" class="qf-check" checked /><span class="nm">First name</span></label><span class="frow-type">text</span></div>
+                <div class="frow-vals"><span class="cur">empty</span><span class="arr">→</span><span class="prop">Jane</span></div>
+                <div class="frow-foot"><span class="qf-badge qf-badge--primary">Saved record</span><div class="qf-meter qf-meter--success"><span style="width:97%"></span></div><span class="pct">97%</span></div>
+              </div>
+
+              <div class="frow-card">
+                <div class="frow-top"><label class="frow-label"><input type="checkbox" class="qf-check" checked /><span class="nm">Email address</span></label><span class="frow-type">email</span></div>
+                <div class="frow-vals"><span class="cur">empty</span><span class="arr">→</span><span class="prop">jane.cooper@mail.com</span></div>
+                <div class="frow-foot"><span class="qf-badge qf-badge--primary">Saved record</span><div class="qf-meter qf-meter--success"><span style="width:99%"></span></div><span class="pct">99%</span></div>
+              </div>
+
+              <div class="frow-card">
+                <div class="frow-top"><label class="frow-label"><input type="checkbox" class="qf-check" checked /><span class="nm">Phone</span></label><span class="frow-type">tel</span></div>
+                <div class="frow-vals"><span class="cur">empty</span><span class="arr">→</span><span class="prop">+1 415 555 0132</span></div>
+                <div class="frow-foot"><span class="qf-badge qf-badge--info"><i data-lucide="dices"></i> Generator</span><div class="qf-meter"><span style="width:64%"></span></div><span class="pct">64%</span></div>
+              </div>
+
+              <div class="frow-card">
+                <div class="frow-top"><label class="frow-label"><input type="checkbox" class="qf-check" checked /><span class="nm">Why work here?</span></label><span class="frow-type">textarea</span></div>
+                <div class="frow-vals"><span class="cur">empty</span><span class="arr">→</span><span class="prop">I'm drawn to Globex's…</span></div>
+                <div class="frow-foot"><span class="qf-badge qf-badge--warning"><i data-lucide="wand-sparkles"></i> AI draft</span><div class="qf-meter qf-meter--warning"><span style="width:42%"></span></div><span class="pct">42%</span></div>
+                <div class="frow-chips"><span class="qf-badge qf-badge--gray"><i data-lucide="triangle-alert"></i> Review before submit</span></div>
+              </div>
+            </div>
+            <div class="panel-foot">
+              <div class="frow"><button class="qf-btn qf-btn--primary qf-btn--block"><i data-lucide="check-check"></i> Fill 11 fields</button></div>
+              <div class="frow"><button class="qf-btn qf-btn--outline qf-btn--block qf-btn--sm"><i data-lucide="bookmark"></i> Update profile</button><button class="qf-btn qf-btn--ghost qf-btn--block qf-btn--sm"><i data-lucide="eye"></i> Hide values</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATES GRID -->
+    <section class="block">
+      <div class="blocktitle">Side panel states <span class="ln"></span></div>
+      <div class="panel-grid">
+
+        <!-- Empty / pre-scan -->
+        <div class="panel-wrap">
+          <div class="panel-cap"><span class="qf-badge qf-badge--gray">1</span> Pre-scan</div>
+          <div class="ext-panel ext-panel--card">
+            <div class="panel-head">
+              <div class="panel-top">
+                <div class="panel-brand"><img src="assets/logo-icon.svg" alt="" /><span>Quik<span class="fill">Fill</span></span></div>
+                <div class="panel-icons"><button class="panel-iconbtn" aria-label="Settings"><i data-lucide="settings"></i></button></div>
+              </div>
+              <div class="site-chip"><span class="fav">G</span> <span class="host">careers.globex.io</span></div>
+            </div>
+            <div class="empty">
+              <div class="orb"><i data-lucide="scan-line"></i></div>
+              <h3>Scan this page</h3>
+              <p>Detect every field, then preview a fill plan before anything is written.</p>
+              <div class="qf-alert qf-alert--info tip" style="padding:10px 12px;font-size:12px;text-align:left"><i data-lucide="shield-check"></i><div>You have <strong>2 saved profiles</strong> for this domain.</div></div>
+            </div>
+            <div class="panel-foot"><button class="qf-btn qf-btn--primary qf-btn--block"><i data-lucide="scan-line"></i> Scan page</button></div>
+          </div>
+        </div>
+
+        <!-- Detected fields -->
+        <div class="panel-wrap">
+          <div class="panel-cap"><span class="qf-badge qf-badge--gray">2</span> Detected fields</div>
+          <div class="ext-panel ext-panel--card">
+            <div class="panel-head">
+              <div class="panel-top">
+                <div class="panel-brand"><img src="assets/logo-icon.svg" alt="" /><span>Quik<span class="fill">Fill</span></span></div>
+                <div class="panel-icons"><button class="panel-iconbtn" aria-label="Settings"><i data-lucide="settings"></i></button></div>
+              </div>
+              <div class="site-chip"><span class="fav">G</span> <span class="host">careers.globex.io</span> · 12 fields</div>
+            </div>
+            <div class="panel-body qf-scroll">
+              <div class="frow-card"><div class="frow-top"><span class="frow-label"><span class="nm">First name</span></span><span class="frow-type">text</span></div><div class="frow-chips"><span class="qf-badge qf-badge--gray">empty</span><span class="qf-badge qf-badge--danger">required</span></div></div>
+              <div class="frow-card"><div class="frow-top"><span class="frow-label"><span class="nm">Email address</span></span><span class="frow-type">email</span></div><div class="frow-chips"><span class="qf-badge qf-badge--gray">empty</span><span class="qf-badge qf-badge--danger">required</span></div></div>
+              <div class="frow-card"><div class="frow-top"><span class="frow-label"><span class="nm">Phone</span></span><span class="frow-type">tel</span></div><div class="frow-chips"><span class="qf-badge qf-badge--gray">empty</span></div></div>
+              <div class="frow-card"><div class="frow-top"><span class="frow-label"><span class="nm">Location</span></span><span class="frow-type">select</span></div><div class="frow-chips"><span class="qf-badge qf-badge--gray">empty</span><span class="qf-badge qf-badge--info">38 options</span></div></div>
+              <div class="frow-card muted"><div class="frow-top"><span class="frow-label"><span class="nm">utm_source</span></span><span class="frow-type">hidden</span></div><div class="frow-chips"><span class="qf-badge qf-badge--gray">skipped</span></div></div>
+            </div>
+            <div class="panel-foot"><button class="qf-btn qf-btn--primary qf-btn--block"><i data-lucide="list-checks"></i> Preview fill</button></div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="panel-wrap">
+          <div class="panel-cap"><span class="qf-badge qf-badge--gray">3</span> Fill results</div>
+          <div class="ext-panel ext-panel--card">
+            <div class="panel-head">
+              <div class="panel-top">
+                <div class="panel-brand"><img src="assets/logo-icon.svg" alt="" /><span>Quik<span class="fill">Fill</span></span></div>
+                <div class="panel-icons"><button class="panel-iconbtn" aria-label="Settings"><i data-lucide="settings"></i></button></div>
+              </div>
+              <div class="site-chip"><span class="fav">G</span> <span class="host">careers.globex.io</span></div>
+            </div>
+            <div class="panel-body qf-scroll">
+              <div class="qf-alert qf-alert--success" style="padding:11px 13px;font-size:12.5px"><i data-lucide="check-check"></i><div><strong>10 filled · 1 skipped.</strong> Verified on the page.</div></div>
+              <div class="frow-card"><div class="frow-top"><span class="frow-label"><i data-lucide="check" style="width:15px;height:15px;color:var(--qf-success)"></i><span class="nm">First name</span></span><span class="qf-badge qf-badge--success">filled</span></div><div class="frow-vals"><span class="prop">Jane</span></div></div>
+              <div class="frow-card"><div class="frow-top"><span class="frow-label"><i data-lucide="check" style="width:15px;height:15px;color:var(--qf-success)"></i><span class="nm">Email</span></span><span class="qf-badge qf-badge--success">filled</span></div><div class="frow-vals"><span class="prop">jane.cooper@mail.com</span></div></div>
+              <div class="frow-card"><div class="frow-top"><span class="frow-label"><i data-lucide="minus" style="width:15px;height:15px;color:var(--qf-body-2)"></i><span class="nm">Location</span></span><span class="qf-badge qf-badge--gray">skipped</span></div><div class="frow-vals"><span class="cur">No confident option match</span></div></div>
+            </div>
+            <div class="panel-foot">
+              <div class="frow"><button class="qf-btn qf-btn--outline qf-btn--block"><i data-lucide="undo-2"></i> Undo last fill</button></div>
+              <div class="frow"><button class="qf-btn qf-btn--soft qf-btn--block qf-btn--sm"><i data-lucide="bookmark-check"></i> Save profile</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI review -->
+        <div class="panel-wrap">
+          <div class="panel-cap"><span class="qf-badge qf-badge--info"><i data-lucide="wand-sparkles"></i> AI</span> Suggestion review</div>
+          <div class="ext-panel ext-panel--card">
+            <div class="panel-head">
+              <div class="panel-top">
+                <div class="panel-brand"><img src="assets/logo-icon.svg" alt="" /><span>Quik<span class="fill">Fill</span></span></div>
+                <div class="panel-icons"><button class="panel-iconbtn" aria-label="Settings"><i data-lucide="settings"></i></button></div>
+              </div>
+              <div class="site-chip"><span class="fav">G</span> <span class="host">careers.globex.io</span> · 2 ambiguous</div>
+            </div>
+            <div class="panel-body qf-scroll">
+              <div class="qf-alert qf-alert--warning" style="padding:11px 13px;font-size:12.5px"><i data-lucide="wand-sparkles"></i><div><strong>AI classified 2 fields.</strong> Review before they're added.</div></div>
+              <div class="frow-card">
+                <div class="frow-top"><span class="frow-label"><span class="nm">“Years exp.”</span></span><span class="qf-badge qf-badge--info">suggested</span></div>
+                <div class="frow-vals"><span class="cur">→ map to</span><span class="prop">Number · 1–40</span></div>
+                <div class="frow-foot" style="gap:6px"><button class="qf-btn qf-btn--primary qf-btn--sm" style="flex:1"><i data-lucide="check"></i> Accept</button><button class="qf-btn qf-btn--ghost qf-btn--sm" style="flex:1">Reject</button></div>
+              </div>
+              <div class="frow-card">
+                <div class="frow-top"><span class="frow-label"><span class="nm">“Notice period”</span></span><span class="qf-badge qf-badge--info">suggested</span></div>
+                <div class="frow-vals"><span class="cur">→ map to</span><span class="prop">Select · “2 weeks”</span></div>
+                <div class="frow-foot" style="gap:6px"><button class="qf-btn qf-btn--primary qf-btn--sm" style="flex:1"><i data-lucide="check"></i> Accept</button><button class="qf-btn qf-btn--ghost qf-btn--sm" style="flex:1">Reject</button></div>
+              </div>
+              <p class="qf-hint" style="text-align:center"><i data-lucide="lock" style="width:11px;height:11px;display:inline;vertical-align:-1px"></i> Only redacted field summaries were sent.</p>
+            </div>
+            <div class="panel-foot"><button class="qf-btn qf-btn--primary qf-btn--block"><i data-lucide="check-check"></i> Accept all &amp; continue</button></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- POPUP + OPTIONS -->
+    <section class="block">
+      <div class="blocktitle">Popup &amp; options <span class="ln"></span></div>
+      <div style="display:flex; gap: 36px; flex-wrap: wrap; align-items: flex-start;">
+        <div class="panel-wrap">
+          <div class="panel-cap"><span class="qf-badge qf-badge--gray">Toolbar</span> Popup — lightweight launcher</div>
+          <div class="popup">
+            <div class="panel-head" style="border-radius:0">
+              <div class="panel-top"><div class="panel-brand"><img src="assets/logo-icon.svg" alt="" /><span>Quik<span class="fill">Fill</span></span></div><span class="qf-badge qf-badge--success">Ready</span></div>
+            </div>
+            <div class="popup-body">
+              <button class="qf-btn qf-btn--primary qf-btn--block"><i data-lucide="panel-right-open"></i> Open side panel</button>
+              <hr class="qf-divider" />
+              <a class="popup-row" href="#"><i data-lucide="scan-line"></i><div><div class="t">Quick scan</div><div class="s">Detect fields on this page</div></div></a>
+              <a class="popup-row" href="#"><i data-lucide="database"></i><div><div class="t">My data</div><div class="s">2 records · 3 generators</div></div></a>
+              <a class="popup-row" href="#"><i data-lucide="settings"></i><div><div class="t">Settings</div><div class="s">Open options page</div></div></a>
+            </div>
+          </div>
+          <p class="panel-sub">300px wide. Stays minimal — the real work happens in the side panel.</p>
+        </div>
+
+        <div class="panel-wrap" style="flex:1; min-width: 340px;">
+          <div class="panel-cap"><span class="qf-badge qf-badge--gray">Options</span> Extension preferences</div>
+          <div class="options">
+            <div class="opt-row">
+              <div><div class="t">Default fill source</div><div class="s">What QuikFill proposes when no mapping exists.</div></div>
+              <select class="qf-select" style="width:190px"><option>Generator preset</option><option>Saved record</option><option>Ask AI</option></select>
+            </div>
+            <div class="opt-row">
+              <div><div class="t">AI assistance</div><div class="s">Send redacted field summaries to classify ambiguous fields.</div></div>
+              <input type="checkbox" class="qf-switch" checked />
+            </div>
+            <div class="opt-row">
+              <div><div class="t">Auto-match saved profiles</div><div class="s">Apply mappings on scan by fingerprint, never URL alone.</div></div>
+              <input type="checkbox" class="qf-switch" checked />
+            </div>
+            <div class="opt-row">
+              <div><div class="t">Hide values by default</div><div class="s">Mask proposed values until you reveal them.</div></div>
+              <input type="checkbox" class="qf-switch" />
+            </div>
+            <div class="opt-row">
+              <div><div class="t">Appearance</div><div class="s">Match the system or pick a theme.</div></div>
+              <div class="qf-tabs"><button class="qf-tab">Light</button><button class="qf-tab" aria-selected="true">Auto</button><button class="qf-tab">Dark</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="site">
+    <div class="wrap">
+      <p>Chrome Extension · side panel is the hero, popup stays light</p>
+      <div class="pagernav">
+        <a class="qf-btn qf-btn--outline qf-btn--sm" href="design-system.html"><i data-lucide="swatch-book"></i> Design System</a>
+        <a class="qf-btn qf-btn--primary qf-btn--sm" href="dashboard.html">Dashboard <i data-lucide="arrow-right"></i></a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    (function () {
+      if (localStorage.getItem('qf-theme') === 'dark') document.documentElement.classList.add('dark');
+      if (window.lucide) lucide.createIcons();
+      document.getElementById('themeToggle').addEventListener('click', function () {
+        document.documentElement.classList.toggle('dark');
+        localStorage.setItem('qf-theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+      });
+    })();
+  </script>
+</body>
+</html>

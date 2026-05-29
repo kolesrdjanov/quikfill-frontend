@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QuikFill — Design System</title>
+  <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="components.css" />
+  <style>
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+    header.site {
+      position: sticky; top: 0; z-index: 30;
+      background: color-mix(in srgb, var(--background) 86%, transparent);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .site-inner { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; color: var(--foreground); }
+    .brand img { width: 34px; height: 34px; }
+    .brand .fill { color: var(--qf-primary); }
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .theme-toggle {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 40px; height: 40px; border-radius: var(--radius-lg);
+      border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground);
+      cursor: pointer; transition: all .18s ease;
+    }
+    .theme-toggle:hover { color: var(--qf-primary); border-color: var(--qf-primary); }
+    .theme-toggle i { width: 18px; height: 18px; }
+    .theme-toggle .moon { display: none; }
+    .dark .theme-toggle .sun { display: none; }
+    .dark .theme-toggle .moon { display: inline-flex; }
+
+    /* hero */
+    .hero { position: relative; overflow: hidden; padding: 76px 0 60px; }
+    .hero-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+    .hero-bg::before, .hero-bg::after {
+      content: ''; position: absolute; border-radius: 50%; filter: blur(70px); opacity: .5;
+    }
+    .hero-bg::before { width: 460px; height: 460px; background: var(--qf-primary-soft-2); top: -160px; left: -90px; }
+    .hero-bg::after { width: 380px; height: 380px; background: var(--qf-secondary-soft); top: -120px; right: -80px; opacity: .55; }
+    .hero-inner { position: relative; z-index: 1; max-width: 720px; }
+    .hero h1 { font-size: 50px; line-height: 1.05; font-weight: 800; margin: 18px 0 0; }
+    .hero h1 em { font-style: normal; color: var(--qf-primary); }
+    .hero p.lead { font-size: 18px; color: var(--muted-foreground); margin: 20px 0 0; max-width: 620px; }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+
+    .section { padding: 14px 0 52px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .deliverable {
+      display: flex; flex-direction: column; gap: 14px; padding: 26px; text-decoration: none;
+      color: var(--foreground);
+    }
+    .deliverable .ico {
+      width: 50px; height: 50px; border-radius: var(--radius-xl);
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--qf-primary-soft); color: var(--qf-primary);
+    }
+    .deliverable .ico i { width: 24px; height: 24px; }
+    .deliverable h3 { font-size: 18px; }
+    .deliverable p { margin: 0; font-size: 14px; color: var(--muted-foreground); line-height: 1.55; }
+    .deliverable .go { margin-top: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--qf-primary); }
+    .deliverable .go i { width: 15px; height: 15px; transition: transform .18s ease; }
+    .deliverable:hover .go i { transform: translateX(3px); }
+
+    .rationale { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .rationale .qf-card { padding: 24px; }
+    .rationale h4 { font-size: 15px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+    .rationale h4 i { width: 17px; height: 17px; color: var(--qf-primary); }
+    .rationale p { margin: 0; font-size: 13.5px; color: var(--muted-foreground); line-height: 1.6; }
+    .rationale ul { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; color: var(--muted-foreground); line-height: 1.7; }
+    .rationale ul b { color: var(--foreground); font-weight: 600; }
+
+    .sectionhead { margin-bottom: 22px; }
+    .sectionhead h2 { font-size: 26px; }
+    .sectionhead p { margin: 6px 0 0; color: var(--muted-foreground); font-size: 15px; }
+
+    footer.site { border-top: 1px solid var(--border); padding: 28px 0; margin-top: 20px; }
+    footer.site .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    footer.site p { margin: 0; font-size: 13px; color: var(--muted-foreground); }
+
+    @media (max-width: 880px) {
+      .grid-3 { grid-template-columns: 1fr; }
+      .rationale { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 38px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site">
+    <div class="wrap site-inner">
+      <div class="brand">
+        <img src="assets/logo-icon.svg" alt="" />
+        <span>Quik<span class="fill">Fill</span></span>
+      </div>
+      <div class="nav-actions">
+        <span class="qf-badge qf-badge--gray">v1.0 · TailGrids-based</span>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+          <i data-lucide="sun" class="sun"></i>
+          <i data-lucide="moon" class="moon"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="wrap hero-inner">
+      <span class="qf-eyebrow">QuikFill Design System</span>
+      <h1>One visual language for the <em>extension</em> and the <em>dashboard</em>.</h1>
+      <p class="lead">
+        A TailGrids-flavoured system layered onto QuikFill's shadcn-vue + Tailwind v4 stack.
+        Clean indigo accents, soft cards, Plus Jakarta Sans — tuned for a productivity tool, not a marketing page.
+      </p>
+      <div class="hero-meta">
+        <span class="qf-badge qf-badge--primary"><span class="qf-dot" style="background:var(--qf-primary)"></span> #3056D3 primary</span>
+        <span class="qf-badge qf-badge--gray">Plus Jakarta Sans</span>
+        <span class="qf-badge qf-badge--gray">Light + Dark</span>
+        <span class="qf-badge qf-badge--success">Drop-in theme.css</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="grid-3">
+        <a class="qf-card qf-card--hover deliverable" href="design-system.html">
+          <span class="ico"><i data-lucide="swatch-book"></i></span>
+          <h3>Design System</h3>
+          <p>Tokens, color scales, type ramp, spacing, shadows, and the full component kit — buttons, inputs, badges, tables, alerts.</p>
+          <span class="go">Open styleguide <i data-lucide="arrow-right"></i></span>
+        </a>
+        <a class="qf-card qf-card--hover deliverable" href="chrome-extension.html">
+          <span class="ico"><i data-lucide="puzzle"></i></span>
+          <h3>Chrome Extension</h3>
+          <p>The hero surface. Side panel across scan → preview → fill → result, plus profile match, AI review, popup and options.</p>
+          <span class="go">Open extension mocks <i data-lucide="arrow-right"></i></span>
+        </a>
+        <a class="qf-card qf-card--hover deliverable" href="dashboard.html">
+          <span class="ico"><i data-lucide="layout-dashboard"></i></span>
+          <h3>Web App Dashboard</h3>
+          <p>Sidebar shell with Home, Data, Generators, Apps, Form Profiles, Fill History, Subscription and Settings screens.</p>
+          <span class="go">Open dashboard mocks <i data-lucide="arrow-right"></i></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="sectionhead">
+        <h2>Design rationale</h2>
+        <p>How I translated TailGrids onto QuikFill — and the rules that keep the two surfaces consistent.</p>
+      </div>
+      <div class="rationale">
+        <div class="qf-card">
+          <h4><i data-lucide="palette"></i> Why this looks like TailGrids</h4>
+          <p>TailGrids' signature is a confident indigo on calm neutrals, generous whitespace, soft multi-layer shadows and gently rounded cards. I kept the shadcn token <em>names</em> the repo already uses, but re-pointed their values:</p>
+          <ul>
+            <li><b>Primary</b> — #3056D3, used for actions, links, focus and active nav. Never as a giant background fill.</li>
+            <li><b>Neutrals</b> — TailGrids' #637381 body on #DFE4EA strokes; #1C274C ink for headings.</li>
+            <li><b>Shadows</b> — soft, low-opacity card shadows carry elevation instead of heavy borders.</li>
+          </ul>
+        </div>
+        <div class="qf-card">
+          <h4><i data-lucide="git-fork"></i> Two surfaces, one kit</h4>
+          <p>The extension and dashboard share the exact same tokens and component classes, so a button or badge looks identical in both.</p>
+          <ul>
+            <li><b>Density: balanced</b> — comfortable in the dashboard, compact enough for a 360px side panel.</li>
+            <li><b>Plus Jakarta Sans</b> across both; <b>JetBrains Mono</b> only for field values, selectors and seeds.</li>
+            <li><b>Lucide icons</b>, outline, 1.5px — matching the repo's shadcn-vue (new-york) setup.</li>
+            <li><b>Light + dark</b> from one class on <code class="qf-mono">&lt;html&gt;</code>; toggle it top-right.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site">
+    <div class="wrap">
+      <div class="brand" style="font-size:16px">
+        <img src="assets/logo-icon.svg" alt="" style="width:26px;height:26px" />
+        <span>Quik<span class="fill">Fill</span></span>
+      </div>
+      <p>Placeholder mark &amp; system for review · Plug values into <span class="qf-mono">packages/config/theme.css</span></p>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    (function () {
+      var saved = localStorage.getItem('qf-theme');
+      if (saved === 'dark') document.documentElement.classList.add('dark');
+      function render() { if (window.lucide) lucide.createIcons(); }
+      render();
+      document.getElementById('themeToggle').addEventListener('click', function () {
+        document.documentElement.classList.toggle('dark');
+        localStorage.setItem('qf-theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+      });
+    })();
+  </script>
+</body>
+</html>

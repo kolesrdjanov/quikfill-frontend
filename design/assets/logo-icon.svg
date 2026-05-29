@@ -1,0 +1,11 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QuikFill">
+  <defs>
+    <linearGradient id="qfTile" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3F66E0"></stop>
+      <stop offset="1" stop-color="#2A4BC4"></stop>
+    </linearGradient>
+  </defs>
+  <rect width="40" height="40" rx="11" fill="url(#qfTile)"></rect>
+  <path d="M23.4 8.2 12.6 22.1c-.5.65-.04 1.6.78 1.6h5.04l-1.6 8.2c-.18.93 1.02 1.46 1.6.7l10.9-13.95c.5-.64.05-1.6-.77-1.6h-5.08l1.55-8.13c.18-.93-1.02-1.46-1.6-.72Z" fill="#fff"></path>
+  <circle cx="29.5" cy="11.2" r="2.3" fill="#13C296"></circle>
+</svg>
