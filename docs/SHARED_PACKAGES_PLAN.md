@@ -53,7 +53,7 @@ Appendix_ (`quikfill-services/docs/IMPLEMENTATION_PLAN.md`).
 | `FillRun`                           | user, domain, formProfile?, url, mode, planItems (redacted), results, failedFields, undoSnapshot?, timestamp                                                                                                                                                                                     |
 | `EntityType` / `EntityFieldDef`     | `EntityFieldDef`: `{ key, label, type, required, options? }`; type ∈ text\|number\|boolean\|date\|email\|phone\|enum\|address\|currency\|notes                                                                                                                                                   |
 | `EntityRecord`                      | entityTypeId, name, values keyed by field key                                                                                                                                                                                                                                                    |
-| `GeneratorPreset` / `GeneratorRule` | rule: `{ fieldKey, kind, options }`; kind ∈ person\|email\|phone\|address\|company\|unit\|number\|date\|currency\|boolean\|notes\|selectOption\|customEnum                                                                                                                                       |
+| `GeneratorPreset` / `GeneratorRule` | rule: `{ fieldKey, kind, options }`; kind ∈ person\|email\|phone\|address\|company\|url\|unit\|number\|date\|currency\|boolean\|notes\|selectOption\|customEnum                                                                                                                                  |
 | `FieldSummary`                      | AI input — minimized + redacted: fieldId, label, inputType, autocomplete, options[], nearbyText, sectionHeading. **No current value, no HTML.**                                                                                                                                                  |
 | `AiSuggestion`                      | AI output — untrusted: fieldId, semanticType, confidence (0–1), reasons[]                                                                                                                                                                                                                        |
 | `StorageAdapter` / `SyncAdapter`    | TS interfaces (below), co-located here                                                                                                                                                                                                                                                           |
@@ -184,8 +184,8 @@ mocked. Real messaging is covered by the extension E2E harness.
 
 Random + deterministic generation. Depends only on `schemas`.
 
-**Kinds:** person, email, phone, address, company, unit, number, date, currency,
-boolean, notes, selectOption, customEnum.
+**Kinds:** person, email, phone, address, company, url, unit, number, date,
+currency, boolean, notes, selectOption, customEnum.
 
 **Features:** locale, **seed** (seeded mode → reproducible), constraints, format
 options. `selectOption` picks from a field's detected options; `customEnum` from

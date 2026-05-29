@@ -244,6 +244,11 @@ the background worker owns the api-client call. The side panel surfaces "Ask
 Quikfill AI" on ambiguous fields with accept/reject and fails gracefully when
 the backend is unavailable. Unit tests cover redaction/leak-proofing, the
 response validator, the proposal mapping, the typed client, and the message.
+Also wired as a **per-field** source: cycling a field's source pill to AI runs
+an on-demand single-field classify and resolves it through the same proposal
+path (generator-backed value when the semantic type maps; honest "couldn't
+determine" copy otherwise) — see
+[`docs/superpowers/specs/2026-05-30-per-field-ai-source-design.md`](./superpowers/specs/2026-05-30-per-field-ai-source-design.md).
 
 ---
 
