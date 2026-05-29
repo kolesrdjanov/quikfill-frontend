@@ -19,5 +19,13 @@ export {
   type UndoRequestMessage,
   type FillResponse,
 } from './messaging'
+export {
+  AI_CLASSIFY,
+  isAiClassifyRequest,
+  requestAiClassify,
+  onAiClassifyRequest,
+  type AiClassifyMessage,
+  type AiClassifyResponse,
+} from './ai-messaging'
 export { createChromeStorageAdapter } from './storage'
 export { createProfileStore, type ProfileBundle, type ProfileStore } from './profile-store'

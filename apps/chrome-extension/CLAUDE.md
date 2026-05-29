@@ -41,6 +41,9 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
 
 ## Current state
 
-Iterations 3–6 (scan, fill-plan preview, fill execution + undo, local form
-profiles) are **done**. Next: Iteration 7 — Gemini assistance (privacy-aware AI,
-review/accept/reject). See the plan's status table.
+Iterations 3–7 are **done**: scan, fill-plan preview, fill execution + undo,
+local form profiles, and Gemini assistance (privacy-aware AI — redacted
+summaries, schema-validated suggestions, review/accept/reject; the background
+worker owns the api-client call, fails gracefully when the backend is offline).
+Next: Iteration 8 — dashboard management (`apps/app`). See the plan's status
+table.

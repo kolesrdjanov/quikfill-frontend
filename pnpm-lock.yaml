@@ -93,6 +93,12 @@ importers:
 
   apps/chrome-extension:
     dependencies:
+      '@quikfill/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@quikfill/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@quikfill/autofill-core':
         specifier: workspace:*
         version: link:../../packages/autofill-core
@@ -179,6 +185,9 @@ importers:
 
   packages/ai:
     dependencies:
+      '@quikfill/autofill-core':
+        specifier: workspace:*
+        version: link:../autofill-core
       '@quikfill/schemas':
         specifier: workspace:*
         version: link:../schemas
@@ -186,6 +195,9 @@ importers:
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)
 
   packages/api-client:
     dependencies:
@@ -196,6 +208,9 @@ importers:
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)
 
   packages/autofill-core:
     dependencies:

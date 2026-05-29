@@ -36,8 +36,8 @@ repo's iterations 4–6.
 | 4   | Fill Plan Preview                   | extension       | ✅ Done    |
 | 5   | Fill Execution + Undo               | extension       | ✅ Done    |
 | 6   | Local Form Profiles                 | extension       | ✅ Done    |
-| 7   | Gemini Assistance                   | extension       | ⏳ Next    |
-| 8   | Dashboard Management                | app             | ⏳ Planned |
+| 7   | Gemini Assistance                   | extension       | ✅ Done    |
+| 8   | Dashboard Management                | app             | ⏳ Next    |
 | 9   | Website                             | website         | ⏳ Planned |
 | 10  | Backend Sync + Billing              | extension + app | ⏳ Planned |
 

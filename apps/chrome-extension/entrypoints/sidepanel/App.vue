@@ -6,17 +6,23 @@ import {
   createProfileStore,
   getActiveTab,
   getActiveTabId,
+  requestAiClassify,
   requestFill,
   requestScan,
   requestUndo,
 } from '@quikfill/browser-adapter'
 import {
+  buildFillPlan,
   buildPreviewPlan,
+  classifyFields,
   matchMappings,
   matchProfiles,
+  type FieldClassification,
   type MatchableProfile,
 } from '@quikfill/autofill-core'
+import { buildFieldSummaries, suggestionToProposal, type SuggestionProposal } from '@quikfill/ai'
 import type {
+  AiSuggestion,
   DetectedField,
   FieldMapping,
   FillInstruction,
@@ -50,6 +56,24 @@ const savedMappings = ref<Map<string, FieldMapping>>(new Map())
 const mappingByFieldId = ref<Map<string, FieldMapping>>(new Map())
 const saveMessage = ref<string | null>(null)
 
+type AiState = 'idle' | 'loading' | 'ready' | 'unavailable'
+const aiState = ref<AiState>('idle')
+const aiSuggestions = ref<Map<string, AiSuggestion>>(new Map())
+const aiProposals = ref<Map<string, SuggestionProposal>>(new Map())
+
+const classificationById = computed(() => {
+  const map = new Map<string, FieldClassification>()
+  for (const c of classifyFields(fields.value)) map.set(c.fieldId, c)
+  return map
+})
+const ambiguousFields = computed(() =>
+  fields.value.filter((f) => {
+    const c = classificationById.value.get(f.id)
+    return !c || c.semanticType === 'unknown' || c.confidence < 0.6
+  }),
+)
+const hasAmbiguous = computed(() => ambiguousFields.value.length > 0)
+
 const includedCount = computed(
   () => planItems.value?.filter((i) => !excluded.value.has(i.detectedFieldId)).length ?? 0,
 )
@@ -70,6 +94,12 @@ function resetMatch() {
   matchedProfileName.value = null
   savedMappings.value = new Map()
   mappingByFieldId.value = new Map()
+}
+
+function resetAi() {
+  aiState.value = 'idle'
+  aiSuggestions.value = new Map()
+  aiProposals.value = new Map()
 }
 
 async function matchSavedProfile() {
@@ -117,6 +147,7 @@ async function scan() {
   results.value = null
   undoSnapshot.value = null
   saveMessage.value = null
+  resetAi()
   try {
     const result = await withActiveTab((tabId) => requestScan(tabId))
     fields.value = result.fields
@@ -135,25 +166,85 @@ async function scan() {
   }
 }
 
+/** Override matched plan items with any accepted AI proposals (review-first). */
+function applyAiOverrides(items: FillPlanItem[]): FillPlanItem[] {
+  if (!aiProposals.value.size) return items
+  const byId = new Map(fields.value.map((f) => [f.id, f]))
+  return items.map((item) => {
+    const proposal = aiProposals.value.get(item.detectedFieldId)
+    const field = byId.get(item.detectedFieldId)
+    if (!proposal || !field) return item
+    const rules = proposal.generatorRule ? { [proposal.semanticType]: proposal.generatorRule } : {}
+    const [rebuilt] = buildFillPlan(
+      [
+        {
+          field,
+          fillSource: proposal.fillSource,
+          fillStrategy: proposal.fillStrategy,
+          confidence: proposal.confidence,
+        },
+      ],
+      { seed: seed.value, rules },
+    ).items
+    return rebuilt
+  })
+}
+
+function rebuildPlan() {
+  planItems.value = applyAiOverrides(
+    buildPreviewPlan(fields.value, {
+      seed: seed.value,
+      savedMappings: savedMappings.value,
+    }).items,
+  )
+}
+
 function preview() {
   excluded.value = new Set()
   results.value = null
   undoSnapshot.value = null
   saveMessage.value = null
-  planItems.value = buildPreviewPlan(fields.value, {
-    seed: seed.value,
-    savedMappings: savedMappings.value,
-  }).items
+  rebuildPlan()
 }
 
 function regenerate() {
   seed.value = `seed-${Math.floor(Math.random() * 1e9)}`
   results.value = null
   undoSnapshot.value = null
-  planItems.value = buildPreviewPlan(fields.value, {
-    seed: seed.value,
-    savedMappings: savedMappings.value,
-  }).items
+  rebuildPlan()
+}
+
+async function askAi() {
+  if (!ambiguousFields.value.length) return
+  aiState.value = 'loading'
+  const response = await requestAiClassify(buildFieldSummaries(ambiguousFields.value))
+  if (!response.ok) {
+    aiState.value = 'unavailable'
+    return
+  }
+  const next = new Map(aiSuggestions.value)
+  for (const s of response.suggestions) next.set(s.fieldId, s)
+  aiSuggestions.value = next
+  aiState.value = 'ready'
+}
+
+function acceptSuggestion(fieldId: string) {
+  const suggestion = aiSuggestions.value.get(fieldId)
+  const field = fields.value.find((f) => f.id === fieldId)
+  if (!suggestion || !field) return
+  const proposals = new Map(aiProposals.value)
+  proposals.set(fieldId, suggestionToProposal(suggestion, field))
+  aiProposals.value = proposals
+  const suggestions = new Map(aiSuggestions.value)
+  suggestions.delete(fieldId)
+  aiSuggestions.value = suggestions
+  if (planItems.value) rebuildPlan()
+}
+
+function rejectSuggestion(fieldId: string) {
+  const suggestions = new Map(aiSuggestions.value)
+  suggestions.delete(fieldId)
+  aiSuggestions.value = suggestions
 }
 
 function toggle(id: string) {
@@ -329,6 +420,14 @@ function statusClass(status: FillResult['status']) {
       <Button v-if="scanned && !error && fields.length" variant="outline" @click="preview">
         Preview fill
       </Button>
+      <Button
+        v-if="scanned && !error && hasAmbiguous"
+        variant="outline"
+        :disabled="aiState === 'loading'"
+        @click="askAi"
+      >
+        {{ aiState === 'loading' ? 'Asking AI…' : 'Ask Quikfill AI' }}
+      </Button>
       <Button v-if="planItems && !results" :disabled="filling || !includedCount" @click="fill">
         {{ filling ? 'Filling…' : `Fill ${includedCount} field${includedCount === 1 ? '' : 's'}` }}
       </Button>
@@ -347,6 +446,9 @@ function statusClass(status: FillResult['status']) {
       mapping{{ savedMappings.size === 1 ? '' : 's' }} applied)
     </p>
     <p v-if="saveMessage" class="text-xs text-green-600">{{ saveMessage }}</p>
+    <p v-if="aiState === 'unavailable'" class="text-muted-foreground text-xs">
+      Quikfill AI is unavailable right now — it's optional, you can still preview and fill.
+    </p>
     <p v-if="error" class="text-destructive text-sm">{{ error }}</p>
 
     <!-- Detected fields (before preview) -->
@@ -372,6 +474,32 @@ function statusClass(status: FillResult['status']) {
             <span v-if="!field.visible"> · hidden</span>
             <span v-if="field.required"> · required</span>
           </div>
+
+          <div
+            v-if="aiSuggestions.get(field.id)"
+            class="bg-muted/50 mt-2 space-y-1 rounded-md p-2 text-xs"
+          >
+            <p>
+              AI suggests
+              <span class="font-medium">{{ aiSuggestions.get(field.id)!.semanticType }}</span>
+              ({{ pct(aiSuggestions.get(field.id)!.confidence) }})
+            </p>
+            <ul
+              v-if="aiSuggestions.get(field.id)!.reasons.length"
+              class="text-muted-foreground list-disc pl-4"
+            >
+              <li v-for="(reason, i) in aiSuggestions.get(field.id)!.reasons" :key="i">
+                {{ reason }}
+              </li>
+            </ul>
+            <div class="flex gap-2 pt-1">
+              <Button size="sm" @click="acceptSuggestion(field.id)">Accept</Button>
+              <Button size="sm" variant="ghost" @click="rejectSuggestion(field.id)">Reject</Button>
+            </div>
+          </div>
+          <p v-else-if="aiProposals.get(field.id)" class="mt-1 text-xs text-green-600">
+            AI mapping accepted: {{ aiProposals.get(field.id)!.semanticType }}
+          </p>
         </li>
       </ul>
     </section>
@@ -430,6 +558,39 @@ function statusClass(status: FillResult['status']) {
           <ul v-else-if="item.warnings.length" class="text-destructive mt-1 space-y-0.5 text-xs">
             <li v-for="(w, i) in item.warnings" :key="i">{{ w }}</li>
           </ul>
+
+          <div
+            v-if="!results && aiSuggestions.get(item.detectedFieldId)"
+            class="bg-muted/50 mt-2 space-y-1 rounded-md p-2 text-xs"
+          >
+            <p>
+              AI suggests
+              <span class="font-medium">{{
+                aiSuggestions.get(item.detectedFieldId)!.semanticType
+              }}</span>
+              ({{ pct(aiSuggestions.get(item.detectedFieldId)!.confidence) }})
+            </p>
+            <ul
+              v-if="aiSuggestions.get(item.detectedFieldId)!.reasons.length"
+              class="text-muted-foreground list-disc pl-4"
+            >
+              <li v-for="(reason, i) in aiSuggestions.get(item.detectedFieldId)!.reasons" :key="i">
+                {{ reason }}
+              </li>
+            </ul>
+            <div class="flex gap-2 pt-1">
+              <Button size="sm" @click="acceptSuggestion(item.detectedFieldId)">Accept</Button>
+              <Button size="sm" variant="ghost" @click="rejectSuggestion(item.detectedFieldId)">
+                Reject
+              </Button>
+            </div>
+          </div>
+          <p
+            v-else-if="!results && aiProposals.get(item.detectedFieldId)"
+            class="mt-1 text-xs text-green-600"
+          >
+            AI mapping accepted
+          </p>
         </li>
       </ul>
 

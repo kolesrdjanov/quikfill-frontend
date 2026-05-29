@@ -20,7 +20,7 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 | 4   | Fill plan preview (generators + heuristics + preview UI)   | ✅ Done |
 | 5   | Fill execution + undo (native fill, verify, undo, results) | ✅ Done |
 | 6   | Local form profiles (save/match/reuse mappings)            | ✅ Done |
-| 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ⏳ Next |
+| 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ✅ Done |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)
@@ -225,6 +225,16 @@ with reasons + confidence → accept (writes a mapping) or reject.
 **Tests:** summary redaction + size guard; response validator rejects malformed
 output; accepted suggestion produces a valid `FieldMapping`.
 **Exit:** user can use Gemini to classify ambiguous fields and improve mappings.
+✅ Met — `@quikfill/ai` builds redacted, HTML-stripped, size-capped field
+summaries (current values never leave the page), validates untrusted AI output,
+and turns an accepted suggestion into a reviewable proposal (reusing
+`generatorRuleForSemanticType`). `@quikfill/api-client` posts to
+`/ai/classify-fields` and `/ai/suggest-mappings` (transport-injectable, schema-
+validated). `browser-adapter` adds the `AI_CLASSIFY` panel→background message;
+the background worker owns the api-client call. The side panel surfaces "Ask
+Quikfill AI" on ambiguous fields with accept/reject and fails gracefully when
+the backend is unavailable. Unit tests cover redaction/leak-proofing, the
+response validator, the proposal mapping, the typed client, and the message.
 
 ---
 
