@@ -19,7 +19,7 @@ Do not build a throwaway demo.
 
 The first implementation can be thin and local-first, but it must use long-term concepts:
 
-- Workspace.
+- User account.
 - Domain/app.
 - Form profile.
 - Detected field.
@@ -96,7 +96,7 @@ Purpose:
 - Dashboard for authenticated users.
 - Account management.
 - Subscription and Stripe billing entry points.
-- Workspace settings.
+- Account settings.
 - Saved data and templates.
 - Generator presets.
 - Domains/apps.
@@ -151,7 +151,7 @@ Shared Zod schemas and inferred TypeScript types.
 
 Must define:
 
-- Workspace.
+- User account.
 - Domain/app.
 - Form profile.
 - Detected field.
@@ -382,7 +382,7 @@ Local data should live behind adapter interfaces so backend sync can replace or 
 
 Local storage may include:
 
-- Implicit local workspace.
+- Implicit local account/profile.
 - Saved domains.
 - Saved form profiles.
 - Saved mappings.
@@ -395,7 +395,7 @@ Avoid `chrome.storage.sync` for sensitive data.
 
 Backend sync should later support:
 
-- Workspaces.
+- User account.
 - Saved records.
 - Generator presets.
 - Domains.
