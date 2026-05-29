@@ -57,12 +57,12 @@ export function getLabelText(el: FormControl, root: Document | ShadowRoot): stri
   return undefined
 }
 
-export function getAriaLabel(el: FormControl): string | undefined {
+export function getAriaLabel(el: Element): string | undefined {
   return el.getAttribute('aria-label')?.trim() || undefined
 }
 
 export function getAriaLabelledByText(
-  el: FormControl,
+  el: Element,
   root: Document | ShadowRoot,
 ): string | undefined {
   const ids = el.getAttribute('aria-labelledby')?.trim()
@@ -127,7 +127,7 @@ export function getOptions(el: FormControl): FieldOption[] | undefined {
  * Visibility without relying on layout (jsdom-safe): hidden attr, type=hidden,
  * display:none, visibility:hidden, or zero-size when layout is available.
  */
-export function isVisible(el: FormControl): boolean {
+export function isVisible(el: Element): boolean {
   if (el.hasAttribute('hidden')) return false
   if (el.tagName.toLowerCase() === 'input' && (el as HTMLInputElement).type === 'hidden') {
     return false
@@ -154,7 +154,7 @@ function safeComputedStyle(el: Element): CSSStyleDeclaration | undefined {
  * Ranked selector candidates: id → name → stable attrs → structural path.
  * Never a single brittle selector — the matcher tries them in order.
  */
-export function getSelectorCandidates(el: FormControl): string[] {
+export function getSelectorCandidates(el: Element): string[] {
   const candidates: string[] = []
   const id = el.getAttribute('id')
   if (id) candidates.push(`#${cssEscape(id)}`)
@@ -196,6 +196,150 @@ function structuralPath(el: Element): string {
     depth++
   }
   return segments.join(' > ')
+}
+
+// --- Custom (non-native) select detection ---------------------------------
+
+/** Matches an option node inside a custom dropdown, once its list is present. */
+export const CUSTOM_OPTION_SELECTOR = '[role="option"], [role="button"][aria-label*="option" i]'
+
+/** Information needed to detect, classify, and later fill a custom select. */
+export interface CustomSelectInfo {
+  /** Stable field-level container (used for label, selectors, option scoping). */
+  widgetRoot: Element
+  /** Element to click to open the option list. */
+  trigger: Element
+  /** Node whose text reflects the current selection (for verification). */
+  valueDisplay: Element | null
+  /** Selector matching each option node, scoped to the widget root at fill time. */
+  optionItemSelector: string
+  /** Option labels in DOM order. */
+  optionLabels: string[]
+  /** Currently displayed selection text, if any. */
+  selectedLabel: string | null
+}
+
+/** Cheap pre-check: does this element look like a custom-select trigger? */
+export function isCustomSelectTrigger(el: Element): boolean {
+  const role = el.getAttribute('role')
+  if (role === 'combobox') return true
+  if (el.getAttribute('aria-haspopup') === 'listbox') return true
+  if (el.hasAttribute('data-trigger')) return el.getAttribute('data-trigger') === 'select'
+  if (role === 'button' && el.hasAttribute('aria-expanded')) return true
+  if (el.hasAttribute('aria-controls') && (role === 'button' || role === 'combobox')) return true
+  return false
+}
+
+/**
+ * Resolve a custom select from a candidate trigger. Returns null when no option
+ * list can be found (the guard that keeps plain buttons from being treated as
+ * dropdowns). Broad by design — covers ARIA comboboxes/listboxes plus common
+ * library markup (data-trigger="select", option-labeled buttons).
+ */
+export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
+  if (!isCustomSelectTrigger(trigger)) return null
+
+  // 1) Locate the option list. Prefer aria-controls, else the nearest ancestor
+  //    that contains option nodes.
+  const optionsScope = findOptionsScope(trigger)
+  if (!optionsScope) return null
+  const optionNodes = Array.from(optionsScope.querySelectorAll(CUSTOM_OPTION_SELECTOR))
+  // The trigger itself can match the option selector (role=button); exclude it.
+  const options = optionNodes.filter((o) => o !== trigger && !trigger.contains(o))
+  if (options.length === 0) return null
+
+  // 2) Pick a stable field-level root that wraps this one widget.
+  const widgetRoot = resolveWidgetRoot(trigger, optionsScope)
+
+  // 3) Current selection display: a value-ish child of the trigger, else trigger text.
+  const valueDisplay = trigger.querySelector('[class*="value" i], [class*="selected" i]') ?? trigger
+  const selectedLabel = normalizeWidgetText(valueDisplay) || null
+
+  return {
+    widgetRoot,
+    trigger,
+    valueDisplay: valueDisplay === trigger ? null : valueDisplay,
+    optionItemSelector: CUSTOM_OPTION_SELECTOR,
+    optionLabels: options.map((o) => normalizeWidgetText(o)).filter(Boolean),
+    selectedLabel,
+  }
+}
+
+function findOptionsScope(trigger: Element): Element | null {
+  const controls = trigger.getAttribute('aria-controls')
+  if (controls) {
+    const root = trigger.getRootNode() as Document | ShadowRoot
+    const el = root.querySelector?.(`#${cssEscape(controls)}`)
+    if (el && el.querySelector(CUSTOM_OPTION_SELECTOR)) return el
+  }
+  // Climb until an ancestor contains option nodes (siblings of the trigger).
+  let node: Element | null = trigger
+  for (let depth = 0; node && depth < 6; depth++) {
+    if (node.querySelector(CUSTOM_OPTION_SELECTOR)) return node
+    node = node.parentElement
+  }
+  return null
+}
+
+/**
+ * The lowest ancestor (from the options scope upward) that wraps this one widget
+ * and has a stable identity or its own label — a good field-level root. Stops at
+ * the first match so we never over-climb into a form/page wrapper.
+ */
+function resolveWidgetRoot(trigger: Element, optionsScope: Element): Element {
+  let node: Element | null = optionsScope
+  for (let i = 0; i < 4 && node; i++) {
+    const wrapsOneWidget = node.contains(trigger) && countTriggers(node) <= 1
+    const hasOwnIdentity = hasStableIdentity(node) || !!node.querySelector(':scope > label')
+    if (wrapsOneWidget && hasOwnIdentity) return node
+    node = node.parentElement
+  }
+  return optionsScope.contains(trigger) ? optionsScope : (trigger.parentElement ?? trigger)
+}
+
+function countTriggers(el: Element): number {
+  let n = 0
+  for (const cand of Array.from(el.querySelectorAll('*'))) {
+    if (isCustomSelectTrigger(cand)) n++
+  }
+  return n
+}
+
+function hasStableIdentity(el: Element): boolean {
+  return (
+    el.hasAttribute('id') ||
+    el.hasAttribute('name') ||
+    el.hasAttribute('data-test-id') ||
+    el.hasAttribute('data-testid')
+  )
+}
+
+/** Text of an element minus nested SVG/icon noise, whitespace-collapsed. */
+function normalizeWidgetText(el: Element): string {
+  const clone = el.cloneNode(true) as Element
+  for (const svg of Array.from(clone.querySelectorAll('svg'))) svg.remove()
+  return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
+}
+
+/** Selectors that locate a custom-select trigger again at fill time. */
+export function getTriggerSelectorCandidates(trigger: Element): string[] {
+  return getSelectorCandidates(trigger)
+}
+
+/** Resolve a label for a custom widget via its inner input's id or the widget root. */
+export function getWidgetLabel(
+  widgetRoot: Element,
+  root: Document | ShadowRoot,
+): string | undefined {
+  const inner = widgetRoot.querySelector('input[id], [id]')
+  const id = inner?.getAttribute('id')
+  if (id) {
+    const forLabel = root.querySelector(`label[for="${cssEscape(id)}"]`)
+    const text = forLabel?.textContent?.trim()
+    if (text) return text
+  }
+  const ownLabel = widgetRoot.querySelector('label')?.textContent?.trim()
+  return ownLabel || undefined
 }
 
 /** Minimal CSS.escape fallback for environments without it. */

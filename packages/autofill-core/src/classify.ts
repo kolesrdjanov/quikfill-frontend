@@ -103,7 +103,7 @@ function classification(
 export function classifyField(field: DetectedField): FieldClassification {
   const type = field.inputType.toLowerCase()
 
-  if (type === 'select' || (field.options?.length ?? 0) > 0) {
+  if (type === 'select' || type === 'customselect' || (field.options?.length ?? 0) > 0) {
     return classification(field.id, 'enum', 0.9)
   }
   if (type === 'checkbox' || type === 'radio') {

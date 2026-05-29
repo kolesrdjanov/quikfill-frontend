@@ -40,6 +40,17 @@ describe('classifyField', () => {
     expect(sel.semanticType).toBe('enum')
     expect(sel.suggestedKind).toBe('selectOption')
 
+    const custom = classifyField(
+      field({
+        id: 'cs',
+        inputType: 'customSelect',
+        tagName: 'div',
+        options: [{ value: 'Locker', label: 'Locker' }],
+      }),
+    )
+    expect(custom.semanticType).toBe('enum')
+    expect(custom.suggestedKind).toBe('selectOption')
+
     const cb = classifyField(field({ id: 'b', inputType: 'checkbox' }))
     expect(cb.suggestedKind).toBe('boolean')
   })

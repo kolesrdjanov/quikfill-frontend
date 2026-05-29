@@ -21,6 +21,7 @@ export interface PlanAssignment {
 /** Default DOM fill strategy for a field, inferred from its type. */
 export function defaultFillStrategy(field: DetectedField): FillStrategy {
   const type = field.inputType.toLowerCase()
+  if (type === 'customselect' || field.customWidget) return 'customSelect'
   if (type === 'select' || field.tagName === 'select') return 'select'
   if (type === 'checkbox' || type === 'radio') return 'clickToggle'
   return 'nativeInput'

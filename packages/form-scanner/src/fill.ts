@@ -1,4 +1,10 @@
-import type { FillInstruction, FillResult, UndoEntry, UndoSnapshot } from '@quikfill/schemas'
+import type {
+  CustomWidget,
+  FillInstruction,
+  FillResult,
+  UndoEntry,
+  UndoSnapshot,
+} from '@quikfill/schemas'
 
 export interface FillOutcome {
   results: FillResult[]
@@ -11,14 +17,26 @@ const TRUTHY = new Set(['true', 'on', 'yes', '1', 'checked'])
 
 /**
  * Apply a batch of fill instructions to the page. Captures an undo snapshot
- * first, writes via native setters + event dispatch, verifies each value, and
- * returns structured per-field results. Never throws on a single bad field.
+ * first, writes via native setters + event dispatch (or click-drives custom
+ * widgets), verifies each value, and returns structured per-field results.
+ * Async because custom widgets must wait a tick for the framework to re-render.
+ * Never throws on a single bad field.
  */
-export function applyFill(instructions: FillInstruction[], root: Document = document): FillOutcome {
+export async function applyFill(
+  instructions: FillInstruction[],
+  root: Document = document,
+): Promise<FillOutcome> {
   const results: FillResult[] = []
   const entries: UndoEntry[] = []
 
   for (const ins of instructions) {
+    if (ins.fillStrategy === 'customSelect' && ins.customWidget) {
+      const { result, entry } = await fillCustomSelect(ins, ins.customWidget, root)
+      results.push(result)
+      if (entry) entries.push(entry)
+      continue
+    }
+
     const el = findElement(root, ins.selectorCandidates)
     if (!el) {
       results.push(skip(ins.detectedFieldId, 'Element not found on the page.'))
@@ -36,8 +54,7 @@ export function applyFill(instructions: FillInstruction[], root: Document = docu
     entries.push(capture(ins, el))
 
     try {
-      const result = writeAndVerify(ins, el)
-      results.push(result)
+      results.push(writeAndVerify(ins, el))
     } catch (e) {
       results.push(fail(ins.detectedFieldId, e instanceof Error ? e.message : 'Fill failed.'))
     }
@@ -47,9 +64,16 @@ export function applyFill(instructions: FillInstruction[], root: Document = docu
 }
 
 /** Restore the values captured in a snapshot (undo the most recent fill). */
-export function applyUndo(snapshot: UndoSnapshot, root: Document = document): FillResult[] {
+export async function applyUndo(
+  snapshot: UndoSnapshot,
+  root: Document = document,
+): Promise<FillResult[]> {
   const results: FillResult[] = []
   for (const entry of snapshot.entries) {
+    if (entry.customWidget) {
+      results.push(await undoCustomSelect(entry, entry.customWidget, root))
+      continue
+    }
     const el = findElement(root, entry.selectorCandidates)
     if (!el) {
       results.push(skip(entry.detectedFieldId, 'Element not found on the page.'))
@@ -98,6 +122,158 @@ function capture(ins: FillInstruction, el: Fillable): UndoEntry {
     previousValue: readValue(el),
     previousChecked: isToggle(el) ? (el as HTMLInputElement).checked : undefined,
   }
+}
+
+// --- Custom (non-native) select -------------------------------------------
+
+/** Open the trigger, click the option whose text matches, verify the display. */
+async function fillCustomSelect(
+  ins: FillInstruction,
+  widget: CustomWidget,
+  root: Document,
+): Promise<{ result: FillResult; entry?: UndoEntry }> {
+  const widgetEl = findElement(root, ins.selectorCandidates)
+  if (!widgetEl) return { result: skip(ins.detectedFieldId, 'Element not found on the page.') }
+
+  const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
+  const previousDisplayText = readDisplay(widgetEl, widget, root)
+
+  clickElement(trigger)
+  await settle()
+
+  const option =
+    findOption(widgetEl, widget.optionItemSelector, ins.proposedValue) ??
+    findOption(root, widget.optionItemSelector, ins.proposedValue)
+  if (!option) {
+    return {
+      result: fail(
+        ins.detectedFieldId,
+        `No option matching "${ins.proposedValue}" in the dropdown.`,
+      ),
+    }
+  }
+
+  const entry: UndoEntry = {
+    detectedFieldId: ins.detectedFieldId,
+    selectorCandidates: ins.selectorCandidates,
+    frame: ins.frame,
+    shadow: ins.shadow,
+    previousValue: null,
+    previousDisplayText,
+    customWidget: widget,
+  }
+
+  clickElement(option)
+  await settle()
+
+  const got = readDisplay(widgetEl, widget, root)
+  if (norm(got) === norm(ins.proposedValue) || option.getAttribute('aria-selected') === 'true') {
+    return { result: success(ins.detectedFieldId, ins.proposedValue), entry }
+  }
+  return {
+    result: fail(
+      ins.detectedFieldId,
+      `Selected "${ins.proposedValue}" but the dropdown still shows "${got}".`,
+    ),
+    entry,
+  }
+}
+
+async function undoCustomSelect(
+  entry: UndoEntry,
+  widget: CustomWidget,
+  root: Document,
+): Promise<FillResult> {
+  const prev = entry.previousDisplayText
+  if (!prev) {
+    return skip(entry.detectedFieldId, "Couldn't auto-undo this dropdown — reset it manually.")
+  }
+  const widgetEl = findElement(root, entry.selectorCandidates)
+  if (!widgetEl) return skip(entry.detectedFieldId, 'Element not found on the page.')
+
+  const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
+  clickElement(trigger)
+  await settle()
+  const option =
+    findOption(widgetEl, widget.optionItemSelector, prev) ??
+    findOption(root, widget.optionItemSelector, prev)
+  if (!option) {
+    return skip(entry.detectedFieldId, `Couldn't restore previous selection "${prev}".`)
+  }
+  clickElement(option)
+  await settle()
+  return success(entry.detectedFieldId, prev)
+}
+
+function findOption(scope: ParentNode, selector: string, value: string): Element | null {
+  let nodes: Element[]
+  try {
+    nodes = Array.from(scope.querySelectorAll(selector))
+  } catch {
+    return null
+  }
+  const target = norm(value)
+  return nodes.find((n) => norm(textOf(n)) === target) ?? null
+}
+
+function readDisplay(widgetEl: Element, widget: CustomWidget, root: Document): string {
+  for (const sel of widget.valueDisplaySelectorCandidates) {
+    const m = queryIn(widgetEl, sel) ?? queryIn(root, sel)
+    if (m) return textOf(m)
+  }
+  const trigger = findElement(root, widget.triggerSelectorCandidates)
+  return textOf(trigger ?? widgetEl)
+}
+
+function queryIn(scope: ParentNode, selector: string): Element | null {
+  try {
+    return scope.querySelector(selector)
+  } catch {
+    return null
+  }
+}
+
+/** Text content minus SVG/icon noise, whitespace-collapsed. */
+function textOf(el: Element): string {
+  const clone = el.cloneNode(true) as Element
+  for (const svg of Array.from(clone.querySelectorAll('svg'))) svg.remove()
+  return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
+}
+
+function norm(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/** Click an element the way a user would: pointer + mouse sequence + native click. */
+function clickElement(el: Element): void {
+  const view = el.ownerDocument?.defaultView ?? undefined
+  for (const type of ['pointerdown', 'mousedown', 'mouseup'] as const) {
+    el.dispatchEvent(mouseEvent(type, view))
+  }
+  const node = el as HTMLElement
+  if (typeof node.click === 'function') node.click()
+  else el.dispatchEvent(mouseEvent('click', view))
+  if (typeof node.focus === 'function') {
+    try {
+      node.focus()
+    } catch {
+      /* focus can throw on detached nodes */
+    }
+  }
+}
+
+function mouseEvent(type: string, view?: Window): Event {
+  const init = { bubbles: true, cancelable: true, view }
+  try {
+    return new MouseEvent(type, init)
+  } catch {
+    return new Event(type, { bubbles: true, cancelable: true })
+  }
+}
+
+/** Yield a macrotask so framework state updates flush before we verify. */
+function settle(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 // --- DOM primitives -------------------------------------------------------

@@ -31,6 +31,8 @@ import type {
   FillSourceType,
   GeneratorRule,
   ScanLimitation,
+  ScanScope,
+  ScopeDescriptor,
   UndoSnapshot,
 } from '@quikfill/schemas'
 import { SOURCE_CYCLE } from './display-maps'
@@ -58,6 +60,9 @@ export function useFillSession() {
   const fields = ref<DetectedField[]>([])
   const limitations = ref<ScanLimitation[]>([])
   const structureHash = ref('')
+  // Which container the user wants scanned, and what the last scan resolved to.
+  const scope = ref<ScanScope>('auto')
+  const scannedScope = ref<ScopeDescriptor | null>(null)
 
   const planItems = ref<FillPlanItem[] | null>(null)
   const excluded = ref<Set<string>>(new Set())
@@ -203,10 +208,13 @@ export function useFillSession() {
     profileSaved.value = false
     resetAi()
     try {
-      const result = await withActiveTab((tabId) => requestScan(tabId))
+      const result = await withActiveTab((tabId) =>
+        requestScan(tabId, { includeHidden: false, scope: scope.value }),
+      )
       fields.value = result.fields
       limitations.value = result.limitations
       structureHash.value = result.structureHash ?? ''
+      scannedScope.value = result.scope ?? null
       scanned.value = true
       if (autoMatch.value) await matchSavedProfile()
     } catch {
@@ -214,10 +222,17 @@ export function useFillSession() {
         'Could not scan this page. Open the panel from the toolbar icon, then reload the page so the content script is active.'
       fields.value = []
       limitations.value = []
+      scannedScope.value = null
       resetMatch()
     } finally {
       scanning.value = false
     }
+  }
+
+  /** Switch the scan scope (Whole page / This form / This dialog) and re-scan. */
+  async function rescanWithScope(next: ScanScope) {
+    scope.value = next
+    await scan()
   }
 
   /** Override matched plan items with any accepted AI proposals (review-first). */
@@ -397,6 +412,7 @@ export function useFillSession() {
         inputType: f?.inputType ?? 'text',
         fillStrategy: i.fillStrategy,
         proposedValue: i.proposedValue,
+        customWidget: f?.customWidget,
       }
     })
   }
@@ -524,6 +540,8 @@ export function useFillSession() {
     fields,
     limitations,
     structureHash,
+    scope,
+    scannedScope,
     planItems,
     excluded,
     filling,
@@ -551,6 +569,7 @@ export function useFillSession() {
     // actions
     initSite,
     scan,
+    rescanWithScope,
     preview,
     regenerate,
     cycleSource,

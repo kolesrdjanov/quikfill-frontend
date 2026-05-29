@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isoDateTime, uuid } from './common'
+import { customWidgetSchema } from './detected-field'
 import { fillSourceSchema, fillSourceTypeSchema } from './fill-source'
 import { fillStrategySchema } from './field-mapping'
 import { formProfileMatchCandidateSchema } from './form-profile'
@@ -87,6 +88,8 @@ export const fillInstructionSchema = z.object({
   inputType: z.string(),
   fillStrategy: fillStrategySchema,
   proposedValue: z.string(),
+  /** Click-driving descriptor; required when fillStrategy is 'customSelect'. */
+  customWidget: customWidgetSchema.optional(),
 })
 export type FillInstruction = z.infer<typeof fillInstructionSchema>
 
@@ -98,6 +101,10 @@ export const undoEntrySchema = z.object({
   shadow: z.boolean().default(false),
   previousValue: z.string().nullable(),
   previousChecked: z.boolean().optional(),
+  /** For custom widgets: the displayed selection text before the fill. */
+  previousDisplayText: z.string().nullable().optional(),
+  /** Echoed so undo can re-drive a custom widget if needed. */
+  customWidget: customWidgetSchema.optional(),
 })
 export type UndoEntry = z.infer<typeof undoEntrySchema>
 

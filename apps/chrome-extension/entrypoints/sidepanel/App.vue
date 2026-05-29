@@ -5,9 +5,11 @@ import {
   Bookmark,
   BookmarkCheck,
   CheckCheck,
+  ChevronDown,
   CloudOff,
   Eye,
   EyeOff,
+  Focus,
   ListChecks,
   Lock,
   RefreshCw,
@@ -18,7 +20,15 @@ import {
   Undo2,
   WandSparkles,
 } from 'lucide-vue-next'
-import { Alert, Button } from '@quikfill/ui'
+import {
+  Alert,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@quikfill/ui'
 import BrandLockup from '../../components/BrandLockup.vue'
 import PanelShell from '../../components/sidepanel/PanelShell.vue'
 import SiteChip from '../../components/sidepanel/SiteChip.vue'
@@ -119,6 +129,27 @@ const fieldContext = computed(() => {
           :initial="siteInitial"
           :context="fieldContext"
         />
+        <DropdownMenu v-if="s.scanned.value && s.scannedScope.value">
+          <DropdownMenuTrigger as-child>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="mt-1.5 h-7 gap-1.5 px-2 text-[12px]"
+              :disabled="s.scanning.value"
+              aria-label="Change scan scope"
+            >
+              <Focus class="text-muted-foreground size-3.5" />
+              {{ s.scannedScope.value.label }}
+              <ChevronDown class="size-3.5 opacity-60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Scan scope</DropdownMenuLabel>
+            <DropdownMenuItem @select="s.rescanWithScope('page')">Whole page</DropdownMenuItem>
+            <DropdownMenuItem @select="s.rescanWithScope('form')">This form</DropdownMenuItem>
+            <DropdownMenuItem @select="s.rescanWithScope('dialog')">This dialog</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </template>
     </template>
 

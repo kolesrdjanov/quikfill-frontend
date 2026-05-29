@@ -65,6 +65,9 @@ describe('defaultFillStrategy', () => {
     )
     expect(defaultFillStrategy(field({ id: 'b', inputType: 'checkbox' }))).toBe('clickToggle')
     expect(defaultFillStrategy(field({ id: 'c', inputType: 'text' }))).toBe('nativeInput')
+    expect(defaultFillStrategy(field({ id: 'd', inputType: 'customSelect', tagName: 'div' }))).toBe(
+      'customSelect',
+    )
   })
 })
 

@@ -1,4 +1,5 @@
 export { scanForms } from './scan'
+export { resolveScopeRoot, type ResolvedScope } from './scope'
 export { applyFill, applyUndo, type FillOutcome } from './fill'
 export { fingerprint, structureHash, type FingerprintInput } from './fingerprint'
 export { fnv1aHex } from './hash'

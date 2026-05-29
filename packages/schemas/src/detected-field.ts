@@ -25,6 +25,25 @@ export const fieldFingerprintSchema = z.object({
 export type FieldFingerprint = z.infer<typeof fieldFingerprintSchema>
 
 /**
+ * How to drive a custom (non-native) widget that the filler must operate by
+ * clicking rather than by setting a value. Today only single-select dropdowns
+ * (a trigger that opens an option list) are supported. Selectors are stored as
+ * ranked candidates, mirroring DetectedField.selectorCandidates.
+ */
+export const customWidgetSchema = z.object({
+  kind: z.literal('select'),
+  /** Element to click to open the options (e.g. the role=button trigger). */
+  triggerSelectorCandidates: z.array(z.string()).default([]),
+  /** Node whose text reflects the current selection, for verification. */
+  valueDisplaySelectorCandidates: z.array(z.string()).default([]),
+  /** Selector matching each option once the list is open (relative to document). */
+  optionItemSelector: z.string(),
+  /** Whether options are only present/visible after the trigger is clicked. */
+  optionsOpenOnDemand: z.boolean().default(true),
+})
+export type CustomWidget = z.infer<typeof customWidgetSchema>
+
+/**
  * A single field discovered by the scanner. Carries everything the planner and
  * the (privacy-aware) AI summary builder need. `currentValue` never leaves the
  * page unredacted.
@@ -51,6 +70,8 @@ export const detectedFieldSchema = z.object({
   nearbyText: z.string().optional(),
   sectionHeading: z.string().optional(),
   options: z.array(fieldOptionSchema).optional(),
+  /** Present only for custom (non-native) widgets the filler must click. */
+  customWidget: customWidgetSchema.optional(),
   selectorCandidates: z.array(z.string()).default([]),
   domFingerprint: z.string(),
   /** `'main'` for the top document, otherwise an opaque frame id. */

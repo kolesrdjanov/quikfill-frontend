@@ -99,4 +99,69 @@ describe('scanForms', () => {
     expect(first).toBe(second)
     expect(first).toMatch(/^[0-9a-f]{8}$/)
   })
+
+  it('detects a custom (non-native) select as one field and folds its inner input', () => {
+    setBody(`
+      <div data-test-id="cat" name="globalUnitTypesId" class="relative">
+        <label for="_r_17c_">Category</label>
+        <div class="relative">
+          <div role="button" data-trigger="select" aria-expanded="false">
+            <div class="select-value-container"><div>Locker</div><input id="_r_17c_" type="text" /></div>
+          </div>
+          <div class="dropdown">
+            <div role="button" aria-label="Select option">Locker</div>
+            <div role="button" aria-label="Select option">Office</div>
+            <div role="button" aria-label="Select option">Parking</div>
+          </div>
+        </div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields).toHaveLength(1)
+    const cat = fields[0]
+    expect(cat.inputType).toBe('customSelect')
+    expect(cat.labelText).toBe('Category')
+    expect(cat.currentValue).toBe('Locker')
+    expect(cat.options?.map((o) => o.label)).toEqual(['Locker', 'Office', 'Parking'])
+    expect(cat.customWidget?.kind).toBe('select')
+    expect(cat.customWidget?.optionItemSelector).toContain('role="option"')
+    // The inner React-id input is folded into the widget, not emitted separately.
+    expect(fields.some((f) => f.domId === '_r_17c_')).toBe(false)
+  })
+
+  it('drops junk framework-id-only fields but keeps labeled ones', () => {
+    setBody(`
+      <input id="_r_f4_" type="text" />
+      <input id=":r9:" type="text" />
+      <label for="real">Name</label>
+      <input id="real" type="text" />
+      <input id="_r_z_" name="keepme" type="text" />
+    `)
+    const { fields } = scanForms(document)
+    const ids = fields.map((f) => f.domId)
+    expect(ids).not.toContain('_r_f4_')
+    expect(ids).not.toContain(':r9:')
+    expect(ids).toContain('real') // real label → kept
+    expect(ids).toContain('_r_z_') // generated id but usable name → kept
+  })
+
+  it('scopes the scan to a passed element root', () => {
+    setBody(`
+      <input name="outside" />
+      <div id="dialog"><input name="inside1" /><input name="inside2" /></div>
+    `)
+    const dialog = document.getElementById('dialog')!
+    const { fields } = scanForms(dialog)
+    expect(fields.map((f) => f.name).sort()).toEqual(['inside1', 'inside2'])
+  })
+
+  it('resolves a label that lives outside the scoped element', () => {
+    setBody(`
+      <label for="scoped">Outside Label</label>
+      <div id="dialog"><input id="scoped" name="scoped" /></div>
+    `)
+    const dialog = document.getElementById('dialog')!
+    const { fields } = scanForms(dialog)
+    expect(fields[0].labelText).toBe('Outside Label')
+  })
 })

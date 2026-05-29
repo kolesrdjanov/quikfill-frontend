@@ -137,10 +137,27 @@ DOM-aware. Runs inside the content script. **No Chrome, no Vue.**
   section) and a form **structure hash**.
 - Detect same-origin iframes and **open** shadow DOM; report inaccessible fields
   (closed shadow, cross-origin) as limitations rather than failing silently.
+- **Custom (non-native) dropdowns** (Iteration 9 follow-up): broad heuristic
+  (`role=combobox` / `aria-haspopup=listbox` / `aria-expanded` trigger /
+  `data-trigger=select`, guarded by a real option list) emits one
+  `inputType: 'customSelect'` field per widget with a `customWidget` descriptor
+  (trigger / value-display / option-item selectors). The widget's internal
+  inputs are folded into it. `fill.ts` click-drives these (open → click option →
+  verify displayed text), which is why `applyFill`/`applyUndo` are **async**.
+- **Junk filtering:** fields with no human identity whose only id is a
+  framework-generated value (`_r_…`, `:r…:`, MUI/emotion) are dropped.
+- **Scope:** `scanForms(root)` accepts a `Document | Element`; `resolveScopeRoot`
+  (in `scope.ts`, run by the content script) picks the best container —
+  open dialog/drawer → focused/largest `<form>` → whole page — and the result
+  carries a `scope` descriptor for the side panel's scope switcher. Scoping
+  shrinks `structureHash` to the container's fields (more stable). Compat:
+  whole-page profiles saved before this self-heal on next save (field mappings
+  still resolve via per-field fingerprints); no migration.
 
 **Tests:** Vitest + jsdom for extraction logic; **fixture HTML pages** (shared
 with the extension E2E) for realistic DOM. Assert fingerprint stability across
-benign DOM changes and uniqueness across distinct fields.
+benign DOM changes and uniqueness across distinct fields. `scope.test.ts` covers
+container detection (dialog/drawer/form/page, stacked, hidden).
 
 ---
 

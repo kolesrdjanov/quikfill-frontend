@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { FillInstruction } from '@quikfill/schemas'
+import type { CustomWidget, FillInstruction } from '@quikfill/schemas'
 import { applyFill, applyUndo } from './fill'
 
 function instruction(
@@ -22,9 +22,9 @@ beforeEach(() => {
 })
 
 describe('applyFill', () => {
-  it('fills a native input and verifies the value', () => {
+  it('fills a native input and verifies the value', async () => {
     document.body.innerHTML = '<input id="email" value="old" />'
-    const { results, undoSnapshot } = applyFill([
+    const { results, undoSnapshot } = await applyFill([
       instruction({ detectedFieldId: 'email', proposedValue: 'new@x.com' }),
     ])
     expect((document.getElementById('email') as HTMLInputElement).value).toBe('new@x.com')
@@ -32,20 +32,20 @@ describe('applyFill', () => {
     expect(undoSnapshot.entries[0].previousValue).toBe('old')
   })
 
-  it('dispatches input/change events', () => {
+  it('dispatches input/change events', async () => {
     document.body.innerHTML = '<input id="a" />'
     const seen: string[] = []
     const el = document.getElementById('a')!
     el.addEventListener('input', () => seen.push('input'))
     el.addEventListener('change', () => seen.push('change'))
-    applyFill([instruction({ detectedFieldId: 'a', proposedValue: 'x' })])
+    await applyFill([instruction({ detectedFieldId: 'a', proposedValue: 'x' })])
     expect(seen).toContain('input')
     expect(seen).toContain('change')
   })
 
-  it('toggles a checkbox', () => {
+  it('toggles a checkbox', async () => {
     document.body.innerHTML = '<input id="agree" type="checkbox" />'
-    applyFill([
+    await applyFill([
       instruction({
         detectedFieldId: 'agree',
         inputType: 'checkbox',
@@ -56,10 +56,10 @@ describe('applyFill', () => {
     expect((document.getElementById('agree') as HTMLInputElement).checked).toBe(true)
   })
 
-  it('sets a native select to a valid option', () => {
+  it('sets a native select to a valid option', async () => {
     document.body.innerHTML =
       '<select id="role"><option value="admin">A</option><option value="user">U</option></select>'
-    const { results } = applyFill([
+    const { results } = await applyFill([
       instruction({
         detectedFieldId: 'role',
         tagName: 'select',
@@ -72,9 +72,9 @@ describe('applyFill', () => {
     expect(results[0].status).toBe('success')
   })
 
-  it('fails when a value is not accepted (invalid select option)', () => {
+  it('fails when a value is not accepted (invalid select option)', async () => {
     document.body.innerHTML = '<select id="role"><option value="admin">A</option></select>'
-    const { results } = applyFill([
+    const { results } = await applyFill([
       instruction({
         detectedFieldId: 'role',
         tagName: 'select',
@@ -86,9 +86,9 @@ describe('applyFill', () => {
     expect(results[0].status).toBe('failed')
   })
 
-  it('skips missing, disabled, and read-only fields', () => {
+  it('skips missing, disabled, and read-only fields', async () => {
     document.body.innerHTML = '<input id="ro" readonly /><input id="dis" disabled />'
-    const { results } = applyFill([
+    const { results } = await applyFill([
       instruction({ detectedFieldId: 'missing', proposedValue: 'x' }),
       instruction({ detectedFieldId: 'ro', proposedValue: 'x' }),
       instruction({ detectedFieldId: 'dis', proposedValue: 'x' }),
@@ -99,7 +99,7 @@ describe('applyFill', () => {
     expect(results[2].reason).toMatch(/disabled/i)
   })
 
-  it('writes through a framework-controlled value setter', () => {
+  it('writes through a framework-controlled value setter', async () => {
     document.body.innerHTML = '<input id="react" />'
     const el = document.getElementById('react') as HTMLInputElement
     const nativeDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!
@@ -115,7 +115,7 @@ describe('applyFill', () => {
         instanceSetterCalls++
       },
     })
-    const { results } = applyFill([
+    const { results } = await applyFill([
       instruction({ detectedFieldId: 'react', proposedValue: 'hello' }),
     ])
     // The prototype setter bypasses the instance setter and writes the real value.
@@ -125,10 +125,81 @@ describe('applyFill', () => {
   })
 })
 
+// A React-style custom dropdown: a trigger, a value display, and option divs.
+// Clicking an option updates the display (mirrors how the real app behaves).
+const customWidget: CustomWidget = {
+  kind: 'select',
+  triggerSelectorCandidates: ['#trigger'],
+  valueDisplaySelectorCandidates: ['.val'],
+  optionItemSelector: '[role="option"], [role="button"][aria-label*="option" i]',
+  optionsOpenOnDemand: false,
+}
+
+function mountCustomSelect(selected = 'Locker') {
+  document.body.innerHTML = `
+    <div id="cat" data-test-id="cat" name="cat">
+      <label for="catInput">Category</label>
+      <div class="relative">
+        <div role="button" data-trigger="select" id="trigger">
+          <div class="select-value-container"><div class="val">${selected}</div><input id="catInput" type="text"></div>
+        </div>
+        <div class="dropdown">
+          <div role="button" aria-label="Select option">Locker</div>
+          <div role="button" aria-label="Select option">Office</div>
+          <div role="button" aria-label="Select option">Parking</div>
+        </div>
+      </div>
+    </div>`
+  const val = document.querySelector('.val')!
+  for (const opt of Array.from(document.querySelectorAll('.dropdown [role="button"]'))) {
+    opt.addEventListener('click', () => {
+      val.textContent = opt.textContent
+    })
+  }
+}
+
+function customInstruction(proposedValue: string): FillInstruction {
+  return {
+    detectedFieldId: 'cat',
+    selectorCandidates: ['#cat'],
+    frame: 'main',
+    shadow: false,
+    tagName: 'div',
+    inputType: 'customSelect',
+    fillStrategy: 'customSelect',
+    proposedValue,
+    customWidget,
+  }
+}
+
+describe('applyFill — custom select', () => {
+  it('clicks the matching option and verifies the displayed value', async () => {
+    mountCustomSelect('Locker')
+    const { results, undoSnapshot } = await applyFill([customInstruction('Office')])
+    expect(document.querySelector('.val')!.textContent).toBe('Office')
+    expect(results[0].status).toBe('success')
+    expect(undoSnapshot.entries[0].previousDisplayText).toBe('Locker')
+  })
+
+  it('fails when no option matches the proposed value', async () => {
+    mountCustomSelect('Locker')
+    const { results } = await applyFill([customInstruction('Ghost')])
+    expect(results[0].status).toBe('failed')
+    expect(results[0].reason).toMatch(/no option matching/i)
+  })
+
+  it('matches options case- and whitespace-insensitively', async () => {
+    mountCustomSelect('Locker')
+    const { results } = await applyFill([customInstruction('  office ')])
+    expect(document.querySelector('.val')!.textContent).toBe('Office')
+    expect(results[0].status).toBe('success')
+  })
+})
+
 describe('applyUndo', () => {
-  it('restores previous input values and checkbox state', () => {
+  it('restores previous input values and checkbox state', async () => {
     document.body.innerHTML = '<input id="name" value="Ada" /><input id="agree" type="checkbox" />'
-    const { undoSnapshot } = applyFill([
+    const { undoSnapshot } = await applyFill([
       instruction({ detectedFieldId: 'name', proposedValue: 'Grace' }),
       instruction({
         detectedFieldId: 'agree',
@@ -140,9 +211,19 @@ describe('applyUndo', () => {
     expect((document.getElementById('name') as HTMLInputElement).value).toBe('Grace')
     expect((document.getElementById('agree') as HTMLInputElement).checked).toBe(true)
 
-    const results = applyUndo(undoSnapshot)
+    const results = await applyUndo(undoSnapshot)
     expect(results.every((r) => r.status === 'success')).toBe(true)
     expect((document.getElementById('name') as HTMLInputElement).value).toBe('Ada')
     expect((document.getElementById('agree') as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('restores a custom select to its previous selection', async () => {
+    mountCustomSelect('Locker')
+    const { undoSnapshot } = await applyFill([customInstruction('Parking')])
+    expect(document.querySelector('.val')!.textContent).toBe('Parking')
+
+    const results = await applyUndo(undoSnapshot)
+    expect(results[0].status).toBe('success')
+    expect(document.querySelector('.val')!.textContent).toBe('Locker')
   })
 })
