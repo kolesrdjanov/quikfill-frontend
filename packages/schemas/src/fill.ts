@@ -73,3 +73,37 @@ export const fillRunSchema = z.object({
   createdAt: isoDateTime.optional(),
 })
 export type FillRun = z.infer<typeof fillRunSchema>
+
+/**
+ * Everything the DOM filler needs to apply one field, sent panel → content.
+ * Carries selectors + frame/shadow context (the FillPlanItem itself does not).
+ */
+export const fillInstructionSchema = z.object({
+  detectedFieldId: z.string().min(1),
+  selectorCandidates: z.array(z.string()),
+  frame: z.string().default('main'),
+  shadow: z.boolean().default(false),
+  tagName: z.string(),
+  inputType: z.string(),
+  fillStrategy: fillStrategySchema,
+  proposedValue: z.string(),
+})
+export type FillInstruction = z.infer<typeof fillInstructionSchema>
+
+/** A captured prior state for one field, enough to restore it on undo. */
+export const undoEntrySchema = z.object({
+  detectedFieldId: z.string().min(1),
+  selectorCandidates: z.array(z.string()),
+  frame: z.string().default('main'),
+  shadow: z.boolean().default(false),
+  previousValue: z.string().nullable(),
+  previousChecked: z.boolean().optional(),
+})
+export type UndoEntry = z.infer<typeof undoEntrySchema>
+
+/** The snapshot taken before a fill, used to undo the most recent fill. */
+export const undoSnapshotSchema = z.object({
+  entries: z.array(undoEntrySchema),
+  capturedAt: isoDateTime.optional(),
+})
+export type UndoSnapshot = z.infer<typeof undoSnapshotSchema>

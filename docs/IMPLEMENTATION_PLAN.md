@@ -34,8 +34,8 @@ repo's iterations 4–6.
 | 2   | Shared Schemas (`packages/schemas`) | all             | ✅ Done    |
 | 3   | Scanner Prototype                   | extension       | ✅ Done    |
 | 4   | Fill Plan Preview                   | extension       | ✅ Done    |
-| 5   | Fill Execution + Undo               | extension       | ⏳ Next    |
-| 6   | Local Form Profiles                 | extension       | ⏳ Planned |
+| 5   | Fill Execution + Undo               | extension       | ✅ Done    |
+| 6   | Local Form Profiles                 | extension       | ⏳ Next    |
 | 7   | Gemini Assistance                   | extension       | ⏳ Planned |
 | 8   | Dashboard Management                | app             | ⏳ Planned |
 | 9   | Website                             | website         | ⏳ Planned |

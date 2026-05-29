@@ -1,9 +1,20 @@
 export {
   SCAN_REQUEST,
+  FILL_REQUEST,
+  UNDO_REQUEST,
   isScanRequest,
+  isFillRequest,
+  isUndoRequest,
   getActiveTabId,
   requestScan,
   onScanRequest,
+  requestFill,
+  onFillRequest,
+  requestUndo,
+  onUndoRequest,
   type ScanRequestMessage,
+  type FillRequestMessage,
+  type UndoRequestMessage,
+  type FillResponse,
 } from './messaging'
 export { createChromeStorageAdapter } from './storage'

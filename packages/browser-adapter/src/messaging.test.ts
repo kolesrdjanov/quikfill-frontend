@@ -1,11 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ScanResult } from '@quikfill/schemas'
+import type { FillInstruction, ScanResult, UndoSnapshot } from '@quikfill/schemas'
 import {
+  FILL_REQUEST,
   getActiveTabId,
+  isFillRequest,
   isScanRequest,
+  isUndoRequest,
   onScanRequest,
+  requestFill,
   requestScan,
+  requestUndo,
   SCAN_REQUEST,
+  UNDO_REQUEST,
 } from './messaging'
 
 const RESULT: ScanResult = { fields: [], limitations: [] }
@@ -84,5 +90,40 @@ describe('onScanRequest', () => {
     const result = listeners[0]({ type: 'NOPE' }, {}, vi.fn())
     expect(result).toBeUndefined()
     expect(handler).not.toHaveBeenCalled()
+  })
+})
+
+describe('fill + undo guards and requests', () => {
+  const instruction: FillInstruction = {
+    detectedFieldId: 'a',
+    selectorCandidates: ['#a'],
+    frame: 'main',
+    shadow: false,
+    tagName: 'input',
+    inputType: 'text',
+    fillStrategy: 'nativeInput',
+    proposedValue: 'x',
+  }
+  const snapshot: UndoSnapshot = { entries: [] }
+
+  it('discriminates message types', () => {
+    expect(isFillRequest({ type: FILL_REQUEST })).toBe(true)
+    expect(isUndoRequest({ type: UNDO_REQUEST })).toBe(true)
+    expect(isFillRequest({ type: UNDO_REQUEST })).toBe(false)
+  })
+
+  it('requestFill sends instructions to the tab', async () => {
+    const { tabs } = installChrome()
+    await requestFill(7, [instruction])
+    expect(tabs.sendMessage).toHaveBeenCalledWith(7, {
+      type: FILL_REQUEST,
+      instructions: [instruction],
+    })
+  })
+
+  it('requestUndo sends the snapshot to the tab', async () => {
+    const { tabs } = installChrome()
+    await requestUndo(7, snapshot)
+    expect(tabs.sendMessage).toHaveBeenCalledWith(7, { type: UNDO_REQUEST, snapshot })
   })
 })
