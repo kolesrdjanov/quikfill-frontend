@@ -16,15 +16,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => user.value !== null)
 
-  /** Request a magic link; returns the dev link when the backend exposes one. */
-  async function requestMagicLink(email: string): Promise<string | undefined> {
+  /** Request a sign-in code; returns the dev code when the backend exposes one. */
+  async function requestCode(email: string): Promise<string | undefined> {
     const result = await api.auth.requestMagicLink(email)
-    return result.devLink
+    return result.devCode
   }
 
-  /** Exchange a magic-link token for a session. */
-  async function verify(token: string): Promise<void> {
-    const tokens = await api.auth.verify(token)
+  /** Exchange an email + OTP code for a session. */
+  async function verify(email: string, code: string): Promise<void> {
+    const tokens = await api.auth.verify(email, code)
     authTokens.set(tokens)
     user.value = tokens.user
     restored.value = true
@@ -70,7 +70,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     restored,
     isAuthenticated,
-    requestMagicLink,
+    requestCode,
     verify,
     restore,
     logout,

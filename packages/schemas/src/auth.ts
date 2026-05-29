@@ -7,17 +7,21 @@ export const requestMagicLinkInputSchema = z.object({
 })
 export type RequestMagicLinkInput = z.infer<typeof requestMagicLinkInputSchema>
 
-/** `POST /auth/magic-link` response — `devLink` is only present outside production. */
+/** `POST /auth/magic-link` response — `devCode` is only present outside production. */
 export const magicLinkRequestedSchema = z.object({
   message: z.string(),
-  devLink: z.string().optional(),
+  devCode: z.string().optional(),
 })
 export type MagicLinkRequested = z.infer<typeof magicLinkRequestedSchema>
 
-/** `POST /auth/verify` request — mirrors backend `VerifyMagicLinkDto`. */
-export const verifyMagicLinkInputSchema = z.object({
-  token: z.string().min(1),
+/** The emailed sign-in OTP: a 6-digit numeric code. */
+export const otpCodeInputSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code from your email'),
 })
+export type OtpCodeInput = z.infer<typeof otpCodeInputSchema>
+
+/** `POST /auth/verify` request — mirrors backend `VerifyMagicLinkDto` (email + OTP code). */
+export const verifyMagicLinkInputSchema = requestMagicLinkInputSchema.merge(otpCodeInputSchema)
 export type VerifyMagicLinkInput = z.infer<typeof verifyMagicLinkInputSchema>
 
 /** `POST /auth/refresh` and `/auth/logout` request — mirrors `RefreshTokenDto`. */

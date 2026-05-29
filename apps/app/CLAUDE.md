@@ -42,12 +42,12 @@ pnpm --filter @quikfill/app build   # build runs vue-tsc typecheck first
 ## Current state
 
 Iteration 8 is **done**, built against the **live backend** (`/api/v1`, Vite proxy
-→ `localhost:4010`; dev server pinned to `:5173` for the magic-link `devLink` +
-CORS). Implemented:
+→ `localhost:4010`; dev server pinned to `:5173` for CORS). Implemented:
 
-- **Auth:** magic-link (`SignIn` → `AuthVerify`), `stores/auth.ts`, token module
-  (`lib/auth-tokens.ts`), router guard, and the `@quikfill/api-client` singleton
-  (`lib/api.ts`) with a queued 401-refresh.
+- **Auth:** passwordless email OTP — a two-step `SignIn` (request a 6-digit code,
+  then enter it), `stores/auth.ts`, token module (`lib/auth-tokens.ts`), router
+  guard, and the `@quikfill/api-client` singleton (`lib/api.ts`) with a queued
+  401-refresh.
 - **Views:** `Home`, `Data` (entity types + records), `Generators`, `Apps`,
   `FormProfiles` + `FormProfileDetail` (mapping review), `FillHistory`.
 - **Stores:** one Pinia setup store per resource; **forms** via

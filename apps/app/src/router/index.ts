@@ -51,12 +51,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/SignIn.vue'),
   },
   {
-    path: '/auth/verify',
-    name: 'auth-verify',
-    meta: { layout: 'auth', title: 'Verifying' },
-    component: () => import('@/views/AuthVerify.vue'),
-  },
-  {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     meta: { layout: 'auth', title: 'Not found' },

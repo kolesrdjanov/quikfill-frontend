@@ -52,7 +52,7 @@ export interface ApiClient {
   rest: RestClient
   auth: {
     requestMagicLink(email: string, signal?: AbortSignal): Promise<MagicLinkRequested>
-    verify(token: string, signal?: AbortSignal): Promise<AuthTokens>
+    verify(email: string, code: string, signal?: AbortSignal): Promise<AuthTokens>
     refresh(refreshToken: string, signal?: AbortSignal): Promise<AuthTokens>
     logout(refreshToken: string, signal?: AbortSignal): Promise<void>
   }
@@ -132,8 +132,12 @@ export function createApiClient(config: RestClientConfig): ApiClient {
           { email },
           { schema: magicLinkRequestedSchema, skipAuth: true, signal },
         ),
-      verify: (token, signal) =>
-        rest.post('/auth/verify', { token }, { schema: authTokensSchema, skipAuth: true, signal }),
+      verify: (email, code, signal) =>
+        rest.post(
+          '/auth/verify',
+          { email, code },
+          { schema: authTokensSchema, skipAuth: true, signal },
+        ),
       refresh: (refreshToken, signal) =>
         rest.post(
           '/auth/refresh',

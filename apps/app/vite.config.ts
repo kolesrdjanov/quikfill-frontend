@@ -7,9 +7,9 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
   server: {
-    // Pinned to 5173: the backend's APP_URL builds magic-link `devLink`s at this
-    // origin and only allows it via CORS. `/api/*` is proxied to the NestJS app
-    // (global prefix `/api/v1`), which sidesteps CORS in dev.
+    // Pinned to 5173: the backend only allows this origin via CORS. `/api/*` is
+    // proxied to the NestJS app (global prefix `/api/v1`), which sidesteps CORS
+    // in dev anyway.
     port: 5173,
     strictPort: true,
     proxy: {
