@@ -85,7 +85,10 @@ watch(
   () => gate.screen.value,
   (screen, prev) => {
     if (screen === 'sending') otpCode.value = ''
-    if (screen === 'email' && prev !== 'email') setFieldValue('email', gate.email.value)
+    // Sync the field to the gate's stored email without validating — otherwise
+    // the loading → email transition surfaces an "Invalid email" error on an
+    // empty input the user hasn't touched yet (VeeValidate validates by default).
+    if (screen === 'email' && prev !== 'email') setFieldValue('email', gate.email.value, false)
   },
 )
 
