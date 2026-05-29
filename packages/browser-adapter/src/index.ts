@@ -27,5 +27,26 @@ export {
   type AiClassifyMessage,
   type AiClassifyResponse,
 } from './ai-messaging'
+export {
+  AUTH_REQUEST,
+  isAuthRequest,
+  requestAuthState,
+  requestAuthCode,
+  verifyAuthCode,
+  logoutAuth,
+  onAuthRequest,
+  type AuthRequestMessage,
+  type RequestCodeResponse,
+  type VerifyResponse,
+  type LogoutResponse,
+  type AuthHandlers,
+} from './auth-messaging'
+export {
+  createAuthStore,
+  createChromeAuthStore,
+  AUTH_STATE_KEY,
+  type AuthStore,
+} from './auth-store'
+export { createBackgroundAuth, type AuthApi, type BackgroundAuth } from './background-auth'
 export { createChromeStorageAdapter } from './storage'
 export { createProfileStore, type ProfileBundle, type ProfileStore } from './profile-store'
