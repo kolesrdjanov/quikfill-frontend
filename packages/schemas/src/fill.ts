@@ -1,0 +1,75 @@
+import { z } from 'zod'
+import { isoDateTime, uuid } from './common'
+import { fillSourceSchema, fillSourceTypeSchema } from './fill-source'
+import { fillStrategySchema } from './field-mapping'
+import { formProfileMatchCandidateSchema } from './form-profile'
+
+export const fillModeSchema = z.enum(['preview', 'fill'])
+export type FillMode = z.infer<typeof fillModeSchema>
+
+/** A single proposed change the user reviews before filling. */
+export const fillPlanItemSchema = z.object({
+  detectedFieldId: z.string().min(1),
+  label: z.string(),
+  currentValue: z.string().nullable().optional(),
+  proposedValue: z.string(),
+  fillSource: fillSourceSchema,
+  fillStrategy: fillStrategySchema,
+  confidence: z.number().min(0).max(1),
+  warnings: z.array(z.string()).default([]),
+  requiresConfirmation: z.boolean().default(false),
+})
+export type FillPlanItem = z.infer<typeof fillPlanItemSchema>
+
+/** The previewable plan for a scan. */
+export const fillPlanSchema = z.object({
+  items: z.array(fillPlanItemSchema),
+  mode: fillModeSchema,
+  profileMatch: formProfileMatchCandidateSchema.optional(),
+})
+export type FillPlan = z.infer<typeof fillPlanSchema>
+
+export const fillResultStatusSchema = z.enum(['success', 'skipped', 'failed'])
+export type FillResultStatus = z.infer<typeof fillResultStatusSchema>
+
+/** The outcome of attempting to fill one field. */
+export const fillResultSchema = z.object({
+  detectedFieldId: z.string().min(1),
+  status: fillResultStatusSchema,
+  acceptedValue: z.string().nullable().optional(),
+  reason: z.string().optional(),
+})
+export type FillResult = z.infer<typeof fillResultSchema>
+
+/**
+ * Redacted plan item persisted on a FillRun — label, source type, confidence,
+ * and strategy only. Never the proposed or current value.
+ */
+export const redactedFillPlanItemSchema = z.object({
+  detectedFieldId: z.string().min(1),
+  label: z.string(),
+  fillSourceType: fillSourceTypeSchema,
+  confidence: z.number().min(0).max(1),
+  fillStrategy: fillStrategySchema,
+  requiresConfirmation: z.boolean().default(false),
+})
+export type RedactedFillPlanItem = z.infer<typeof redactedFillPlanItemSchema>
+
+export const fillRunStatusSchema = z.enum(['pending', 'success', 'partial', 'failed'])
+export type FillRunStatus = z.infer<typeof fillRunStatusSchema>
+
+/** A recorded fill attempt (history). Aligns 1:1 with the backend FillRun. */
+export const fillRunSchema = z.object({
+  id: uuid,
+  formProfileId: uuid.optional(),
+  domainId: uuid.optional(),
+  url: z.string(),
+  mode: fillModeSchema,
+  status: fillRunStatusSchema,
+  plan: z.array(redactedFillPlanItemSchema),
+  results: z.array(fillResultSchema),
+  startedAt: isoDateTime,
+  completedAt: isoDateTime.optional(),
+  createdAt: isoDateTime.optional(),
+})
+export type FillRun = z.infer<typeof fillRunSchema>

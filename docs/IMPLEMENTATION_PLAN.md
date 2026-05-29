@@ -31,8 +31,8 @@ repo's iterations 4–6.
 | #   | Iteration                           | Primary surface | Status     |
 | --- | ----------------------------------- | --------------- | ---------- |
 | 1   | Monorepo Foundation                 | all             | ✅ Done    |
-| 2   | Shared Schemas (`packages/schemas`) | all             | ⏳ Next    |
-| 3   | Scanner Prototype                   | extension       | ⏳ Planned |
+| 2   | Shared Schemas (`packages/schemas`) | all             | ✅ Done    |
+| 3   | Scanner Prototype                   | extension       | ⏳ Next    |
 | 4   | Fill Plan Preview                   | extension       | ⏳ Planned |
 | 5   | Fill Execution + Undo               | extension       | ⏳ Planned |
 | 6   | Local Form Profiles                 | extension       | ⏳ Planned |
