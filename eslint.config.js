@@ -15,6 +15,9 @@ export default [
   },
   {
     ignores: [
+      // Vendored static design prototypes (hand-authored reference, not maintained source).
+      'design/**',
+      'design_handoff_chrome_extension/**',
       '**/dist/**',
       '**/node_modules/**',
       '**/.nuxt/**',

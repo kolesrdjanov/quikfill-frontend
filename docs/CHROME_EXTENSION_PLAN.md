@@ -21,9 +21,18 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 | 5   | Fill execution + undo (native fill, verify, undo, results) | ✅ Done |
 | 6   | Local form profiles (save/match/reuse mappings)            | ✅ Done |
 | 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ✅ Done |
+| —   | UI design-system pass (popup / side panel / options)       | ✅ Done |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)
+
+> **UI design-system pass (post-Iteration 8):** the popup, side panel, and options
+> page were rebuilt against the shared design system (the `packages/config/theme.css`
+> tokens and `@quikfill/ui`) to match the dashboard, with no change to the
+> scan/fill/undo/profile/AI behaviour — a `useFillSession` composable wraps the
+> existing package calls. Added shared primitives: a `Switch` in `@quikfill/ui` and
+> an `ExtensionSettings` schema (`@quikfill/schemas`) backing a local-first settings
+> store. Still local-first — backend wiring stays in Iteration 10.
 
 ---
 

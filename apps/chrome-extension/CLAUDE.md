@@ -45,5 +45,12 @@ Iterations 3–7 are **done**: scan, fill-plan preview, fill execution + undo,
 local form profiles, and Gemini assistance (privacy-aware AI — redacted
 summaries, schema-validated suggestions, review/accept/reject; the background
 worker owns the api-client call, fails gracefully when the backend is offline).
-Next: Iteration 8 — dashboard management (`apps/app`). See the plan's status
-table.
+
+The **UI design-system pass** is also done: popup, side panel, and options are
+rebuilt against the shared tokens + `@quikfill/ui` to match the dashboard. The
+side panel runs on a `useFillSession` composable (`lib/useFillSession.ts`) that
+wraps the existing package calls — behaviour is unchanged. Surface-local
+composition components live in `components/`; shared helpers in `lib/`. Settings
+persist locally via an `ExtensionSettings` schema + `useSettings`. Next:
+Iteration 10 — backend sync + auth (swap the local `StorageAdapter`). See the
+plan's status table.

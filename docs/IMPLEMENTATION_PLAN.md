@@ -49,6 +49,13 @@ repo's iterations 4–6.
 > Iteration 10: Stripe billing, the `SyncAdapter`, and the extension's backend
 > swap. Subscription + Settings dashboard screens are deferred with them.
 
+> **Design-system pass note:** the extension's three surfaces (popup / side panel /
+> options) were rebuilt against the shared design system to match the dashboard —
+> a UI pass over the already-built Iterations 3–7, not a new numbered iteration.
+> See [`CHROME_EXTENSION_PLAN.md`](./CHROME_EXTENSION_PLAN.md). Added shared
+> primitives: `@quikfill/ui` `Switch` + an `ExtensionSettings` schema. Still
+> local-first; backend wiring remains Iteration 10.
+
 Update this table (and each surface plan's own status) as work lands.
 
 ---
