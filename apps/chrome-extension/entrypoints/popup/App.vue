@@ -35,6 +35,14 @@ async function openSidePanel() {
   window.close()
 }
 
+// Open the side panel and have it land on the in-panel settings view — no chrome:// modal.
+async function openSettings() {
+  const win = await browser.windows?.getCurrent()
+  if (win?.id != null) await browser.sidePanel?.open({ windowId: win.id })
+  await browser.storage.session?.set({ 'ui:pendingView': 'settings' })
+  window.close()
+}
+
 function openOptions() {
   browser.runtime.openOptionsPage?.()
   window.close()
@@ -83,12 +91,12 @@ function openOptions() {
       <button
         type="button"
         class="hover:bg-muted flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left transition-colors"
-        @click="openOptions"
+        @click="openSettings"
       >
         <Settings class="text-muted-foreground size-[17px]" />
         <span>
           <span class="block text-[13px] font-semibold">Settings</span>
-          <span class="text-muted-foreground block text-[11px]">Open options page</span>
+          <span class="text-muted-foreground block text-[11px]">Preferences in the side panel</span>
         </span>
       </button>
     </div>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // Three fixed regions for the side panel: header, scrollable body, footer.
 // Content is provided via the #header, default, and #footer slots.
+// `showFooter` lets a surface suppress the footer bar entirely (e.g. settings view).
+withDefaults(defineProps<{ showFooter?: boolean }>(), { showFooter: true })
 </script>
 
 <template>
@@ -13,7 +15,10 @@
       <slot />
     </div>
 
-    <footer v-if="$slots.footer" class="bg-card flex flex-col gap-2 border-t px-[14px] py-3">
+    <footer
+      v-if="showFooter && $slots.footer"
+      class="bg-card flex flex-col gap-2 border-t px-[14px] py-3"
+    >
       <slot name="footer" />
     </footer>
   </div>

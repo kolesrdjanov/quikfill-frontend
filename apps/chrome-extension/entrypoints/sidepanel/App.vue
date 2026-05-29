@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
+  ArrowLeft,
   Bookmark,
   BookmarkCheck,
   CheckCheck,
@@ -26,6 +27,7 @@ import FieldCard from '../../components/sidepanel/FieldCard.vue'
 import PlanCard from '../../components/sidepanel/PlanCard.vue'
 import ResultCard from '../../components/sidepanel/ResultCard.vue'
 import LimitationsDisclosure from '../../components/sidepanel/LimitationsDisclosure.vue'
+import SettingsPanel from '../../components/sidepanel/SettingsPanel.vue'
 import { useFillSession } from '../../lib/useFillSession'
 import { useSettings } from '../../lib/useSettings'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
@@ -34,12 +36,21 @@ const s = useFillSession()
 const { settings, load: loadSettings } = useSettings()
 const { init: initTheme } = useExtensionTheme()
 
+// Settings live inside the panel now — no chrome:// modal. `view` swaps the body.
+const view = ref<'main' | 'settings'>('main')
+
 onMounted(async () => {
   const loaded = await loadSettings()
   initTheme(loaded.theme)
   s.hideValues.value = loaded.hideValuesByDefault
   s.autoMatch.value = loaded.autoMatchProfiles
   s.locale.value = loaded.locale
+  // The popup deep-links here by leaving a one-shot flag in session storage.
+  const pending = await browser.storage.session?.get('ui:pendingView')
+  if (pending?.['ui:pendingView'] === 'settings') {
+    view.value = 'settings'
+    await browser.storage.session?.remove('ui:pendingView')
+  }
   await s.initSite()
 })
 
@@ -58,203 +69,222 @@ const fieldContext = computed(() => {
   if (!s.scanned.value || !s.fields.value.length) return undefined
   return `${s.fields.value.length} fields`
 })
-
-function openOptions() {
-  browser.runtime.openOptionsPage?.()
-}
 </script>
 
 <template>
-  <PanelShell>
+  <PanelShell :show-footer="view === 'main'">
     <template #header>
-      <div class="flex items-center justify-between">
-        <BrandLockup />
-        <div class="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            class="size-[30px]"
-            :aria-label="s.hideValues.value ? 'Show values' : 'Hide values'"
-            @click="s.hideValues.value = !s.hideValues.value"
-          >
-            <EyeOff v-if="s.hideValues.value" class="size-4" />
-            <Eye v-else class="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="size-[30px]"
-            aria-label="Settings"
-            @click="openOptions"
-          >
-            <Settings class="size-4" />
-          </Button>
-        </div>
-      </div>
-      <SiteChip
-        :hostname="s.hostname.value || 'this page'"
-        :initial="siteInitial"
-        :context="fieldContext"
-      />
-    </template>
-
-    <!-- PRE-SCAN -->
-    <EmptyState
-      v-if="s.phase.value === 'prescan'"
-      :icon="ScanLine"
-      title="Scan this page"
-      description="Detect every field, then preview a fill plan before anything is written."
-    >
-      <Alert variant="info" class="text-left text-[12px]">
-        <ShieldCheck />
-        <div>Nothing is read until you scan. Values stay on your device.</div>
-      </Alert>
-    </EmptyState>
-
-    <!-- SCANNING / FILLING -->
-    <EmptyState
-      v-else-if="s.phase.value === 'scanning'"
-      :icon="ScanLine"
-      loading
-      title="Scanning…"
-      description="Detecting fields and matching saved profiles."
-    />
-    <EmptyState
-      v-else-if="s.phase.value === 'filling'"
-      :icon="CheckCheck"
-      loading
-      title="Filling…"
-      description="Writing values and verifying each field on the page."
-    />
-
-    <!-- DETECTED -->
-    <template v-else-if="s.phase.value === 'detected'">
-      <Alert v-if="s.matchedProfileName.value" variant="success">
-        <BookmarkCheck />
-        <div>
-          <strong>Matched “{{ s.matchedProfileName.value }}”.</strong>
-          {{ s.savedMappings.value.size }} saved
-          {{ s.savedMappings.value.size === 1 ? 'mapping' : 'mappings' }} applied · by fingerprint.
-        </div>
-      </Alert>
-      <Alert v-if="s.aiState.value === 'unavailable'" variant="warning">
-        <CloudOff />
-        <div>Quikfill AI is unavailable — it's optional, you can still preview and fill.</div>
-      </Alert>
-      <Alert
-        v-else-if="s.aiState.value === 'ready'"
-        variant="info"
-        class="justify-center text-center text-[12px]"
-      >
-        <Lock />
-        <div>Only redacted field summaries were sent — never your values.</div>
-      </Alert>
-      <Alert v-else-if="canAskAi" variant="info">
-        <WandSparkles />
-        <div>
-          <strong>{{ s.ambiguousFields.value.length }} fields are ambiguous.</strong>
-          Heuristics weren't confident — ask AI to classify.
-        </div>
-      </Alert>
-
-      <FieldCard
-        v-for="field in s.fields.value"
-        :key="field.id"
-        :field="field"
-        :ambiguous="ambiguousIds.has(field.id)"
-        :suggestion="s.aiSuggestions.value.get(field.id)"
-        :accepted-type="s.aiProposals.value.get(field.id)?.semanticType"
-        @accept="s.acceptSuggestion(field.id)"
-        @reject="s.rejectSuggestion(field.id)"
-      />
-
-      <LimitationsDisclosure :limitations="s.limitations.value" />
-    </template>
-
-    <!-- PREVIEW -->
-    <template v-else-if="s.phase.value === 'preview'">
-      <Alert v-if="s.matchedProfileName.value" variant="success">
-        <BookmarkCheck />
-        <div>
-          <strong>Matched “{{ s.matchedProfileName.value }}”.</strong>
-          Saved mappings applied.
-        </div>
-      </Alert>
-      <Alert v-if="s.confirmationCount.value" variant="warning">
-        <ShieldAlert />
-        <div>
-          <strong>{{ s.confirmationCount.value }} fields need confirmation.</strong>
-          Review before you fill.
-        </div>
-      </Alert>
-      <Alert v-if="s.saveMessage.value" variant="success">
-        <BookmarkCheck />
-        <div>{{ s.saveMessage.value }}</div>
-      </Alert>
-
-      <div class="flex items-center justify-between">
-        <span class="text-muted-foreground text-[12px]">
-          {{ s.includedCount.value }} of {{ s.planItems.value?.length ?? 0 }} included
-        </span>
-        <Button variant="ghost" size="sm" @click="s.regenerate()">
-          <RefreshCw class="size-3.5" />
-          Regenerate
+      <!-- SETTINGS HEADER -->
+      <div v-if="view === 'settings'" class="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-[30px]"
+          aria-label="Back"
+          @click="view = 'main'"
+        >
+          <ArrowLeft class="size-4" />
         </Button>
+        <span class="text-[15px] font-semibold">Preferences</span>
       </div>
 
-      <PlanCard
-        v-for="item in s.planItems.value ?? []"
-        :key="item.detectedFieldId"
-        :item="item"
-        :excluded="s.excluded.value.has(item.detectedFieldId)"
-        :hide-values="s.hideValues.value"
-        :suggestion="s.aiSuggestions.value.get(item.detectedFieldId)"
-        @toggle="s.toggle(item.detectedFieldId)"
-        @cycle="s.cycleSource(item.detectedFieldId)"
-        @accept="s.acceptSuggestion(item.detectedFieldId)"
-        @reject="s.rejectSuggestion(item.detectedFieldId)"
-      />
-
-      <LimitationsDisclosure :limitations="s.limitations.value" />
-    </template>
-
-    <!-- RESULTS -->
-    <template v-else-if="s.phase.value === 'results'">
-      <Alert v-if="s.resultSummary.value.failed === 0" variant="success">
-        <CheckCheck />
-        <div>
-          <strong>{{ s.resultSummary.value.filled }} filled</strong>
-          <template v-if="s.resultSummary.value.skipped">
-            · {{ s.resultSummary.value.skipped }} skipped</template
-          >. Verified on the page.
+      <!-- MAIN HEADER -->
+      <template v-else>
+        <div class="flex items-center justify-between">
+          <BrandLockup />
+          <div class="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-[30px]"
+              :aria-label="s.hideValues.value ? 'Show values' : 'Hide values'"
+              @click="s.hideValues.value = !s.hideValues.value"
+            >
+              <EyeOff v-if="s.hideValues.value" class="size-4" />
+              <Eye v-else class="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-[30px]"
+              aria-label="Settings"
+              @click="view = 'settings'"
+            >
+              <Settings class="size-4" />
+            </Button>
+          </div>
         </div>
-      </Alert>
-      <Alert v-else variant="warning">
-        <ShieldAlert />
-        <div>
-          {{ s.resultSummary.value.filled }} filled · {{ s.resultSummary.value.failed }} failed ·
-          {{ s.resultSummary.value.skipped }} skipped. Some custom widgets need a manual touch.
-        </div>
-      </Alert>
-
-      <template v-for="item in s.planItems.value ?? []" :key="item.detectedFieldId">
-        <ResultCard
-          v-if="s.resultById.value.get(item.detectedFieldId)"
-          :result="s.resultById.value.get(item.detectedFieldId)!"
-          :label="item.label"
-          :hide-values="s.hideValues.value"
+        <SiteChip
+          :hostname="s.hostname.value || 'this page'"
+          :initial="siteInitial"
+          :context="fieldContext"
         />
       </template>
-
-      <LimitationsDisclosure :limitations="s.limitations.value" />
-
-      <Alert v-if="s.profileSaved.value" variant="info" class="text-[12px]">
-        <BookmarkCheck />
-        <div>Profile saved — next visit fills instantly.</div>
-      </Alert>
     </template>
 
-    <p v-if="s.error.value" class="text-destructive text-[13px]">{{ s.error.value }}</p>
+    <!-- SETTINGS -->
+    <SettingsPanel v-if="view === 'settings'" />
+
+    <!-- PRE-SCAN -->
+    <template v-else>
+      <EmptyState
+        v-if="s.phase.value === 'prescan'"
+        :icon="ScanLine"
+        title="Scan this page"
+        description="Detect every field, then preview a fill plan before anything is written."
+      >
+        <Alert variant="info" class="text-left text-[12px]">
+          <ShieldCheck />
+          <div>Nothing is read until you scan. Values stay on your device.</div>
+        </Alert>
+      </EmptyState>
+
+      <!-- SCANNING / FILLING -->
+      <EmptyState
+        v-else-if="s.phase.value === 'scanning'"
+        :icon="ScanLine"
+        loading
+        title="Scanning…"
+        description="Detecting fields and matching saved profiles."
+      />
+      <EmptyState
+        v-else-if="s.phase.value === 'filling'"
+        :icon="CheckCheck"
+        loading
+        title="Filling…"
+        description="Writing values and verifying each field on the page."
+      />
+
+      <!-- DETECTED -->
+      <template v-else-if="s.phase.value === 'detected'">
+        <Alert v-if="s.matchedProfileName.value" variant="success">
+          <BookmarkCheck />
+          <div>
+            <strong>Matched “{{ s.matchedProfileName.value }}”.</strong>
+            {{ s.savedMappings.value.size }} saved
+            {{ s.savedMappings.value.size === 1 ? 'mapping' : 'mappings' }} applied · by
+            fingerprint.
+          </div>
+        </Alert>
+        <Alert v-if="s.aiState.value === 'unavailable'" variant="warning">
+          <CloudOff />
+          <div>Quikfill AI is unavailable — it's optional, you can still preview and fill.</div>
+        </Alert>
+        <Alert
+          v-else-if="s.aiState.value === 'ready'"
+          variant="info"
+          class="justify-center text-center text-[12px]"
+        >
+          <Lock />
+          <div>Only redacted field summaries were sent — never your values.</div>
+        </Alert>
+        <Alert v-else-if="canAskAi" variant="info">
+          <WandSparkles />
+          <div>
+            <strong>{{ s.ambiguousFields.value.length }} fields are ambiguous.</strong>
+            Heuristics weren't confident — ask AI to classify.
+          </div>
+        </Alert>
+
+        <FieldCard
+          v-for="field in s.fields.value"
+          :key="field.id"
+          :field="field"
+          :ambiguous="ambiguousIds.has(field.id)"
+          :suggestion="s.aiSuggestions.value.get(field.id)"
+          :accepted-type="s.aiProposals.value.get(field.id)?.semanticType"
+          @accept="s.acceptSuggestion(field.id)"
+          @reject="s.rejectSuggestion(field.id)"
+        />
+
+        <LimitationsDisclosure :limitations="s.limitations.value" />
+      </template>
+
+      <!-- PREVIEW -->
+      <template v-else-if="s.phase.value === 'preview'">
+        <Alert v-if="s.matchedProfileName.value" variant="success">
+          <BookmarkCheck />
+          <div>
+            <strong>Matched “{{ s.matchedProfileName.value }}”.</strong>
+            Saved mappings applied.
+          </div>
+        </Alert>
+        <Alert v-if="s.confirmationCount.value" variant="warning">
+          <ShieldAlert />
+          <div>
+            <strong>{{ s.confirmationCount.value }} fields need confirmation.</strong>
+            Review before you fill.
+          </div>
+        </Alert>
+        <Alert v-if="s.saveMessage.value" variant="success">
+          <BookmarkCheck />
+          <div>{{ s.saveMessage.value }}</div>
+        </Alert>
+
+        <div class="flex items-center justify-between">
+          <span class="text-muted-foreground text-[12px]">
+            {{ s.includedCount.value }} of {{ s.planItems.value?.length ?? 0 }} included
+          </span>
+          <Button variant="ghost" size="sm" @click="s.regenerate()">
+            <RefreshCw class="size-3.5" />
+            Regenerate
+          </Button>
+        </div>
+
+        <PlanCard
+          v-for="item in s.planItems.value ?? []"
+          :key="item.detectedFieldId"
+          :item="item"
+          :excluded="s.excluded.value.has(item.detectedFieldId)"
+          :hide-values="s.hideValues.value"
+          :suggestion="s.aiSuggestions.value.get(item.detectedFieldId)"
+          @toggle="s.toggle(item.detectedFieldId)"
+          @cycle="s.cycleSource(item.detectedFieldId)"
+          @accept="s.acceptSuggestion(item.detectedFieldId)"
+          @reject="s.rejectSuggestion(item.detectedFieldId)"
+        />
+
+        <LimitationsDisclosure :limitations="s.limitations.value" />
+      </template>
+
+      <!-- RESULTS -->
+      <template v-else-if="s.phase.value === 'results'">
+        <Alert v-if="s.resultSummary.value.failed === 0" variant="success">
+          <CheckCheck />
+          <div>
+            <strong>{{ s.resultSummary.value.filled }} filled</strong>
+            <template v-if="s.resultSummary.value.skipped">
+              · {{ s.resultSummary.value.skipped }} skipped</template
+            >. Verified on the page.
+          </div>
+        </Alert>
+        <Alert v-else variant="warning">
+          <ShieldAlert />
+          <div>
+            {{ s.resultSummary.value.filled }} filled · {{ s.resultSummary.value.failed }} failed ·
+            {{ s.resultSummary.value.skipped }} skipped. Some custom widgets need a manual touch.
+          </div>
+        </Alert>
+
+        <template v-for="item in s.planItems.value ?? []" :key="item.detectedFieldId">
+          <ResultCard
+            v-if="s.resultById.value.get(item.detectedFieldId)"
+            :result="s.resultById.value.get(item.detectedFieldId)!"
+            :label="item.label"
+            :hide-values="s.hideValues.value"
+          />
+        </template>
+
+        <LimitationsDisclosure :limitations="s.limitations.value" />
+
+        <Alert v-if="s.profileSaved.value" variant="info" class="text-[12px]">
+          <BookmarkCheck />
+          <div>Profile saved — next visit fills instantly.</div>
+        </Alert>
+      </template>
+
+      <p v-if="s.error.value" class="text-destructive text-[13px]">{{ s.error.value }}</p>
+    </template>
 
     <!-- FOOTER -->
     <template #footer>
