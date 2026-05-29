@@ -11,14 +11,15 @@ Engine: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 
 ## Status
 
-| # | Iteration | Status |
-|---|-----------|--------|
-| 8 | Dashboard management (data, generators, apps, profiles, mappings, history, shells) | ⏳ Planned |
-| 10 | Auth + backend-backed data + Stripe billing (with extension) | ⏳ Planned |
+| #   | Iteration                                                                          | Status     |
+| --- | ---------------------------------------------------------------------------------- | ---------- |
+| 8   | Dashboard management (data, generators, apps, profiles, mappings, history, shells) | ⏳ Planned |
+| 10  | Auth + backend-backed data + Stripe billing (with extension)                       | ⏳ Planned |
 
 ## Stack & conventions
 
 Direct reuse of `vue3-template/apps/app`:
+
 - Vue 3 SPA, Composition API only, `<script setup lang="ts">`, Vite.
 - Vue Router (lazy views, `meta: { layout, requiresAuth, title }`, auth guard,
   request cancellation on navigation).
@@ -33,6 +34,7 @@ Direct reuse of `vue3-template/apps/app`:
 - **Dense, scannable, productivity-tool** layout — not a marketing page.
 
 **Layering** (mirrors the template):
+
 ```txt
 views → composables/stores → @quikfill/api-client → backend
    ↘ @quikfill/schemas (Zod) for forms + response parsing + storage hydration
@@ -43,18 +45,18 @@ views → composables/stores → @quikfill/api-client → backend
 
 `Home · Data · Generators · Apps · Form Profiles · Fill History · Subscription · Settings`
 
-| Route | Purpose | Key schema(s) |
-|---|---|---|
-| `/` (Home) | overview: recent fills, counts, quick links | FillRun, Domain |
-| `/data` | entity types + records (the Data Library) CRUD | EntityType, EntityRecord |
-| `/generators` | generator presets + rules CRUD, preview output | GeneratorPreset, GeneratorRule |
-| `/apps` | domains/apps CRUD (name, hostnames[]) | Domain |
-| `/form-profiles` | profiles per domain; view fingerprint/structure metadata | FormProfile |
-| `/form-profiles/:id` | mapping review: target, fill source, strategy, confidence | FieldMapping, FillSource |
-| `/fill-history` | fill runs (redacted), filter by profile, pagination | FillRun |
-| `/subscription` | plan state + Stripe checkout/portal entry points | Subscription, entitlements |
-| `/settings` | account, AI prefs, locale, redaction defaults | UserAccount |
-| `/sign-in` | magic-link request/verify (auth layout) | — |
+| Route                | Purpose                                                   | Key schema(s)                  |
+| -------------------- | --------------------------------------------------------- | ------------------------------ |
+| `/` (Home)           | overview: recent fills, counts, quick links               | FillRun, Domain                |
+| `/data`              | entity types + records (the Data Library) CRUD            | EntityType, EntityRecord       |
+| `/generators`        | generator presets + rules CRUD, preview output            | GeneratorPreset, GeneratorRule |
+| `/apps`              | domains/apps CRUD (name, hostnames[])                     | Domain                         |
+| `/form-profiles`     | profiles per domain; view fingerprint/structure metadata  | FormProfile                    |
+| `/form-profiles/:id` | mapping review: target, fill source, strategy, confidence | FieldMapping, FillSource       |
+| `/fill-history`      | fill runs (redacted), filter by profile, pagination       | FillRun                        |
+| `/subscription`      | plan state + Stripe checkout/portal entry points          | Subscription, entitlements     |
+| `/settings`          | account, AI prefs, locale, redaction defaults             | UserAccount                    |
+| `/sign-in`           | magic-link request/verify (auth layout)                   | —                              |
 
 > **Mapping review** is the dashboard's most valuable screen: it's where a user
 > curates the mappings the extension applies. Show target selectors, fill source,
@@ -107,6 +109,7 @@ their own records).
 local-first logic.
 
 ## Guardrails
+
 - Share schemas with the extension — never fork the contracts.
 - Keep marketing/website design out of the dashboard `ui`.
 - Don't bury plan limits in components; read entitlements.

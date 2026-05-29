@@ -14,13 +14,13 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 
 ## Status
 
-| # | Iteration | Status |
-|---|-----------|--------|
-| 3 | Scanner prototype (scan + inspect detected fields) | ⏳ Planned |
-| 4 | Fill plan preview (generators + heuristics + preview UI) | ⏳ Planned |
-| 5 | Fill execution + undo (native fill, verify, undo, results) | ⏳ Planned |
-| 6 | Local form profiles (save/match/reuse mappings) | ⏳ Planned |
-| 7 | Gemini assistance (privacy-aware AI, review/accept/reject) | ⏳ Planned |
+| #   | Iteration                                                  | Status     |
+| --- | ---------------------------------------------------------- | ---------- |
+| 3   | Scanner prototype (scan + inspect detected fields)         | ⏳ Planned |
+| 4   | Fill plan preview (generators + heuristics + preview UI)   | ⏳ Planned |
+| 5   | Fill execution + undo (native fill, verify, undo, results) | ⏳ Planned |
+| 6   | Local form profiles (save/match/reuse mappings)            | ⏳ Planned |
+| 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ⏳ Planned |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)
@@ -30,12 +30,13 @@ prerequisites for everything below.)
 ## Build tool decision: WXT
 
 **Decision:** build the extension with **[WXT](https://wxt.dev)** + Vue 3 + Vite
-+ Tailwind v4. Alternative considered: **CRXJS**. WXT is recommended because it
-is MV3-native, gives file-based entrypoints, generates the manifest from config,
-provides typed messaging + `storage` helpers, and has working HMR for the side
-panel and content scripts. CRXJS is a fine lighter-weight Vite plugin but leaves
-more manifest/wiring manual. Either keeps us on Vite, so the decision is
-reversible without changing feature code (which lives in the shared packages).
+
+- Tailwind v4. Alternative considered: **CRXJS**. WXT is recommended because it
+  is MV3-native, gives file-based entrypoints, generates the manifest from config,
+  provides typed messaging + `storage` helpers, and has working HMR for the side
+  panel and content scripts. CRXJS is a fine lighter-weight Vite plugin but leaves
+  more manifest/wiring manual. Either keeps us on Vite, so the decision is
+  reversible without changing feature code (which lives in the shared packages).
 
 > **CSP / Vue note (the "can you even use a framework?" concern):** MV3's CSP
 > forbids remotely-hosted code and runtime `eval`/`new Function()`. Vue's
@@ -71,6 +72,7 @@ options_page→ extension preferences (AI on/off, default fill source, locale, r
 ```
 
 **Responsibility split**
+
 - **side_panel** — all primary UX and plan review. Composes `autofill-core`,
   `generators`, `ai` (via background), and `ui`.
 - **service_worker** — stateless orchestrator: routes messages, owns storage and
@@ -93,15 +95,15 @@ permission's justification in the manifest config (Web Store review needs it).
 Typed messages flow through `browser-adapter`; payloads validated against
 `packages/schemas`. Core message set (extend per iteration):
 
-| Message | Direction | Payload | Response |
-|---|---|---|---|
-| `SCAN_REQUEST` | panel → worker → content | `{ options }` | `DetectedField[]` (+ limitations) |
-| `MATCH_PROFILE` | panel → worker | `{ hostname, url, pageTitle, fingerprintHash, fieldCount }` | ranked profile candidates |
-| `BUILD_PLAN` | panel (local) | `{ detectedFields, mappings, fillSourceChoice }` | `FillPlan` |
-| `AI_CLASSIFY` | panel → worker → backend | `FieldSummary[]` | `AiSuggestion[]` (validated) |
-| `FILL_REQUEST` | panel → worker → content | `FillPlan` | `FillResult[]` (+ undo snapshot) |
-| `UNDO_REQUEST` | panel → worker → content | `{ undoSnapshot }` | `FillResult[]` |
-| `SAVE_PROFILE` | panel → worker | `{ FormProfile, FieldMapping[] }` | `{ profileId }` |
+| Message         | Direction                | Payload                                                     | Response                          |
+| --------------- | ------------------------ | ----------------------------------------------------------- | --------------------------------- |
+| `SCAN_REQUEST`  | panel → worker → content | `{ options }`                                               | `DetectedField[]` (+ limitations) |
+| `MATCH_PROFILE` | panel → worker           | `{ hostname, url, pageTitle, fingerprintHash, fieldCount }` | ranked profile candidates         |
+| `BUILD_PLAN`    | panel (local)            | `{ detectedFields, mappings, fillSourceChoice }`            | `FillPlan`                        |
+| `AI_CLASSIFY`   | panel → worker → backend | `FieldSummary[]`                                            | `AiSuggestion[]` (validated)      |
+| `FILL_REQUEST`  | panel → worker → content | `FillPlan`                                                  | `FillResult[]` (+ undo snapshot)  |
+| `UNDO_REQUEST`  | panel → worker → content | `{ undoSnapshot }`                                          | `FillResult[]`                    |
+| `SAVE_PROFILE`  | panel → worker           | `{ FormProfile, FieldMapping[] }`                           | `{ profileId }`                   |
 
 Rules: every payload is a schema-validated type; the content script trusts
 nothing it isn't given; the worker is the only hop that talks to storage/backend.
@@ -136,6 +138,7 @@ nothing it isn't given; the worker is the only hop that talks to storage/backend
 ## Fill execution requirements
 
 The filler (content script) must:
+
 - Use **native value setters** for inputs/textareas
   (`Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set`)
   so framework-controlled (React/Vue/Angular) inputs register the change.
@@ -153,13 +156,13 @@ The filler (content script) must:
 
 ## Field support levels (honest about browser limits)
 
-| Level | Scope | When |
-|---|---|---|
-| 1 — Native | inputs, textareas, selects, checkboxes, radios | Iteration 5 (required) |
-| 2 — Framework-controlled | React/Vue/Angular controlled inputs (native setter + events) | Iteration 5, immediately after |
-| 3 — Custom components | React Select, MUI Select/Autocomplete, Ant Select, date pickers, masked inputs | incrementally post-MVP |
-| 4 — Hard boundaries | same-origin iframes, open shadow DOM, cross-origin iframes (with perms) | where possible |
-| 5 — Not reliably fillable | closed shadow DOM, canvas forms, hostile/injection-blocked pages | **detect + explain**, never pretend |
+| Level                     | Scope                                                                          | When                                |
+| ------------------------- | ------------------------------------------------------------------------------ | ----------------------------------- |
+| 1 — Native                | inputs, textareas, selects, checkboxes, radios                                 | Iteration 5 (required)              |
+| 2 — Framework-controlled  | React/Vue/Angular controlled inputs (native setter + events)                   | Iteration 5, immediately after      |
+| 3 — Custom components     | React Select, MUI Select/Autocomplete, Ant Select, date pickers, masked inputs | incrementally post-MVP              |
+| 4 — Hard boundaries       | same-origin iframes, open shadow DOM, cross-origin iframes (with perms)        | where possible                      |
+| 5 — Not reliably fillable | closed shadow DOM, canvas forms, hostile/injection-blocked pages               | **detect + explain**, never pretend |
 
 The scanner + filler must surface Level 5 cases as clear limitations in the UI.
 
@@ -168,6 +171,7 @@ The scanner + filler must surface Level 5 cases as clear limitations in the UI.
 ## Iteration detail
 
 ### Iteration 3 — Scanner prototype
+
 **Build:** MV3 extension shell (WXT), side panel UI, worker↔content messaging,
 `form-scanner` native-field scanning, detected-field list UI in the panel.
 **Packages:** `form-scanner`, `browser-adapter`, `ui`.
@@ -178,6 +182,7 @@ chrome); E2E: load extension, open panel, scan a fixture page, see fields.
 **Exit:** user can scan a real page and inspect detected fields.
 
 ### Iteration 4 — Fill plan preview
+
 **Build:** `generators` (the catalog), `autofill-core` heuristics + `buildFillPlan`,
 fill-source picker, preview UI. **No writing to the page yet.**
 **UI:** per-field row showing current value, proposed value, source, confidence,
@@ -187,6 +192,7 @@ generation; preview renders all item fields.
 **Exit:** user can generate a preview plan without filling.
 
 ### Iteration 5 — Fill execution + undo
+
 **Build:** filler (native setters + event dispatch), verification, undo snapshot,
 structured `FillResult[]`. Levels 1–2.
 **UI:** Fill button; per-field success/skip/fail with reasons; Undo button.
@@ -196,6 +202,7 @@ scan → preview → fill → verify → undo on a fixture form.
 **Exit:** user can preview, fill, verify, and undo on native forms.
 
 ### Iteration 6 — Local form profiles
+
 **Build:** save `Domain`/`FormProfile` + `FieldMapping[]` to `chrome.storage`
 (local, via `StorageAdapter`); `autofill-core.matchProfile` (hostname →
 urlPattern → pageTitle → fingerprint → field-count → structure; tie-break by
@@ -206,6 +213,7 @@ round-trip; "scan a known page → mappings pre-applied".
 **Exit:** user can reuse a saved form profile.
 
 ### Iteration 7 — Gemini assistance
+
 **Build:** `ai` field-summary builder (redacted, no HTML), backend AI client via
 `api-client` (`POST /ai/classify-fields`, `/ai/suggest-mappings`), `AiSuggestion`
 validation, review/accept/reject UI. AI is **user-initiated** and tied to a click.
@@ -224,6 +232,7 @@ output; accepted suggestion produces a valid `FieldMapping`.
 
 Behind `StorageAdapter` (keys namespaced; never `chrome.storage.sync` for
 sensitive data):
+
 - implicit local account/profile
 - saved domains, form profiles, field mappings
 - generator presets
@@ -250,6 +259,7 @@ unchanged.
   fixtures.
 
 ## Guardrails (do not regress)
+
 - DOM/Chrome code stays in `content_script` + `browser-adapter`; planning logic
   stays in `autofill-core`.
 - Never URL-only form identity. Never hard-code a single site.

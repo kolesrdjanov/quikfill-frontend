@@ -1,0 +1,25 @@
+{
+  "name": "@quikfill/config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "exports": {
+    "./eslint": "./eslint.base.js",
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./theme.css": "./theme.css",
+    "./vitest": "./vitest.base.ts"
+  },
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.8.0",
+    "typescript-eslint": "^8.58.2"
+  },
+  "peerDependencies": {
+    "eslint": "^10.0.0",
+    "vitest": "^3.0.0"
+  }
+}

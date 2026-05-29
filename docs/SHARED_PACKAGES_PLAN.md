@@ -33,30 +33,30 @@ fail the build if `autofill-core` imports `form-scanner`, `browser-adapter`,
 ## `packages/schemas` — canonical contracts (Iteration 2)
 
 Shared Zod schemas + inferred TS types. **Single source of truth** for every
-cross-package and AI contract. Align names 1:1 with the backend's *Contracts
-Appendix* (`quikfill-services/docs/IMPLEMENTATION_PLAN.md`).
+cross-package and AI contract. Align names 1:1 with the backend's _Contracts
+Appendix_ (`quikfill-services/docs/IMPLEMENTATION_PLAN.md`).
 
 **Schemas to define** (each with `z.infer` type export and a parse test):
 
-| Schema | Notes / key fields |
-|---|---|
-| `UserAccount` | id, email, createdAt (implicit local account allowed pre-auth) |
-| `Domain` | id, name, hostnames[], description |
-| `FormProfile` | hostname, urlPatterns[], pageTitlePatterns[], `fieldFingerprintHash`, `structureMetadata` (section headings, field count, structure hash), name |
-| `DetectedField` | scanner id, tag, inputType, currentValue, required, disabled/readonly, visibility, name, id, classNames, placeholder, autocomplete, aria label + labelledby text, associated label, nearbyText, sectionHeading, options[], selectorCandidates[], `domFingerprint`, frame context, shadow context |
-| `FieldFingerprint` | stable hash inputs (label/name/type/options/section) + the hash |
-| `FieldMapping` | fieldFingerprint, selectorCandidates, semanticHints, `target`, `fillSource`, `fillStrategy`, confidence, lastSuccessfulFillAt |
-| `FillSource` | **discriminated union** on `sourceType` — see below |
-| `FillPlanItem` | detectedFieldId, label, currentValue, proposedValue, fillSource, confidence, fillStrategy, warnings[], `requiresConfirmation` |
-| `FillPlan` | items[], profile match info, mode |
-| `FillResult` | per-field: status (success/skipped/failed), accepted value, reason |
-| `FillRun` | user, domain, formProfile?, url, mode, planItems (redacted), results, failedFields, undoSnapshot?, timestamp |
-| `EntityType` / `EntityFieldDef` | `EntityFieldDef`: `{ key, label, type, required, options? }`; type ∈ text\|number\|boolean\|date\|email\|phone\|enum\|address\|currency\|notes |
-| `EntityRecord` | entityTypeId, name, values keyed by field key |
-| `GeneratorPreset` / `GeneratorRule` | rule: `{ fieldKey, kind, options }`; kind ∈ person\|email\|phone\|address\|company\|unit\|number\|date\|currency\|boolean\|notes\|selectOption\|customEnum |
-| `FieldSummary` | AI input — minimized + redacted: fieldId, label, inputType, autocomplete, options[], nearbyText, sectionHeading. **No current value, no HTML.** |
-| `AiSuggestion` | AI output — untrusted: fieldId, semanticType, confidence (0–1), reasons[] |
-| `StorageAdapter` / `SyncAdapter` | TS interfaces (below), co-located here |
+| Schema                              | Notes / key fields                                                                                                                                                                                                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `UserAccount`                       | id, email, createdAt (implicit local account allowed pre-auth)                                                                                                                                                                                                                                   |
+| `Domain`                            | id, name, hostnames[], description                                                                                                                                                                                                                                                               |
+| `FormProfile`                       | hostname, urlPatterns[], pageTitlePatterns[], `fieldFingerprintHash`, `structureMetadata` (section headings, field count, structure hash), name                                                                                                                                                  |
+| `DetectedField`                     | scanner id, tag, inputType, currentValue, required, disabled/readonly, visibility, name, id, classNames, placeholder, autocomplete, aria label + labelledby text, associated label, nearbyText, sectionHeading, options[], selectorCandidates[], `domFingerprint`, frame context, shadow context |
+| `FieldFingerprint`                  | stable hash inputs (label/name/type/options/section) + the hash                                                                                                                                                                                                                                  |
+| `FieldMapping`                      | fieldFingerprint, selectorCandidates, semanticHints, `target`, `fillSource`, `fillStrategy`, confidence, lastSuccessfulFillAt                                                                                                                                                                    |
+| `FillSource`                        | **discriminated union** on `sourceType` — see below                                                                                                                                                                                                                                              |
+| `FillPlanItem`                      | detectedFieldId, label, currentValue, proposedValue, fillSource, confidence, fillStrategy, warnings[], `requiresConfirmation`                                                                                                                                                                    |
+| `FillPlan`                          | items[], profile match info, mode                                                                                                                                                                                                                                                                |
+| `FillResult`                        | per-field: status (success/skipped/failed), accepted value, reason                                                                                                                                                                                                                               |
+| `FillRun`                           | user, domain, formProfile?, url, mode, planItems (redacted), results, failedFields, undoSnapshot?, timestamp                                                                                                                                                                                     |
+| `EntityType` / `EntityFieldDef`     | `EntityFieldDef`: `{ key, label, type, required, options? }`; type ∈ text\|number\|boolean\|date\|email\|phone\|enum\|address\|currency\|notes                                                                                                                                                   |
+| `EntityRecord`                      | entityTypeId, name, values keyed by field key                                                                                                                                                                                                                                                    |
+| `GeneratorPreset` / `GeneratorRule` | rule: `{ fieldKey, kind, options }`; kind ∈ person\|email\|phone\|address\|company\|unit\|number\|date\|currency\|boolean\|notes\|selectOption\|customEnum                                                                                                                                       |
+| `FieldSummary`                      | AI input — minimized + redacted: fieldId, label, inputType, autocomplete, options[], nearbyText, sectionHeading. **No current value, no HTML.**                                                                                                                                                  |
+| `AiSuggestion`                      | AI output — untrusted: fieldId, semanticType, confidence (0–1), reasons[]                                                                                                                                                                                                                        |
+| `StorageAdapter` / `SyncAdapter`    | TS interfaces (below), co-located here                                                                                                                                                                                                                                                           |
 
 **`FillSource` union** (mirror backend exactly):
 
@@ -73,14 +73,14 @@ Appendix* (`quikfill-services/docs/IMPLEMENTATION_PLAN.md`).
 
 ```ts
 interface StorageAdapter {
-  get<T>(key: string): Promise<T | null>;
-  set<T>(key: string, value: T): Promise<void>;
-  delete(key: string): Promise<void>;
-  list(prefix: string): Promise<string[]>;
+  get<T>(key: string): Promise<T | null>
+  set<T>(key: string, value: T): Promise<void>
+  delete(key: string): Promise<void>
+  list(prefix: string): Promise<string[]>
 }
 interface SyncAdapter {
-  snapshot(since?: string): Promise<SyncSnapshot>;   // GET /sync/snapshot
-  push(changes: SyncChange[]): Promise<void>;        // POST /sync/push (idempotent by id)
+  snapshot(since?: string): Promise<SyncSnapshot> // GET /sync/snapshot
+  push(changes: SyncChange[]): Promise<void> // POST /sync/push (idempotent by id)
 }
 ```
 
@@ -96,6 +96,7 @@ required-field enforcement, fingerprint determinism.
 Browser-agnostic planning and matching. **No DOM, Chrome, Vue, Nuxt, or backend.**
 
 **Responsibilities**
+
 - Normalize scanner output (`DetectedField[]`) into planning input.
 - **Heuristic classification** of obvious fields (email/phone/name/etc.) from
   label/name/autocomplete/aria/placeholder — deterministic, before any AI.
@@ -124,6 +125,7 @@ tests in the repo — keep coverage strong.
 DOM-aware. Runs inside the content script. **No Chrome, no Vue.**
 
 **Responsibilities**
+
 - Find inputs, textareas, selects, checkboxes, radios, contenteditable, and
   common custom controls (progressively).
 - Extract everything `DetectedField` requires (labels, placeholder, name, id,
@@ -147,6 +149,7 @@ benign DOM changes and uniqueness across distinct fields.
 The **only** package allowed to touch `chrome.*`.
 
 **Responsibilities**
+
 - Extension messaging (typed `sendMessage`/`onMessage` wrappers over the
   [message protocol](./CHROME_EXTENSION_PLAN.md#message-protocol)).
 - `chrome.storage` wrappers implementing `StorageAdapter` (local; avoid `sync`
@@ -181,6 +184,7 @@ honoring; `selectOption` only ever returns a valid option.
 Frontend AI helpers + contracts. **No API key. No direct Gemini network call.**
 
 **Responsibilities**
+
 - Build privacy-aware `FieldSummary[]` from `DetectedField[]`: **redact current
   values by default**, strip HTML, cap size.
 - Call backend `POST /ai/classify-fields` / `/ai/suggest-mappings` via
@@ -200,6 +204,7 @@ response validator rejects malformed AI output; suggestion→proposal mapping.
 Typed client for `quikfill-services`. No product-decision logic.
 
 **Responsibilities**
+
 - Fetch/axios wrapper with auth header policy + cancellable requests (mirror
   `vue3-template`'s axios setup and queued-401-refresh interceptor).
 - Endpoints: auth (magic link/verify/refresh/me), entity types/records, generator
@@ -226,6 +231,7 @@ feel) — do **not** couple website marketing design here.
 ## `packages/config` — shared config (Iteration 1)
 
 Shared, versioned presets so apps don't drift:
+
 - TypeScript base (`tsconfig.base.json`).
 - ESLint 9 flat config base (re-exported by the root `eslint.config.js`).
 - Tailwind v4 preset + semantic tokens.
@@ -235,12 +241,12 @@ Shared, versioned presets so apps don't drift:
 
 ## Build sequencing of packages
 
-| Iteration | Packages touched |
-|---|---|
-| 1 | `config`, `ui` (scaffold), all others placeholder |
-| 2 | `schemas` (full), adapter interfaces |
-| 3 | `form-scanner`, `browser-adapter` |
-| 4 | `generators`, `autofill-core` (classify + plan) |
-| 6 | `autofill-core` (profile match + undo), `browser-adapter` (profile storage) |
-| 7 | `ai`, `api-client` (AI endpoints) |
-| 10 | `api-client` (full), `browser-adapter` (`SyncAdapter`) |
+| Iteration | Packages touched                                                            |
+| --------- | --------------------------------------------------------------------------- |
+| 1         | `config`, `ui` (scaffold), all others placeholder                           |
+| 2         | `schemas` (full), adapter interfaces                                        |
+| 3         | `form-scanner`, `browser-adapter`                                           |
+| 4         | `generators`, `autofill-core` (classify + plan)                             |
+| 6         | `autofill-core` (profile match + undo), `browser-adapter` (profile storage) |
+| 7         | `ai`, `api-client` (AI endpoints)                                           |
+| 10        | `api-client` (full), `browser-adapter` (`SyncAdapter`)                      |

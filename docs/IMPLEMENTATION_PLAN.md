@@ -28,18 +28,18 @@ repo's iterations 4–6.
 
 ## Status
 
-| # | Iteration | Primary surface | Status |
-|---|-----------|-----------------|--------|
-| 1 | Monorepo Foundation | all | ⏳ Next |
-| 2 | Shared Schemas (`packages/schemas`) | all | ⏳ Planned |
-| 3 | Scanner Prototype | extension | ⏳ Planned |
-| 4 | Fill Plan Preview | extension | ⏳ Planned |
-| 5 | Fill Execution + Undo | extension | ⏳ Planned |
-| 6 | Local Form Profiles | extension | ⏳ Planned |
-| 7 | Gemini Assistance | extension | ⏳ Planned |
-| 8 | Dashboard Management | app | ⏳ Planned |
-| 9 | Website | website | ⏳ Planned |
-| 10 | Backend Sync + Billing | extension + app | ⏳ Planned |
+| #   | Iteration                           | Primary surface | Status     |
+| --- | ----------------------------------- | --------------- | ---------- |
+| 1   | Monorepo Foundation                 | all             | ✅ Done    |
+| 2   | Shared Schemas (`packages/schemas`) | all             | ⏳ Next    |
+| 3   | Scanner Prototype                   | extension       | ⏳ Planned |
+| 4   | Fill Plan Preview                   | extension       | ⏳ Planned |
+| 5   | Fill Execution + Undo               | extension       | ⏳ Planned |
+| 6   | Local Form Profiles                 | extension       | ⏳ Planned |
+| 7   | Gemini Assistance                   | extension       | ⏳ Planned |
+| 8   | Dashboard Management                | app             | ⏳ Planned |
+| 9   | Website                             | website         | ⏳ Planned |
+| 10  | Backend Sync + Billing              | extension + app | ⏳ Planned |
 
 Update this table (and each surface plan's own status) as work lands.
 
@@ -51,18 +51,18 @@ These decisions adopt the conventions already proven in the product owner's
 `vue3-template` so this repo feels familiar to maintain. Each is a **reversible
 default** — change it here and the surface plans inherit it.
 
-| Concern | Decision | Rationale |
-|---|---|---|
-| Package manager / workspaces | **pnpm@10 workspaces** (`apps/*`, `packages/*`) | Matches `vue3-template`. The requirement says "Turborepo-style"; we satisfy the *structure* with pnpm workspaces and treat Turborepo as an **optional task-runner layer** to add later for caching — not a day-1 dependency. |
-| App/extension bundler | **Vite** | Shared across extension (via WXT), app SPA, and the `web` Nuxt build. One mental model. |
-| Extension framework/build | **[WXT](https://wxt.dev)** + Vue 3 | MV3-native, file-based entrypoints, generated manifest, HMR for side panel/content scripts, first-class Vue. See the [extension plan](./CHROME_EXTENSION_PLAN.md#build-tool-decision-wxt) for the WXT-vs-CRXJS rationale and the Vue/CSP note. |
-| Dashboard | **Vue 3 SPA** (Composition API, `<script setup>`), Vue Router, Pinia, Tailwind v4, shadcn-vue, VeeValidate + Zod | Direct reuse of `vue3-template` patterns. |
-| Website | **Nuxt 4** (prerender by default), Tailwind v4 | Matches `vue3-template/apps/web`. |
-| Validation | **Zod 3.x** as the single contract source; VeeValidate via `@vee-validate/zod` for forms | `packages/schemas` is canonical; the backend aligns its DTOs 1:1. |
-| Unit tests | **Vitest** per package/app | Logic, schemas, scanner, planner, generators. |
-| E2E | **Playwright** (`apps/e2e`), incl. extension harness + fixture HTML pages | Matches `vue3-template`; fixtures exercise scanner/filler on real DOM. |
-| Lint/format | ESLint 9 flat config + Prettier (`prettier-plugin-tailwindcss`), husky pre-commit | Matches `vue3-template`. |
-| Node | pinned via `.node-version` (>=20.19) | Matches `vue3-template`. |
+| Concern                      | Decision                                                                                                         | Rationale                                                                                                                                                                                                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Package manager / workspaces | **pnpm@10 workspaces** (`apps/*`, `packages/*`)                                                                  | Matches `vue3-template`. The requirement says "Turborepo-style"; we satisfy the _structure_ with pnpm workspaces and treat Turborepo as an **optional task-runner layer** to add later for caching — not a day-1 dependency.                   |
+| App/extension bundler        | **Vite**                                                                                                         | Shared across extension (via WXT), app SPA, and the `web` Nuxt build. One mental model.                                                                                                                                                        |
+| Extension framework/build    | **[WXT](https://wxt.dev)** + Vue 3                                                                               | MV3-native, file-based entrypoints, generated manifest, HMR for side panel/content scripts, first-class Vue. See the [extension plan](./CHROME_EXTENSION_PLAN.md#build-tool-decision-wxt) for the WXT-vs-CRXJS rationale and the Vue/CSP note. |
+| Dashboard                    | **Vue 3 SPA** (Composition API, `<script setup>`), Vue Router, Pinia, Tailwind v4, shadcn-vue, VeeValidate + Zod | Direct reuse of `vue3-template` patterns.                                                                                                                                                                                                      |
+| Website                      | **Nuxt 4** (prerender by default), Tailwind v4                                                                   | Matches `vue3-template/apps/web`.                                                                                                                                                                                                              |
+| Validation                   | **Zod 3.x** as the single contract source; VeeValidate via `@vee-validate/zod` for forms                         | `packages/schemas` is canonical; the backend aligns its DTOs 1:1.                                                                                                                                                                              |
+| Unit tests                   | **Vitest** per package/app                                                                                       | Logic, schemas, scanner, planner, generators.                                                                                                                                                                                                  |
+| E2E                          | **Playwright** (`apps/e2e`), incl. extension harness + fixture HTML pages                                        | Matches `vue3-template`; fixtures exercise scanner/filler on real DOM.                                                                                                                                                                         |
+| Lint/format                  | ESLint 9 flat config + Prettier (`prettier-plugin-tailwindcss`), husky pre-commit                                | Matches `vue3-template`.                                                                                                                                                                                                                       |
+| Node                         | pinned via `.node-version` (>=20.19)                                                                             | Matches `vue3-template`.                                                                                                                                                                                                                       |
 
 > **Naming note:** the requirement names the apps `website/`, `app/`,
 > `chrome-extension/`. We keep those names (not the template's `web`/`app`) so the
@@ -108,15 +108,15 @@ quikfill-frontend/
 
 ```jsonc
 {
-  "dev:ext":   "pnpm --filter @quikfill/chrome-extension dev",
-  "dev:app":   "pnpm --filter @quikfill/app dev",
-  "dev:web":   "pnpm --filter @quikfill/website dev",
-  "build":     "pnpm -r build",
+  "dev:ext": "pnpm --filter @quikfill/chrome-extension dev",
+  "dev:app": "pnpm --filter @quikfill/app dev",
+  "dev:web": "pnpm --filter @quikfill/website dev",
+  "build": "pnpm -r build",
   "typecheck": "pnpm -r typecheck",
-  "lint":      "eslint .",
+  "lint": "eslint .",
   "format:check": "prettier --check .",
-  "test":      "pnpm -r test",
-  "e2e":       "pnpm --filter @quikfill/e2e test"
+  "test": "pnpm -r test",
+  "e2e": "pnpm --filter @quikfill/e2e test",
 }
 ```
 
@@ -127,6 +127,7 @@ imported via `workspace:*`.
 `pnpm format:check`, `pnpm typecheck`, `pnpm build`.
 
 **Exit criteria**
+
 - `pnpm install && pnpm build` succeeds from a clean checkout.
 - Each app starts in dev; each package exports a placeholder and type-checks.
 - Lint/format/typecheck green.
@@ -152,6 +153,7 @@ config ──▶ everything (eslint/tailwind/tsconfig/test presets)
 ```
 
 Dependency rules (enforced by review, ideally by lint boundaries):
+
 - `autofill-core` must **not** import DOM, Chrome, Vue, Nuxt, or backend clients.
 - `form-scanner` is DOM-aware but **not** Chrome- or Vue-aware.
 - `browser-adapter` is the only package allowed to touch `chrome.*`.
@@ -165,8 +167,9 @@ Dependency rules (enforced by review, ideally by lint boundaries):
 Adopted from `vue3-template/CLAUDE.md` and the requirement's agent rules.
 
 **Vue code**
+
 - Composition API only; `<script setup lang="ts">`. No Options API.
-- Pinia *setup* stores own shared state; views call store actions, never mutate
+- Pinia _setup_ stores own shared state; views call store actions, never mutate
   refs or browser storage directly. Stores may call APIs/utils but **not**
   composables (composables may wrap stores).
 - Forms use `useFormValidation(schema)` (wraps VeeValidate + `toTypedSchema`);
@@ -174,23 +177,27 @@ Adopted from `vue3-template/CLAUDE.md` and the requirement's agent rules.
   input gets `:aria-invalid`.
 
 **Contracts & data**
+
 - `packages/schemas` (Zod) is the single source of truth for every cross-package
   and AI contract. Backend DTOs align 1:1 (see [backend relationship](#relationship-to-the-backend)).
 - Parse untrusted input (API responses, storage hydration, **all** AI output)
   with Zod before trusting it.
 
 **Storage & sync**
+
 - All persistence sits behind adapter interfaces (`StorageAdapter`,
   `SyncAdapter`) defined in Iteration 2. Local-first first; backend sync swaps in
   without touching feature code.
 - Never put sensitive form values in `chrome.storage.sync`.
 
 **AI**
+
 - Review-first: AI **interprets**, the user confirms, AI never fills the page.
 - Send minimized, redacted field summaries — never full HTML, never current
   values by default. No model key in any bundle.
 
 **Product invariants** (from requirements — do not regress)
+
 - Never identify a form by URL alone (use the fingerprint/profile match).
 - Never hard-code a single site, domain, or plan limit inside components.
 - Keep extension permissions minimal and request tab access on user action.
@@ -205,7 +212,7 @@ Adopted from `vue3-template/CLAUDE.md` and the requirement's agent rules.
 
 `quikfill-services` is already building toward this frontend. Alignment points:
 
-- **Contracts:** the backend's *Contracts Appendix* (FillSource,
+- **Contracts:** the backend's _Contracts Appendix_ (FillSource,
   `FieldMapping.target`, FormProfile structure, FieldSummary, AiSuggestion,
   EntityFieldDef, GeneratorRule) is the interim source of truth **until
   `packages/schemas` exists**. Once it does, the Zod schemas become canonical and
