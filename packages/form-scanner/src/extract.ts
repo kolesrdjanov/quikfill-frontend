@@ -19,6 +19,18 @@ export function isFormControl(el: Element): el is FormControl {
   return false
 }
 
+/**
+ * Detect an autocomplete widget that owns this input's value — one whose
+ * suggestion dropdown the user must pick from (picking is what populates the
+ * site's dependent fields). Returns the widget kind, or undefined. Extensible:
+ * add more signatures as other widgets are supported.
+ */
+export function detectAutocomplete(el: FormControl): 'googlePlaces' | undefined {
+  // Google Places Autocomplete tags the <input> it attaches to with this class.
+  if (el.classList.contains('pac-target-input')) return 'googlePlaces'
+  return undefined
+}
+
 export function getInputType(el: FormControl): string {
   const tag = el.tagName.toLowerCase()
   if (tag === 'input') return (el as HTMLInputElement).type.toLowerCase() || 'text'

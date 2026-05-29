@@ -45,6 +45,13 @@ describe('resolveFillSource', () => {
     expect(resolveFillSource({ sourceType: 'aiGenerated', hint: 'x' }).value).toBeNull()
   })
 
+  it('uses user-facing copy for unresolved AI sources (no internal roadmap leak)', () => {
+    const r = resolveFillSource({ sourceType: 'aiGenerated', hint: 'x' })
+    expect(r.requiresConfirmation).toBe(true)
+    expect(r.warnings[0]).toMatch(/couldn't determine a value/i)
+    expect(r.warnings.join(' ')).not.toMatch(/iteration/i)
+  })
+
   it('composes parts with a positional template', () => {
     const r = resolveFillSource({
       sourceType: 'composed',
@@ -68,6 +75,12 @@ describe('defaultFillStrategy', () => {
     expect(defaultFillStrategy(field({ id: 'd', inputType: 'customSelect', tagName: 'div' }))).toBe(
       'customSelect',
     )
+  })
+
+  it('uses assistedAutocomplete for autocomplete-hinted fields, over the type default', () => {
+    expect(
+      defaultFillStrategy(field({ id: 'e', inputType: 'text', autocompleteHint: 'googlePlaces' })),
+    ).toBe('assistedAutocomplete')
   })
 })
 

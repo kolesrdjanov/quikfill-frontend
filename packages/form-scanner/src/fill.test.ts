@@ -150,6 +150,47 @@ describe('applyFill', () => {
     expect(el.value).toBe('(976) 729-2722')
   })
 
+  it('assists an autocomplete field: types to open the dropdown, never blurs', async () => {
+    document.body.innerHTML = '<input id="addr" class="pac-target-input" />'
+    const el = document.getElementById('addr') as HTMLInputElement
+    const seen: string[] = []
+    for (const t of ['input', 'keydown', 'keyup', 'blur']) {
+      el.addEventListener(t, () => seen.push(t))
+    }
+    const { results, undoSnapshot } = await applyFill([
+      instruction({
+        detectedFieldId: 'addr',
+        fillStrategy: 'assistedAutocomplete',
+        proposedValue: '742 Evergreen Terrace',
+      }),
+    ])
+    expect(el.value).toBe('742 Evergreen Terrace')
+    expect(results[0]).toMatchObject({ status: 'assisted', acceptedValue: '742 Evergreen Terrace' })
+    expect(results[0].reason).toMatch(/pick the matching result/i)
+    expect(seen).toContain('input')
+    // Blur would close/clear the suggestion dropdown — it must not fire.
+    expect(seen).not.toContain('blur')
+    // Undo restores the field to its pre-fill (empty) value.
+    expect(undoSnapshot.entries[0].previousValue).toBe('')
+  })
+
+  it('writes assisted-autocomplete fields after all regular fields (keeps dropdown open)', async () => {
+    document.body.innerHTML = '<input id="addr" class="pac-target-input" /><input id="name" />'
+    const order: string[] = []
+    document.getElementById('addr')!.addEventListener('input', () => order.push('addr'))
+    document.getElementById('name')!.addEventListener('input', () => order.push('name'))
+    await applyFill([
+      // Assisted field listed first, but must be applied last.
+      instruction({
+        detectedFieldId: 'addr',
+        fillStrategy: 'assistedAutocomplete',
+        proposedValue: '1 Main St',
+      }),
+      instruction({ detectedFieldId: 'name', proposedValue: 'Ada' }),
+    ])
+    expect(order).toEqual(['name', 'addr'])
+  })
+
   it('writes through a framework-controlled value setter', async () => {
     document.body.innerHTML = '<input id="react" />'
     const el = document.getElementById('react') as HTMLInputElement

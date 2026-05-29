@@ -196,6 +196,21 @@ describe('scanForms', () => {
     expect(fields.find((f) => f.name === 'y')!.labelText).toBeUndefined()
   })
 
+  it('flags a Google Places autocomplete input', () => {
+    setBody(`
+      <div class="col-span-6">
+        <label>Address Line 1*</label>
+        <div class="relative">
+          <input id="map" class="input-primary w-full pac-target-input" type="text" placeholder="Start typing" />
+        </div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    const addr = fields.find((f) => f.domId === 'map')!
+    expect(addr.autocompleteHint).toBe('googlePlaces')
+    expect(addr.labelText).toBe('Address Line 1')
+  })
+
   it('scopes the scan to a passed element root', () => {
     setBody(`
       <input name="outside" />

@@ -7,6 +7,7 @@ import {
   Dices,
   MessageSquareText,
   Minus,
+  MousePointerClick,
   Pin,
   ShieldX,
   SquareArrowOutUpRight,
@@ -58,6 +59,11 @@ export const STATUS_META: Record<
   success: { icon: Check, tone: 'success', iconClass: 'text-success' },
   skipped: { icon: Minus, tone: 'gray', iconClass: 'text-muted-foreground' },
   failed: { icon: X, tone: 'danger', iconClass: 'text-destructive' },
+  assisted: {
+    icon: MousePointerClick,
+    tone: 'warning',
+    iconClass: 'text-[#b7791f] dark:text-warning',
+  },
 }
 
 /** Confidence-meter color band by threshold (≥.85 success, <.6 warning, else primary). */

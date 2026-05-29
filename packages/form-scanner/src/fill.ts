@@ -30,7 +30,15 @@ export async function applyFill(
   const results: FillResult[] = []
   const entries: UndoEntry[] = []
 
-  for (const ins of instructions) {
+  // Assisted-autocomplete fields go last: typing focuses the input and opens its
+  // suggestion dropdown, and we want that dropdown left open — so no later field
+  // write steals focus away from it.
+  const ordered = [
+    ...instructions.filter((i) => i.fillStrategy !== 'assistedAutocomplete'),
+    ...instructions.filter((i) => i.fillStrategy === 'assistedAutocomplete'),
+  ]
+
+  for (const ins of ordered) {
     // No value to write (unknown field, AI-draft stub, missing generator) — skip
     // rather than write "" and falsely report success. Toggles are exempt: an
     // empty value there is a meaningful "unchecked".
@@ -49,6 +57,11 @@ export async function applyFill(
     const el = findElement(root, ins.selectorCandidates)
     if (!el) {
       results.push(skip(ins.detectedFieldId, 'Element not found on the page.'))
+      continue
+    }
+    if (ins.fillStrategy === 'assistedAutocomplete') {
+      entries.push(capture(ins, el))
+      results.push(assistAutocomplete(ins, el))
       continue
     }
     if (isDisabled(el)) {
@@ -125,6 +138,48 @@ async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillR
     return success(ins.detectedFieldId, accepted)
   }
   return fail(ins.detectedFieldId, `Value not accepted (wanted "${target}", got "${accepted}").`)
+}
+
+/**
+ * Type into an autocomplete-driven input (e.g. Google Places) to surface its
+ * suggestion dropdown for the user to pick from. We focus, set the value, and
+ * fire a keystroke-shaped event sequence to nudge the widget's prediction fetch
+ * — but deliberately never `blur`, which would close/clear the dropdown. We do
+ * NOT verify: no result is "filled" until the user selects a suggestion (which
+ * is what populates the site's dependent fields).
+ */
+function assistAutocomplete(ins: FillInstruction, el: Fillable): FillResult {
+  const value = ins.proposedValue
+  focusEl(el)
+  setNativeValue(el, value)
+  dispatchKey(el, 'keydown')
+  dispatch(el, 'input')
+  dispatchKey(el, 'keyup')
+  return assisted(
+    ins.detectedFieldId,
+    value,
+    `Typed "${value}" — pick the matching result from the dropdown.`,
+  )
+}
+
+function focusEl(el: Fillable): void {
+  if (typeof el.focus === 'function') {
+    try {
+      el.focus()
+    } catch {
+      /* focus can throw on detached nodes */
+    }
+  }
+}
+
+function dispatchKey(el: Element, type: 'keydown' | 'keyup'): void {
+  let ev: Event
+  try {
+    ev = new KeyboardEvent(type, { bubbles: true, key: 'Unidentified' })
+  } catch {
+    ev = new Event(type, { bubbles: true })
+  }
+  el.dispatchEvent(ev)
 }
 
 function capture(ins: FillInstruction, el: Fillable): UndoEntry {
@@ -387,5 +442,11 @@ const skip = (detectedFieldId: string, reason: string): FillResult => ({
 const fail = (detectedFieldId: string, reason: string): FillResult => ({
   detectedFieldId,
   status: 'failed',
+  reason,
+})
+const assisted = (detectedFieldId: string, acceptedValue: string, reason: string): FillResult => ({
+  detectedFieldId,
+  status: 'assisted',
+  acceptedValue,
   reason,
 })

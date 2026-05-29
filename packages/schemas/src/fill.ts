@@ -30,7 +30,12 @@ export const fillPlanSchema = z.object({
 })
 export type FillPlan = z.infer<typeof fillPlanSchema>
 
-export const fillResultStatusSchema = z.enum(['success', 'skipped', 'failed'])
+/**
+ * Per-field fill outcome. `assisted` means we typed into an autocomplete input
+ * and the user must pick a result from its dropdown to finish — neither a clean
+ * success nor a failure.
+ */
+export const fillResultStatusSchema = z.enum(['success', 'skipped', 'failed', 'assisted'])
 export type FillResultStatus = z.infer<typeof fillResultStatusSchema>
 
 /** The outcome of attempting to fill one field. */

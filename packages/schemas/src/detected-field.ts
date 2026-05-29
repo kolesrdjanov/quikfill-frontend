@@ -72,6 +72,12 @@ export const detectedFieldSchema = z.object({
   options: z.array(fieldOptionSchema).optional(),
   /** Present only for custom (non-native) widgets the filler must click. */
   customWidget: customWidgetSchema.optional(),
+  /**
+   * Set when the input is driven by an autocomplete widget whose dropdown the
+   * user must pick from (e.g. Google Places). The filler types the value to
+   * surface that dropdown rather than trying to complete the field outright.
+   */
+  autocompleteHint: z.enum(['googlePlaces']).optional(),
   selectorCandidates: z.array(z.string()).default([]),
   domFingerprint: z.string(),
   /** `'main'` for the top document, otherwise an opaque frame id. */

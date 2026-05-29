@@ -2,8 +2,20 @@ import { z } from 'zod'
 import { isoDateTime, timestamps, uuid } from './common'
 import { fillSourceSchema } from './fill-source'
 
-/** How a value is applied to a field in the DOM. */
-export const fillStrategySchema = z.enum(['nativeInput', 'select', 'clickToggle', 'customSelect'])
+/**
+ * How a value is applied to a field in the DOM.
+ * `assistedAutocomplete` types into an autocomplete-driven input (e.g. Google
+ * Places) to surface its suggestion dropdown for the user to pick from — it
+ * deliberately does not "complete" the field, since selecting a result is what
+ * populates the site's dependent fields.
+ */
+export const fillStrategySchema = z.enum([
+  'nativeInput',
+  'select',
+  'clickToggle',
+  'customSelect',
+  'assistedAutocomplete',
+])
 export type FillStrategy = z.infer<typeof fillStrategySchema>
 
 /** Resolved field descriptor — how to find the field again (FieldMapping.target). */

@@ -6,6 +6,7 @@ import type {
   ScanResult,
 } from '@quikfill/schemas'
 import {
+  detectAutocomplete,
   detectCustomSelect,
   getAriaLabel,
   getAriaLabelledByText,
@@ -186,6 +187,7 @@ function buildField(el: FormControl, ctx: FrameContext, id: string): DetectedFie
     nearbyText: getNearbyText(el),
     sectionHeading,
     options,
+    autocompleteHint: detectAutocomplete(el),
     selectorCandidates: getSelectorCandidates(el),
     domFingerprint: fp.hash,
     frame: ctx.frame,
