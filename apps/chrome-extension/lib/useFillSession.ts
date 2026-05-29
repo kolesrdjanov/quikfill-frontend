@@ -106,12 +106,14 @@ export function useFillSession() {
   const includedCount = computed(
     () => planItems.value?.filter((i) => !excluded.value.has(i.detectedFieldId)).length ?? 0,
   )
-  const confirmationCount = computed(
+  /** Included plan items whose value is uncertain — the user must eyeball these before filling. */
+  const confirmationItems = computed(
     () =>
       planItems.value?.filter(
         (i) => i.requiresConfirmation && !excluded.value.has(i.detectedFieldId),
-      ).length ?? 0,
+      ) ?? [],
   )
+  const confirmationCount = computed(() => confirmationItems.value.length)
   const resultById = computed(() => {
     const map = new Map<string, FillResult>()
     for (const r of results.value ?? []) map.set(r.detectedFieldId, r)
@@ -621,6 +623,7 @@ export function useFillSession() {
     ambiguousFields,
     hasAmbiguous,
     includedCount,
+    confirmationItems,
     confirmationCount,
     resultById,
     resultSummary,

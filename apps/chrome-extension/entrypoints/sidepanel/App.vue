@@ -23,6 +23,7 @@ import {
 import {
   Alert,
   Button,
+  ConfirmDialog,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -80,6 +81,20 @@ onMounted(async () => {
   }
   await gate.init()
 })
+
+// Filling is gated when any included field still needs confirmation: clicking
+// "Fill" opens a dialog listing those fields so the user explicitly OKs them
+// (they often resolve to an empty/skipped value). With none flagged, fill runs
+// straight away.
+const confirmOpen = ref(false)
+function requestFill() {
+  if (s.confirmationCount.value > 0) confirmOpen.value = true
+  else void s.fill()
+}
+function confirmFill() {
+  confirmOpen.value = false
+  void s.fill()
+}
 
 const ambiguousIds = computed(() => new Set(s.ambiguousFields.value.map((f) => f.id)))
 const aiAvailable = computed(() => settings.value.aiEnabled)
@@ -338,6 +353,31 @@ const fieldContext = computed(() => {
       <p v-if="s.error.value" class="text-destructive text-[13px]">{{ s.error.value }}</p>
     </template>
 
+    <ConfirmDialog
+      v-model:open="confirmOpen"
+      :title="`Confirm ${s.confirmationCount.value} ${s.confirmationCount.value === 1 ? 'field' : 'fields'} before filling?`"
+      description="These fields couldn't be resolved to a confident value — they may be left empty or need a value you set yourself. Review them, then fill."
+      :confirm-label="`Fill ${s.includedCount.value} fields`"
+      cancel-label="Keep reviewing"
+      variant="default"
+      :pending="s.filling.value"
+      @confirm="confirmFill()"
+    >
+      <ul class="max-h-44 space-y-1.5 overflow-y-auto text-[13px]">
+        <li
+          v-for="item in s.confirmationItems.value"
+          :key="item.detectedFieldId"
+          class="flex items-center gap-2"
+        >
+          <ShieldAlert class="text-warning size-3.5 shrink-0" />
+          <span class="min-w-0 flex-1 truncate font-medium">{{ item.label }}</span>
+          <span v-if="item.warnings.length" class="text-muted-foreground truncate text-[12px]">
+            {{ item.warnings[0] }}
+          </span>
+        </li>
+      </ul>
+    </ConfirmDialog>
+
     <!-- FOOTER -->
     <template #footer>
       <template v-if="s.phase.value === 'prescan' || s.phase.value === 'scanning'">
@@ -369,7 +409,7 @@ const fieldContext = computed(() => {
         <Button
           class="w-full"
           :disabled="s.filling.value || !s.includedCount.value"
-          @click="s.fill()"
+          @click="requestFill()"
         >
           <CheckCheck class="size-4" />
           {{ s.filling.value ? 'Filling…' : `Fill ${s.includedCount.value} fields` }}

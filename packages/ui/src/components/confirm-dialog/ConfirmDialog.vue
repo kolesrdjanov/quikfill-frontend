@@ -39,6 +39,7 @@ const emit = defineEmits<{ confirm: [] }>()
         <DialogTitle>{{ title }}</DialogTitle>
         <DialogDescription>{{ description }}</DialogDescription>
       </DialogHeader>
+      <slot />
       <DialogFooter>
         <Button variant="ghost" :disabled="pending" @click="open = false">{{ cancelLabel }}</Button>
         <Button :variant="variant" :disabled="pending" @click="emit('confirm')">
