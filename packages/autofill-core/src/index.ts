@@ -1,6 +1,9 @@
-/**
- * Placeholder export for Iteration 1. The browser-agnostic planner/matcher
- * lands in Iterations 4 & 6. This package must never import DOM, Chrome, Vue,
- * Nuxt, or backend clients.
- */
-export const AUTOFILL_CORE_PACKAGE = '@quikfill/autofill-core' as const
+export { classifyField, classifyFields, type FieldClassification } from './classify'
+export { resolveFillSource, type ResolveContext, type ResolvedValue } from './resolve'
+export {
+  buildFillPlan,
+  buildPreviewPlan,
+  defaultFillStrategy,
+  type PlanAssignment,
+  type PreviewOptions,
+} from './plan'

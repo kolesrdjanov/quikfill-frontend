@@ -14,6 +14,7 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@quikfill/autofill-core": "workspace:*",
     "@quikfill/browser-adapter": "workspace:*",
     "@quikfill/form-scanner": "workspace:*",
     "@quikfill/schemas": "workspace:*",
