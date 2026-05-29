@@ -17,8 +17,9 @@ Engine: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 | 10  | Auth + backend-backed data + Stripe billing (with extension)               | 🚧 Partial |
 
 > **Built against the live backend** (`/api/v1`, Vite proxy → `localhost:4010`),
-> not a local mock — the product owner chose live wiring. Done: magic-link auth
-> (`SignIn` + `AuthVerify`, token store, router guard, queued 401-refresh in
+> not a local mock — the product owner chose live wiring. Done: email OTP auth
+> (a two-step `SignIn` — request a 6-digit code, then verify it — token store,
+> router guard, queued 401-refresh in
 > `@quikfill/api-client`), brand design tokens ported to `packages/config/theme.css`,
 > shadcn-vue UI kit expanded, and backend-backed CRUD for **Home, Data
 > (types+records), Generators, Apps, Form Profiles + `/form-profiles/:id` mapping
@@ -65,7 +66,7 @@ views → composables/stores → @quikfill/api-client → backend
 | `/fill-history`      | fill runs (redacted), filter by profile, pagination       | FillRun                        |
 | `/subscription`      | plan state + Stripe checkout/portal entry points          | Subscription, entitlements     |
 | `/settings`          | account, AI prefs, locale, redaction defaults             | UserAccount                    |
-| `/sign-in`           | magic-link request/verify (auth layout)                   | —                              |
+| `/sign-in`           | email OTP: request a code, then verify it (auth layout)   | —                              |
 
 > **Mapping review** is the dashboard's most valuable screen: it's where a user
 > curates the mappings the extension applies. Show target selectors, fill source,
@@ -81,7 +82,7 @@ views → composables/stores → @quikfill/api-client → backend
      against a **local/mock adapter**, so the only change at Iteration 10 is
      swapping the adapter base URL to the real backend.
 - **Iteration 10 (backend):** flip `api-client` to `quikfill-services`; add the
-  auth store (magic-link → JWT + refresh, mirroring `vue3-template`'s auth store
+  auth store (email OTP → JWT + refresh, mirroring `vue3-template`'s auth store
   and interceptor); data becomes per-user and synced.
 
 ## Subscription & entitlements
@@ -108,7 +109,7 @@ for CRUD flows on each route and the mapping-review edit path.
 
 ## Iteration 10 — Auth + backend + billing
 
-**Build:** auth store + magic-link flow; `api-client` pointed at the backend;
+**Build:** auth store + email OTP flow; `api-client` pointed at the backend;
 `SyncAdapter` so dashboard and extension converge (last-write-wins by `updatedAt`,
 client UUIDs); Stripe checkout/portal live; entitlements drive feature gates.
 **Tests:** auth guard + 401-refresh queue; entitlement-driven gating; sync

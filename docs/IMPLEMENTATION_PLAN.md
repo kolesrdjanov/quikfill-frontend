@@ -43,7 +43,7 @@ repo's iterations 4–6.
 
 > **Iteration 8 note:** built directly against the live backend (`quikfill-services`
 > at `/api/v1`) rather than a local mock — per the product owner. This pulls the
-> app's slice of Iteration 10 forward: magic-link auth (store + guard + queued
+> app's slice of Iteration 10 forward: email OTP auth (store + guard + queued
 > 401-refresh) and backend-backed CRUD for data, generators, apps, form profiles
 > (incl. mapping review) and fill history are **done**. Still outstanding for
 > Iteration 10: Stripe billing, the `SyncAdapter`, and the extension's backend
@@ -225,8 +225,8 @@ Adopted from `vue3-template/CLAUDE.md` and the requirement's agent rules.
   EntityFieldDef, GeneratorRule) is the interim source of truth **until
   `packages/schemas` exists**. Once it does, the Zod schemas become canonical and
   the backend aligns names 1:1. Build `packages/schemas` to match those shapes.
-- **Auth:** passwordless email magic link → backend-issued JWT access tokens +
-  rotating refresh sessions. The app's auth store/adapter mirrors `vue3-template`
+- **Auth:** passwordless email one-time code (OTP) → backend-issued JWT access
+  tokens + rotating refresh sessions. The app's auth store/adapter mirrors `vue3-template`
   (queued 401 refresh, centralized auth header, cancellable requests).
 - **AI:** the extension/app call backend `POST /ai/classify-fields` /
   `/ai/suggest-mappings` — never Gemini directly.
