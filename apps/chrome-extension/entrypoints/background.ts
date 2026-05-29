@@ -1,10 +1,30 @@
 import { createAiClient, createApiClient } from '@quikfill/api-client'
 import {
+  AUTH_STATE_KEY,
   createBackgroundAuth,
   createChromeAuthStore,
   onAiClassifyRequest,
   onAuthRequest,
 } from '@quikfill/browser-adapter'
+import type { AuthState } from '@quikfill/schemas'
+
+/**
+ * Reflect the session onto the toolbar icon: an amber badge when the account
+ * needs attention (paused plan / expired session), red when QuikFill can't be
+ * used (offline / rate-limited / error), and clear otherwise. The colour mirrors
+ * the in-panel status badge so the toolbar and panel always agree.
+ */
+function reflectBadge(state: AuthState): void {
+  const action = browser.action
+  if (!action?.setBadgeText) return
+  let color: string | null = null
+  if (state.status === 'error') {
+    color =
+      state.error === 'payment-required' || state.error === 'unauthorized' ? '#fbbf24' : '#e11d48'
+  }
+  void action.setBadgeText({ text: color ? '!' : '' }).catch(() => {})
+  if (color) void action.setBadgeBackgroundColor?.({ color }).catch(() => {})
+}
 
 // The backend owns the Gemini key and all auth; the background worker is the
 // only place the api-client runs, so no token or base URL ever reaches a content
@@ -35,4 +55,12 @@ export default defineBackground(() => {
 
   onAuthRequest(auth.handlers)
   onAiClassifyRequest((summaries) => ai.classifyFields(summaries))
+
+  // Keep the toolbar badge in sync with the session snapshot every surface reads.
+  void Promise.resolve(auth.handlers.getState()).then(reflectBadge)
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return
+    const change = changes[AUTH_STATE_KEY]
+    if (change?.newValue) reflectBadge(change.newValue as AuthState)
+  })
 })

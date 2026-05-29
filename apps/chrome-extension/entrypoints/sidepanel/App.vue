@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   ArrowLeft,
   Bookmark,
@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@quikfill/ui'
 import BrandLockup from '../../components/BrandLockup.vue'
+import AuthPanel from '../../components/auth/AuthPanel.vue'
 import PanelShell from '../../components/sidepanel/PanelShell.vue'
 import SiteChip from '../../components/sidepanel/SiteChip.vue'
 import EmptyState from '../../components/sidepanel/EmptyState.vue'
@@ -41,13 +42,29 @@ import SettingsPanel from '../../components/sidepanel/SettingsPanel.vue'
 import { useFillSession } from '../../lib/useFillSession'
 import { useSettings } from '../../lib/useSettings'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
+import { useAuthGate } from '../../lib/useAuthGate'
 
 const s = useFillSession()
 const { settings, load: loadSettings } = useSettings()
 const { init: initTheme } = useExtensionTheme()
+const gate = useAuthGate()
 
 // Settings live inside the panel now — no chrome:// modal. `view` swaps the body.
 const view = ref<'main' | 'settings'>('main')
+
+// The fill session only touches the page once the auth gate is lifted; resolve
+// the host site lazily the first time the panel becomes usable.
+let siteResolved = false
+watch(
+  () => gate.isAppReady.value,
+  async (ready) => {
+    if (ready && !siteResolved) {
+      siteResolved = true
+      await s.initSite()
+    }
+  },
+  { immediate: true },
+)
 
 onMounted(async () => {
   const loaded = await loadSettings()
@@ -61,7 +78,7 @@ onMounted(async () => {
     view.value = 'settings'
     await browser.storage.session?.remove('ui:pendingView')
   }
-  await s.initSite()
+  await gate.init()
 })
 
 const ambiguousIds = computed(() => new Set(s.ambiguousFields.value.map((f) => f.id)))
@@ -82,7 +99,9 @@ const fieldContext = computed(() => {
 </script>
 
 <template>
-  <PanelShell :show-footer="view === 'main'">
+  <AuthPanel v-if="!gate.isAppReady.value" />
+
+  <PanelShell v-else :show-footer="view === 'main'">
     <template #header>
       <!-- SETTINGS HEADER -->
       <div v-if="view === 'settings'" class="flex items-center gap-2">

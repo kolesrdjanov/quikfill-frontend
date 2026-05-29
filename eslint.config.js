@@ -18,6 +18,7 @@ export default [
       // Vendored static design prototypes (hand-authored reference, not maintained source).
       'design/**',
       'design_handoff_chrome_extension/**',
+      'chrome_extension_states/**',
       '**/dist/**',
       '**/node_modules/**',
       '**/.nuxt/**',

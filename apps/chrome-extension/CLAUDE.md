@@ -51,6 +51,18 @@ rebuilt against the shared tokens + `@quikfill/ui` to match the dashboard. The
 side panel runs on a `useFillSession` composable (`lib/useFillSession.ts`) that
 wraps the existing package calls — behaviour is unchanged. Surface-local
 composition components live in `components/`; shared helpers in `lib/`. Settings
-persist locally via an `ExtensionSettings` schema + `useSettings`. Next:
-Iteration 10 — backend sync + auth (swap the local `StorageAdapter`). See the
+persist locally via an `ExtensionSettings` schema + `useSettings`.
+
+**Auth gate (Iteration 10):** the side panel and popup are now gated by
+passwordless email-OTP sign-in. A `useAuthGate` composable (`lib/useAuthGate.ts`)
+sits in front of `useFillSession`: it wraps the background session
+(`createBackgroundAuth` + `useAuth`) and derives the design's screen machine —
+sign-in → sending → OTP (6 segmented boxes, paste/keyboard nav) → verifying →
+success → app — plus the blocking states (error / subscription / offline /
+session / ratelimit / update). The OTP attempt counter, 10-min TTL, and
+rate-limit cooldown are tracked **client-side** because `/auth/verify` returns a
+uniform `INVALID_TOKEN`. Auth screens live in `components/auth/`; the toolbar
+badge reflects the session from `background.ts`. Forms validate via Zod +
+VeeValidate through the shared `useFormValidation` (now in `@quikfill/ui`). Next:
+Iteration 10 — backend **sync** (swap the local `StorageAdapter`). See the
 plan's status table.

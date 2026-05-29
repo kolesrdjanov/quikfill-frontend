@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ExternalLink, ShieldCheck, Trash2 } from 'lucide-vue-next'
+import { ExternalLink, LogOut, ShieldCheck, Trash2 } from 'lucide-vue-next'
 import {
   Badge,
   Button,
@@ -21,11 +21,13 @@ import type { ExtensionSettings, ThemePref } from '@quikfill/schemas'
 import OptionRow from '../options/OptionRow.vue'
 import { useSettings } from '../../lib/useSettings'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
+import { useAuthGate } from '../../lib/useAuthGate'
 
 // In-panel preferences. Same controls as the options page, but rendered inside the
 // side panel (our own surface) with stacked rows so the narrow width never truncates.
 const { settings, update } = useSettings()
 const { apply: applyTheme } = useExtensionTheme()
+const gate = useAuthGate()
 const adapter = createChromeStorageAdapter()
 const store = createProfileStore(adapter)
 
@@ -65,6 +67,21 @@ async function clearData() {
 
 <template>
   <div class="space-y-[11px]">
+    <!-- ACCOUNT -->
+    <Card>
+      <CardHeader><CardTitle>Account</CardTitle></CardHeader>
+      <OptionRow
+        stacked
+        title="Signed in"
+        :subtitle="gate.user.value?.email ?? 'Your QuikFill account'"
+      >
+        <Button variant="outline" size="sm" @click="gate.signOut()">
+          <LogOut class="size-4" />
+          Sign out
+        </Button>
+      </OptionRow>
+    </Card>
+
     <!-- FILLING -->
     <Card>
       <CardHeader><CardTitle>Filling</CardTitle></CardHeader>
