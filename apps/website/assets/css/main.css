@@ -418,7 +418,7 @@ svg {
 }
 .footer-top {
   display: grid;
-  grid-template-columns: 1.6fr repeat(3, 1fr);
+  grid-template-columns: 1.6fr repeat(2, 1fr);
   gap: 40px;
 }
 .footer-brand .brand {

@@ -1,19 +1,5 @@
 <script setup lang="ts">
-import {
-  ScanLine,
-  Sparkles,
-  Bookmark,
-  Eye,
-  Dices,
-  Database,
-  Type,
-  Mail,
-  ChevronDown,
-  CheckSquare,
-  Calendar,
-  Layers,
-  SquareDashed,
-} from 'lucide-vue-next'
+import { ScanLine, Sparkles, Bookmark, Eye, Dices, Database } from 'lucide-vue-next'
 </script>
 
 <template>
@@ -37,13 +23,13 @@ import {
           </p>
           <div class="fc-visual">
             <div class="chip-row">
-              <span class="dchip"><Type /> text</span>
-              <span class="dchip"><Mail /> email</span>
-              <span class="dchip"><ChevronDown /> select</span>
-              <span class="dchip"><CheckSquare /> checkbox</span>
-              <span class="dchip"><Calendar /> date</span>
-              <span class="dchip"><Layers /> shadow DOM</span>
-              <span class="dchip"><SquareDashed /> iframe</span>
+              <span class="dchip">text</span>
+              <span class="dchip">email</span>
+              <span class="dchip">select</span>
+              <span class="dchip">checkbox</span>
+              <span class="dchip">date</span>
+              <span class="dchip">shadow DOM</span>
+              <span class="dchip">iframe</span>
             </div>
           </div>
         </div>
