@@ -9,9 +9,9 @@ and directs visitors to the Chrome extension and the dashboard. Parent roadmap:
 
 ## Status
 
-| #   | Iteration                                                     | Status     |
-| --- | ------------------------------------------------------------- | ---------- |
-| 9   | Marketing website (pages, pricing, docs/support placeholders) | ⏳ Planned |
+| #   | Iteration                                                     | Status                                                                                           |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 9   | Marketing website (pages, pricing, docs/support placeholders) | 🚧 In progress — landing page (`/`) built 1:1 from design; product/extension/docs routes pending |
 
 ## Stack & conventions
 

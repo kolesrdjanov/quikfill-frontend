@@ -37,5 +37,14 @@ pnpm --filter @quikfill/website generate   # static; build / preview also availa
 
 ## Current state
 
-Iteration 9 (marketing website) is **planned**; today it's a landing placeholder
-(`app.vue` + `pages/index.vue`). See the plan's status table.
+Iteration 9 (marketing website) — **landing page built**. `pages/index.vue`
+composes the full one-page marketing site (`components/Site*`, `HeroSection`,
+`ProductMock`, `HowItWorks`, `FeaturesSection`, `PrivacySection`,
+`PricingSection`, `FinalCta`), ported 1:1 from the `QuikFill (standalone).html`
+design. It uses a bespoke dark-premium marketing CSS system (`assets/css/main.css`,
+own CSS variables) intentionally separate from the shadcn dashboard/extension UI;
+reuse is limited to the `@quikfill/assets` logo, `lucide-vue-next` icons, and the
+shared Google Fonts link. Dark/light theme toggle (`useTheme`, persisted to
+`qf-theme`), nav-scroll state, and the scan→preview→fill panel animation
+(`ProductMock`, ported from the design's `anim.js`) are all live. Real product
+screenshots still pending the extension/dashboard ship. See the plan's status table.
