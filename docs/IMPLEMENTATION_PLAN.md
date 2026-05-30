@@ -26,6 +26,16 @@ separately: → [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 Backend sync + billing (Iteration 10) is sequenced last and tracks the backend
 repo's iterations 4–6.
 
+> **Exploratory — not an approved iteration.** A potential **fourth surface**, a
+> Figma plugin (`apps/figma-plugin`) that _composes_ the existing shared packages
+> (adding only a Figma host-adapter, mirroring how `form-scanner`/`browser-adapter`
+> isolate the web/Chrome specifics), has been researched but **not committed**. It
+> is gated on a go/no-go decision — the **R2 classifier spike** (does `autofill-core`
+> classify Figma layer names usefully?) **and** an existing-web-user-base check —
+> and would need a named owner, since this engagement scopes only the three surfaces
+> above. Treat it as a retention/expansion play, not part of the build order. See
+> the requirements/feasibility brief: → [`FIGMA_PLUGIN_PLAN.md`](./FIGMA_PLUGIN_PLAN.md).
+
 ## Status
 
 | #   | Iteration                           | Primary surface | Status     |
