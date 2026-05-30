@@ -521,15 +521,28 @@ function norm(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-/** Click an element the way a user would: pointer + mouse sequence + native click. */
+/**
+ * Click an element the way a user would: a faithful pointer + mouse sequence at
+ * the element's on-screen center, then a native click + focus.
+ *
+ * The coordinates and PointerEvent identity are load-bearing, not cosmetic. We
+ * only click-drive custom selects, which usually live inside a drawer/dialog,
+ * and modern drawer layers (Vaul, Radix, Reka) decide "press inside vs. outside"
+ * from event geometry and pointer identity. A coordinate-less press reports
+ * clientX/clientY = 0 — the viewport's top-left corner, outside the panel — so
+ * those layers treat the fill as an outside click and tear the drawer down
+ * mid-fill, even on the in-drawer trigger click that opens the dropdown. Sending
+ * a real PointerEvent at the element's center makes the press read as inside.
+ */
 function clickElement(el: Element): void {
-  const view = el.ownerDocument?.defaultView ?? undefined
-  for (const type of ['pointerdown', 'mousedown', 'mouseup'] as const) {
-    el.dispatchEvent(mouseEvent(type, view))
-  }
+  const { x, y } = pointerCenter(el)
+  el.dispatchEvent(pointerEvent('pointerdown', x, y, 1))
+  el.dispatchEvent(mouseEvent('mousedown', x, y, 1))
+  el.dispatchEvent(pointerEvent('pointerup', x, y, 0))
+  el.dispatchEvent(mouseEvent('mouseup', x, y, 0))
   const node = el as HTMLElement
   if (typeof node.click === 'function') node.click()
-  else el.dispatchEvent(mouseEvent('click', view))
+  else el.dispatchEvent(mouseEvent('click', x, y, 0))
   if (typeof node.focus === 'function') {
     try {
       node.focus()
@@ -539,12 +552,63 @@ function clickElement(el: Element): void {
   }
 }
 
-function mouseEvent(type: string, view?: Window): Event {
-  const init = { bubbles: true, cancelable: true, view }
+/**
+ * The on-screen center of an element, used as synthetic-press coordinates.
+ * Falls back to (0,0) only for a detached or zero-box node (or an environment
+ * without layout, e.g. jsdom) — on a real page the rect is real.
+ */
+function pointerCenter(el: Element): { x: number; y: number } {
   try {
-    return new MouseEvent(type, init)
+    const r = el.getBoundingClientRect()
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+  } catch {
+    return { x: 0, y: 0 }
+  }
+}
+
+function mouseEvent(type: string, x = 0, y = 0, buttons = 0): Event {
+  try {
+    return new MouseEvent(type, pointerInit(x, y, buttons))
   } catch {
     return new Event(type, { bubbles: true, cancelable: true })
+  }
+}
+
+function pointerEvent(type: string, x: number, y: number, buttons: number): Event {
+  try {
+    return new PointerEvent(type, {
+      ...pointerInit(x, y, buttons),
+      pointerId: 1,
+      pointerType: 'mouse',
+      isPrimary: true,
+      width: 1,
+      height: 1,
+    })
+  } catch {
+    // Engines without a PointerEvent constructor: a same-typed mouse event still
+    // carries the coordinates that outside-dismiss logic reads.
+    return mouseEvent(type, x, y, buttons)
+  }
+}
+
+/**
+ * Shared init for synthetic presses. Deliberately omits `view`: a content script
+ * and the page are different realms, so passing the page's window to the event
+ * constructor fails its "view must be a Window" brand check and throws — which is
+ * exactly what used to drop these to coordinate-less plain Events. `view` is not
+ * needed for the geometry or pointer identity that dismiss layers read.
+ */
+function pointerInit(x: number, y: number, buttons: number): MouseEventInit {
+  return {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    clientX: x,
+    clientY: y,
+    screenX: x,
+    screenY: y,
+    button: 0,
+    buttons,
   }
 }
 

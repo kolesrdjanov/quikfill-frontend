@@ -361,6 +361,76 @@ describe('applyFill — custom select (always first option)', () => {
   })
 })
 
+// Regression: a fill must never look like a press *outside* the drawer/dialog it
+// is filling. clickElement used to emit coordinate-less MouseEvents, so every
+// synthetic press reported clientX/clientY = 0 (the viewport's top-left corner)
+// and pointerdown was not a real PointerEvent. Drag/dismiss drawer layers (Vaul,
+// Radix, Reka) decide "press inside vs. outside" from event geometry + pointer
+// identity, so a (0,0) press reads as outside and tears the drawer down mid-fill
+// — even on the in-drawer trigger click that opens the dropdown.
+describe('applyFill — custom select emits faithful, in-bounds pointer input', () => {
+  function boxRect(left: number, top: number, width: number, height: number): DOMRect {
+    const rect = {
+      left,
+      top,
+      width,
+      height,
+      right: left + width,
+      bottom: top + height,
+      x: left,
+      y: top,
+    }
+    return { ...rect, toJSON: () => rect } as DOMRect
+  }
+
+  it('presses options as real PointerEvents at the element center, not (0,0)', async () => {
+    mountCustomSelect('Parking')
+    const option = document.querySelector('.dropdown [role="button"]') as HTMLElement
+    option.getBoundingClientRect = () => boxRect(100, 200, 40, 20)
+    let seen: PointerEvent | undefined
+    option.addEventListener('pointerdown', (e) => {
+      seen = e as PointerEvent
+    })
+
+    await applyFill([customInstruction('Office')])
+
+    expect(seen).toBeDefined()
+    expect(seen).toBeInstanceOf(PointerEvent)
+    expect(typeof seen!.pointerId).toBe('number')
+    expect(seen!.clientX).toBe(120) // left 100 + width/2
+    expect(seen!.clientY).toBe(210) // top 200 + height/2
+    expect(seen!.bubbles).toBe(true)
+  })
+
+  it('keeps a drawer open whose outside-press dismiss is coordinate-based', async () => {
+    mountCustomSelect('Parking')
+    const panel = document.getElementById('cat')!
+    const trigger = document.getElementById('trigger') as HTMLElement
+    const option = document.querySelector('.dropdown [role="button"]') as HTMLElement
+    // A tall on-screen drawer; its trigger and option sit comfortably inside it.
+    panel.getBoundingClientRect = () => boxRect(50, 50, 500, 600)
+    trigger.getBoundingClientRect = () => boxRect(100, 100, 200, 40)
+    option.getBoundingClientRect = () => boxRect(100, 160, 200, 30)
+
+    let drawerOpen = true
+    const dismiss = (e: Event): void => {
+      const p = e as PointerEvent
+      const r = panel.getBoundingClientRect()
+      const inside =
+        p.clientX >= r.left && p.clientX <= r.right && p.clientY >= r.top && p.clientY <= r.bottom
+      if (!inside) drawerOpen = false
+    }
+    document.addEventListener('pointerdown', dismiss, true)
+    try {
+      const { results } = await applyFill([customInstruction('Office')])
+      expect(drawerOpen).toBe(true)
+      expect(results[0].status).toBe('success')
+    } finally {
+      document.removeEventListener('pointerdown', dismiss, true)
+    }
+  })
+})
+
 // A searchable combobox (e.g. a React country picker): the value lives in a
 // typeahead <input>, not a text node, and a placeholder <p> is shown until a
 // pick is made. Selecting an option sets input.value and drops the placeholder.
