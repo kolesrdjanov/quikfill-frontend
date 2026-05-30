@@ -1,5 +1,6 @@
 import {
   defaultFillStrategy,
+  defaultSourceFor,
   generatorRuleForSemanticType,
   type RecordMatch,
 } from '@quikfill/autofill-core'
@@ -30,7 +31,7 @@ export interface ProposalOptions {
   /**
    * Whether to fall back to a deterministic value *generator* (synthetic
    * "sample" data) when the user has no saved record for the field. Default
-   * `false`: Quikfill is a real-info filler, so by default an accepted
+   * `false`: QuikFill is a real-info filler, so by default an accepted
    * suggestion either fills the user's own saved data or leaves an advisory
    * placeholder — it never silently writes fake data. Enable per the
    * `defaultFillSource` preference (opt-in sample data).
@@ -59,25 +60,14 @@ export function suggestionToProposal(
     fillStrategy: defaultFillStrategy(field),
   }
 
-  if (recordMatch) {
-    return {
-      ...base,
-      fillSource: {
-        sourceType: 'recordField',
-        entityTypeId: recordMatch.entityTypeId,
-        recordId: recordMatch.recordId,
-        fieldKey: recordMatch.fieldKey,
-      },
-      generatorRule: null,
-    }
-  }
-
   const generatorRule = options.allowSampleData
     ? generatorRuleForSemanticType(suggestion.semanticType)
     : null
-  const fillSource: FillSource = generatorRule
-    ? { sourceType: 'generatorRule', ruleKey: suggestion.semanticType }
-    : { sourceType: 'aiGenerated', hint: suggestion.semanticType }
-
-  return { ...base, fillSource, generatorRule }
+  const { fillSource, rule } = defaultSourceFor({
+    semanticType: suggestion.semanticType,
+    allowSampleData: !!options.allowSampleData,
+    recordMatch,
+    generatorRule,
+  })
+  return { ...base, fillSource, generatorRule: rule }
 }

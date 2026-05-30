@@ -76,4 +76,17 @@ describe('suggestionToProposal', () => {
     )
     expect(proposal.fillStrategy).toBe('select')
   })
+
+  it('never samples a sensitive type, even when sample data is allowed', () => {
+    const f = detectedFieldSchema.parse({
+      tagName: 'input',
+      inputType: 'text',
+      domFingerprint: 'fp',
+      id: 'f1',
+    })
+    const s = { fieldId: 'f1', semanticType: 'ssn' as const, confidence: 0.9, reasons: [] }
+    const p = suggestionToProposal(s, f, null, { allowSampleData: true })
+    expect(p.fillSource.sourceType).toBe('aiGenerated')
+    expect(p.generatorRule).toBeNull()
+  })
 })
