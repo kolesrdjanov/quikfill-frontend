@@ -17,7 +17,7 @@ The extension currently ships with no auth: `entrypoints/background.ts` builds a
 
 ## What already exists (reused, not rebuilt)
 
-- `@quikfill/api-client` — `createApiClient` (full REST incl. `auth.requestMagicLink/verify/refresh/logout`, `users.me`) and `createAiClient`. Both accept `getAuthToken`; the REST client also accepts `refreshAuth`/`onAuthError` with 401-refresh + coalesced concurrent refresh.
+- `@quikfill/api-client` — `createApiClient` (full REST incl. `auth.requestMagicLink/verify/refresh/logout`, `users.me`) and `createAiClient`. The REST client accepts `getAuthToken`/`refreshAuth`/`onAuthError` with 401-refresh + coalesced concurrent refresh; `createAiClient(rest)` runs over that same `RestClient`, so AI calls inherit the bearer token and the 401-refresh (sharing one client is required — refresh tokens are single-use, so a second refresher would race and sign the user out).
 - `@quikfill/schemas` — `authTokensSchema`, `magicLinkRequestedSchema`, `userAccountSchema`, `verifyMagicLinkInputSchema`, etc.
 - `@quikfill/browser-adapter` — `createChromeStorageAdapter`, the `ai-messaging` request/response pattern.
 - Dashboard reference: `apps/app/src/lib/auth-tokens.ts`, `apps/app/src/lib/api.ts`, `apps/app/src/stores/auth.ts` (localStorage-based; the extension uses an async chrome.storage analogue).
@@ -69,7 +69,7 @@ Async analogue of the dashboard's `authTokens`, backed by `chrome.storage.local`
 ### D. Background auth manager — `apps/chrome-extension/entrypoints/background.ts` (+ `lib/background-auth.ts`)
 
 - Builds the full `createApiClient({ baseUrl, getAuthToken, refreshAuth, onAuthError })` reading the token store. `getAuthToken` → `tokens.getAccess()`; `refreshAuth` → `auth.refresh(storedRefresh)` then persist (or clear + return undefined); `onAuthError` → forced sign-out.
-- Builds `createAiClient({ baseUrl, getAuthToken })` from the **same** token store, so AI classify now carries `Bearer`.
+- Builds `createAiClient(api.rest)` over the **same** REST client, so AI classify carries `Bearer` and shares its 401 → refresh → retry (single coalesced refresh — refresh tokens are single-use, so a separate AI-side refresh would race and force sign-out).
 - Registers `onAuthRequest`:
   - **request-code** → `api.auth.requestMagicLink(email)`; on success store `pendingEmail`, return `devCode`.
   - **verify** → `api.auth.verify(email, code)`; persist tokens, set user, snapshot signed-in.
