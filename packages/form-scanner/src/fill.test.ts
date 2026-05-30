@@ -191,6 +191,40 @@ describe('applyFill', () => {
     expect(order).toEqual(['name', 'addr'])
   })
 
+  it('fills a field inside a same-origin iframe (resolves across frame boundaries)', async () => {
+    document.body.innerHTML = '<iframe id="f"></iframe>'
+    const iframe = document.getElementById('f') as HTMLIFrameElement
+    const innerDoc = iframe.contentDocument!
+    innerDoc.body.innerHTML = '<input data-qf-id="qf-9" id="inner" value="old" />'
+    const { results } = await applyFill([
+      instruction({
+        detectedFieldId: 'qf-9',
+        selectorCandidates: ['#inner'],
+        frame: 'frame:0',
+        proposedValue: 'in-frame@x.com',
+      }),
+    ])
+    expect((innerDoc.getElementById('inner') as HTMLInputElement).value).toBe('in-frame@x.com')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('undoes a fill inside a same-origin iframe', async () => {
+    document.body.innerHTML = '<iframe id="f"></iframe>'
+    const innerDoc = (document.getElementById('f') as HTMLIFrameElement).contentDocument!
+    innerDoc.body.innerHTML = '<input data-qf-id="qf-7" id="inner" value="keep" />'
+    const { undoSnapshot } = await applyFill([
+      instruction({
+        detectedFieldId: 'qf-7',
+        selectorCandidates: ['#inner'],
+        frame: 'frame:0',
+        proposedValue: 'changed',
+      }),
+    ])
+    expect((innerDoc.getElementById('inner') as HTMLInputElement).value).toBe('changed')
+    await applyUndo(undoSnapshot)
+    expect((innerDoc.getElementById('inner') as HTMLInputElement).value).toBe('keep')
+  })
+
   it('writes through a framework-controlled value setter', async () => {
     document.body.innerHTML = '<input id="react" />'
     const el = document.getElementById('react') as HTMLInputElement
@@ -408,6 +442,64 @@ describe('element identity (no cross-field collision)', () => {
     expect((inputs[0] as HTMLInputElement).value).toBe('first')
     expect((inputs[1] as HTMLInputElement).value).toBe('second')
     expect(results.map((r) => r.status)).toEqual(['success', 'success'])
+  })
+})
+
+describe('applyFill — radio group', () => {
+  function radioGroupInstruction(proposedValue: string): FillInstruction {
+    return instruction({
+      detectedFieldId: 'qf-0',
+      tagName: 'input',
+      inputType: 'radiogroup',
+      fillStrategy: 'select',
+      selectorCandidates: ['input[type="radio"][name="g"]'],
+      proposedValue,
+    })
+  }
+
+  it('selects the radio whose value matches and leaves the others unchecked', async () => {
+    document.body.innerHTML = `
+      <input type="radio" name="g" value="a" />
+      <input type="radio" name="g" value="b" />
+      <input type="radio" name="g" value="c" />`
+    const { results } = await applyFill([radioGroupInstruction('b')])
+    const radios = document.querySelectorAll<HTMLInputElement>('input[name="g"]')
+    expect(radios[0].checked).toBe(false)
+    expect(radios[1].checked).toBe(true)
+    expect(radios[2].checked).toBe(false)
+    expect(results[0]).toMatchObject({ status: 'success', acceptedValue: 'b' })
+  })
+
+  it('matches by visible label when the value does not match', async () => {
+    document.body.innerHTML = `
+      <label><input type="radio" name="g" value="1" /> Yes</label>
+      <label><input type="radio" name="g" value="0" /> No</label>`
+    const { results } = await applyFill([radioGroupInstruction('No')])
+    const radios = document.querySelectorAll<HTMLInputElement>('input[name="g"]')
+    expect(radios[1].checked).toBe(true)
+    expect(results[0].status).toBe('success')
+  })
+
+  it('fails when no option in the group matches', async () => {
+    document.body.innerHTML = `
+      <input type="radio" name="g" value="a" />
+      <input type="radio" name="g" value="b" />`
+    const { results } = await applyFill([radioGroupInstruction('zzz')])
+    expect(results[0].status).toBe('failed')
+    expect(results[0].reason).toMatch(/no .*option|did not/i)
+  })
+
+  it('restores the previously-selected radio on undo', async () => {
+    document.body.innerHTML = `
+      <input type="radio" name="g" value="a" checked />
+      <input type="radio" name="g" value="b" />`
+    const { undoSnapshot } = await applyFill([radioGroupInstruction('b')])
+    const radios = document.querySelectorAll<HTMLInputElement>('input[name="g"]')
+    expect(radios[1].checked).toBe(true)
+    const undo = await applyUndo(undoSnapshot)
+    expect(undo[0].status).toBe('success')
+    expect(radios[0].checked).toBe(true)
+    expect(radios[1].checked).toBe(false)
   })
 })
 

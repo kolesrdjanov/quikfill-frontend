@@ -157,6 +157,18 @@ function findPrecedingHeading(el: Element): string | undefined {
   return undefined
 }
 
+/**
+ * The question label for a radio group (one field representing N radios sharing a
+ * name): the wrapping `<fieldset>`'s `<legend>`, else the nearest section heading.
+ * Falls through to undefined so the planner can use the group's `name`.
+ */
+export function getRadioGroupLabel(radio: HTMLInputElement): string | undefined {
+  const legend = radio.closest('fieldset')?.querySelector('legend')
+  const legendText = legend?.textContent?.replace(/\s+/g, ' ').trim()
+  if (legendText) return legendText
+  return getSectionHeading(radio)
+}
+
 /** Short snippet of nearby text in the control's parent, for disambiguation. */
 export function getNearbyText(el: FormControl): string | undefined {
   const parentText = el.parentElement?.textContent?.replace(/\s+/g, ' ').trim()

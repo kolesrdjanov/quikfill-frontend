@@ -104,6 +104,8 @@ export const undoEntrySchema = z.object({
   selectorCandidates: z.array(z.string()),
   frame: z.string().default('main'),
   shadow: z.boolean().default(false),
+  /** Field kind, when undo needs it to pick the right restore path (e.g. 'radiogroup'). */
+  inputType: z.string().optional(),
   previousValue: z.string().nullable(),
   previousChecked: z.boolean().optional(),
   /** For custom widgets: the displayed selection text before the fill. */

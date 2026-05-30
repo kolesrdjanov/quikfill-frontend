@@ -57,6 +57,13 @@ export async function applyFill(
       continue
     }
 
+    if (ins.inputType === 'radiogroup') {
+      const { result, entry } = fillRadioGroup(ins, root, claimed)
+      results.push(result)
+      if (entry) entries.push(entry)
+      continue
+    }
+
     const el = findElement(
       root,
       markedSelectors(ins.detectedFieldId, ins.selectorCandidates),
@@ -102,6 +109,10 @@ export async function applyUndo(
   for (const entry of snapshot.entries) {
     if (entry.customWidget) {
       results.push(await undoCustomSelect(entry, entry.customWidget, root))
+      continue
+    }
+    if (entry.inputType === 'radiogroup') {
+      results.push(undoRadioGroup(entry, root))
       continue
     }
     const el = findElement(root, markedSelectors(entry.detectedFieldId, entry.selectorCandidates))
@@ -198,6 +209,106 @@ function capture(ins: FillInstruction, el: Fillable): UndoEntry {
     shadow: ins.shadow,
     previousValue: readValue(el),
     previousChecked: isToggle(el) ? (el as HTMLInputElement).checked : undefined,
+  }
+}
+
+// --- Radio group (one field, N same-name radios) --------------------------
+
+/**
+ * Select the radio in a group whose value (or visible label) matches the proposed
+ * value, and capture the previously-selected value for undo. The group is resolved
+ * by the name selector, so every member is considered — not just the first match.
+ */
+function fillRadioGroup(
+  ins: FillInstruction,
+  root: Document,
+  claimed: Set<Element>,
+): { result: FillResult; entry?: UndoEntry } {
+  const radios = collectRadios(root, ins.selectorCandidates).filter((r) => !claimed.has(r))
+  if (radios.length === 0) {
+    return { result: skip(ins.detectedFieldId, 'Element not found on the page.') }
+  }
+  const previous = radios.find((r) => r.checked) ?? null
+  const want = norm(ins.proposedValue)
+  const target =
+    radios.find((r) => r.value === ins.proposedValue) ??
+    radios.find((r) => norm(radioLabel(r)) === want)
+  if (!target) {
+    return { result: fail(ins.detectedFieldId, `No "${ins.proposedValue}" option in the group.`) }
+  }
+  if (isDisabled(target)) return { result: skip(ins.detectedFieldId, 'Field is disabled.') }
+  claimed.add(target)
+
+  const entry: UndoEntry = {
+    detectedFieldId: ins.detectedFieldId,
+    selectorCandidates: ins.selectorCandidates,
+    frame: ins.frame,
+    shadow: ins.shadow,
+    inputType: 'radiogroup',
+    previousValue: previous?.value ?? '',
+  }
+  setChecked(target, true)
+  return target.checked
+    ? { result: success(ins.detectedFieldId, target.value), entry }
+    : { result: fail(ins.detectedFieldId, 'Radio option did not accept the selection.'), entry }
+}
+
+function undoRadioGroup(entry: UndoEntry, root: Document): FillResult {
+  const radios = collectRadios(root, entry.selectorCandidates)
+  if (radios.length === 0) return skip(entry.detectedFieldId, 'Element not found on the page.')
+  const prev = entry.previousValue ?? ''
+  if (prev === '') {
+    // Nothing was selected before — clear whatever the fill checked.
+    for (const r of radios) if (r.checked) setChecked(r, false)
+    return success(entry.detectedFieldId, '')
+  }
+  const target = radios.find((r) => r.value === prev)
+  if (!target) return skip(entry.detectedFieldId, `Couldn't restore previous selection "${prev}".`)
+  setChecked(target, true) // checking one radio unchecks its siblings natively
+  return success(entry.detectedFieldId, prev)
+}
+
+/** A radio's visible label (wrapping `<label>` text), falling back to its value. */
+function radioLabel(radio: HTMLInputElement): string {
+  const wrap = radio.closest('label')?.textContent?.replace(/\s+/g, ' ').trim()
+  return wrap || radio.value
+}
+
+/** Every radio matching any selector, across open shadow roots and same-origin iframes. */
+function collectRadios(root: Document | ShadowRoot, selectors: string[]): HTMLInputElement[] {
+  const out: HTMLInputElement[] = []
+  const seen = new Set<Element>()
+  for (const selector of selectors) collectRadiosInto(root, selector, out, seen)
+  return out
+}
+
+function collectRadiosInto(
+  root: Document | ShadowRoot,
+  selector: string,
+  out: HTMLInputElement[],
+  seen: Set<Element>,
+): void {
+  let matches: Element[]
+  try {
+    matches = Array.from(root.querySelectorAll(selector))
+  } catch {
+    matches = []
+  }
+  for (const m of matches) {
+    if (
+      !seen.has(m) &&
+      m.tagName.toLowerCase() === 'input' &&
+      (m as HTMLInputElement).type === 'radio'
+    ) {
+      seen.add(m)
+      out.push(m as HTMLInputElement)
+    }
+  }
+  for (const el of Array.from(root.querySelectorAll('*'))) {
+    const shadow = (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot
+    if (shadow) collectRadiosInto(shadow, selector, out, seen)
+    const frameDoc = frameDocument(el)
+    if (frameDoc) collectRadiosInto(frameDoc, selector, out, seen)
   }
 }
 
@@ -447,9 +558,10 @@ function markedSelectors(detectedFieldId: string, candidates: string[]): string[
 }
 
 /**
- * First element matching any selector candidate, searched across open shadow roots.
- * Skips elements already claimed by an earlier instruction in the same batch, so a
- * non-unique fuzzy selector can never double-target one element.
+ * First element matching any selector candidate, searched across open shadow roots
+ * AND same-origin iframes. Skips elements already claimed by an earlier instruction
+ * in the same batch, so a non-unique fuzzy selector can never double-target one
+ * element.
  */
 function findElement(
   root: Document | ShadowRoot,
@@ -461,6 +573,16 @@ function findElement(
     if (found) return found
   }
   return null
+}
+
+/** The same-origin document of an iframe, or null when it's cross-origin/absent. */
+function frameDocument(el: Element): Document | null {
+  if (el.tagName.toLowerCase() !== 'iframe') return null
+  try {
+    return (el as HTMLIFrameElement).contentDocument ?? null
+  } catch {
+    return null // cross-origin — not accessible
+  }
 }
 
 function deepQuery(
@@ -478,10 +600,18 @@ function deepQuery(
     if (!claimed?.has(match)) return match as Fillable
   }
 
+  // Descend into open shadow roots and same-origin iframes. The scanner stamps
+  // its data-qf-id marker (and detects fields) inside both, so the filler must
+  // resolve into both — otherwise a field scanned in an iframe is never filled.
   for (const el of Array.from(root.querySelectorAll('*'))) {
     const shadow = (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot
     if (shadow) {
       const inner = deepQuery(shadow, selector, claimed)
+      if (inner) return inner
+    }
+    const frameDoc = frameDocument(el)
+    if (frameDoc) {
+      const inner = deepQuery(frameDoc, selector, claimed)
       if (inner) return inner
     }
   }

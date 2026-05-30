@@ -18,7 +18,12 @@ export {
   type ProfileMatchContext,
   type MatchableProfile,
 } from './profile-match'
-export { matchMappings, scoreMapping, type MappingMatch } from './mapping-match'
+export {
+  indexMatchedMappings,
+  matchMappings,
+  scoreMapping,
+  type MappingMatch,
+} from './mapping-match'
 export {
   buildRecordIndex,
   recordMatchForSemanticType,

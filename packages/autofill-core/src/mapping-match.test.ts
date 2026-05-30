@@ -5,7 +5,7 @@ import {
   type DetectedField,
   type FieldMapping,
 } from '@quikfill/schemas'
-import { matchMappings, scoreMapping } from './mapping-match'
+import { indexMatchedMappings, matchMappings, scoreMapping } from './mapping-match'
 
 function field(partial: Partial<DetectedField> & { id: string }): DetectedField {
   return detectedFieldSchema.parse({
@@ -67,5 +67,26 @@ describe('matchMappings', () => {
       [mapping({ fieldFingerprint: 'zzz' })],
     )
     expect(result.has('f1')).toBe(false)
+  })
+})
+
+describe('indexMatchedMappings', () => {
+  it('keys a mapping under the field CURRENT fingerprint (exact match)', () => {
+    const f = field({ id: 'f1', domFingerprint: 'fpA' })
+    const m = mapping({ fieldFingerprint: 'fpA' })
+    const indexed = indexMatchedMappings(matchMappings([f], [m]))
+    expect(indexed.get('fpA')?.id).toBe(m.id)
+  })
+
+  it('keys a DRIFTED mapping (recovered by selector overlap) under the field current fingerprint, not its stale stored one', () => {
+    // The mapping's stored fingerprint drifted to 'OLD'; the field now hashes to
+    // 'NEW'. matchMappings still recovers it via selector overlap (0.6). The plan
+    // looks up savedMappings by the field's CURRENT domFingerprint, so that key
+    // — not the stale 'OLD' — must hold the mapping, else it is silently dropped.
+    const f = field({ id: 'f1', domFingerprint: 'NEW', selectorCandidates: ['#x'] })
+    const m = mapping({ fieldFingerprint: 'OLD', selectorCandidates: ['#x'] })
+    const indexed = indexMatchedMappings(matchMappings([f], [m]))
+    expect(indexed.get('NEW')?.id).toBe(m.id)
+    expect(indexed.has('OLD')).toBe(false)
   })
 })

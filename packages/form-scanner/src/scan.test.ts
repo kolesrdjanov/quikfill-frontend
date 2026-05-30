@@ -123,6 +123,44 @@ describe('scanForms', () => {
     expect(all.fields.find((f) => f.name === 'noDisplay')!.visible).toBe(false)
   })
 
+  it('groups same-name radios into a single enum field with options', () => {
+    setBody(`
+      <fieldset>
+        <legend>Gender</legend>
+        <label><input type="radio" name="gender" value="male" checked /> Male</label>
+        <label><input type="radio" name="gender" value="female" /> Female</label>
+        <label><input type="radio" name="gender" value="other" /> Other</label>
+      </fieldset>
+    `)
+    const { fields } = scanForms(document)
+    const group = fields.filter((f) => f.name === 'gender')
+    expect(group).toHaveLength(1)
+    const g = group[0]
+    expect(g.inputType).toBe('radiogroup')
+    expect(g.options?.map((o) => o.value)).toEqual(['male', 'female', 'other'])
+    expect(g.options?.find((o) => o.value === 'male')?.selected).toBe(true)
+    expect(g.currentValue).toBe('male')
+    expect(g.labelText).toBe('Gender')
+    expect(g.selectorCandidates).toContain('input[type="radio"][name="gender"]')
+    // The group's identity must be stable (hashed over all option labels).
+    expect(g.domFingerprint).toMatch(/^[0-9a-f]{8}$/)
+  })
+
+  it('keeps radios in different-named groups separate', () => {
+    setBody(`
+      <input type="radio" name="a" value="1" />
+      <input type="radio" name="a" value="2" />
+      <input type="radio" name="b" value="x" />
+    `)
+    const { fields } = scanForms(document)
+    expect(
+      fields
+        .filter((f) => f.inputType === 'radiogroup')
+        .map((f) => f.name)
+        .sort(),
+    ).toEqual(['a', 'b'])
+  })
+
   it('traverses open shadow DOM', () => {
     setBody('<div id="host"></div>')
     const host = document.getElementById('host')!

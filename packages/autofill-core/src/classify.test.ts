@@ -53,6 +53,21 @@ describe('classifyField', () => {
 
     const cb = classifyField(field({ id: 'b', inputType: 'checkbox' }))
     expect(cb.suggestedKind).toBe('boolean')
+
+    // A grouped radio set (one field carrying its options) is a single-choice enum,
+    // not a per-option boolean — so it fills by picking the right option value.
+    const radioGroup = classifyField(
+      field({
+        id: 'rg',
+        inputType: 'radiogroup',
+        options: [
+          { value: 'male', label: 'Male' },
+          { value: 'female', label: 'Female' },
+        ],
+      }),
+    )
+    expect(radioGroup.semanticType).toBe('enum')
+    expect(radioGroup.suggestedKind).toBe('selectOption')
   })
 
   it('falls back to unknown with no suggestion', () => {

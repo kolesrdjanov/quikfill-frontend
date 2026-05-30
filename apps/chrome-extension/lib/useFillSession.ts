@@ -19,6 +19,7 @@ import {
   buildRecordIndex,
   classifyFields,
   generatorRuleForSemanticType,
+  indexMatchedMappings,
   matchMappings,
   matchProfiles,
   recordMatchForSemanticType,
@@ -243,13 +244,12 @@ export function useFillSession() {
 
     const mappings = await store.listMappings(best.formProfileId)
     const matched = matchMappings(fields.value, mappings)
-    const byFingerprint = new Map<string, FieldMapping>()
     const byField = new Map<string, FieldMapping>()
-    for (const [fieldId, match] of matched) {
-      byField.set(fieldId, match.mapping)
-      byFingerprint.set(match.mapping.fieldFingerprint, match.mapping)
-    }
-    savedMappings.value = byFingerprint
+    for (const [fieldId, match] of matched) byField.set(fieldId, match.mapping)
+    // Key by the field's CURRENT fingerprint (not the mapping's stored one) so a
+    // mapping recovered via selector overlap — whose stored fingerprint drifted —
+    // still applies when the plan looks it up by domFingerprint.
+    savedMappings.value = indexMatchedMappings(matched)
     mappingByFieldId.value = byField
   }
 

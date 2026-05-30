@@ -45,3 +45,21 @@ export function matchMappings(
   }
   return result
 }
+
+/**
+ * Index matched mappings by the matched field's CURRENT `domFingerprint`, the key
+ * `buildPreviewPlan` looks them up by. This is load-bearing for drift recovery:
+ * a mapping recovered via selector overlap carries a *stale* stored fingerprint,
+ * so keying by `mapping.fieldFingerprint` would file it under a key the plan never
+ * queries — silently dropping it. Keying by the field's live fingerprint makes the
+ * recovered mapping actually apply.
+ */
+export function indexMatchedMappings(
+  matched: Map<string, MappingMatch>,
+): Map<string, FieldMapping> {
+  const byFingerprint = new Map<string, FieldMapping>()
+  for (const match of matched.values()) {
+    byFingerprint.set(match.field.domFingerprint, match.mapping)
+  }
+  return byFingerprint
+}
