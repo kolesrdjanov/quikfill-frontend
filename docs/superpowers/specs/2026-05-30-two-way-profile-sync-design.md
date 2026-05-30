@@ -25,8 +25,8 @@ saved entity records (issue #3 — separate data path, tracked as follow-up).
 ## Decisions
 
 - **IDs:** make backend `POST` **idempotent on a client-supplied UUID** (upsert),
-  completing the contract `schemas/common.ts` already documents (*"Clients supply
-  UUIDs on create so backend push is idempotent."*). The extension already mints
+  completing the contract `schemas/common.ts` already documents (_"Clients supply
+  UUIDs on create so backend push is idempotent."_). The extension already mints
   `crypto.randomUUID()` for every record, so stable ids end-to-end give trivial,
   correct id-based reconciliation — no local↔server id map.
 - **Reconciliation:** last-write-wins on `updatedAt` (no version/etag field
@@ -95,7 +95,7 @@ The api-client runs only in the background worker, so sync mirrors the existing
 ### 4. Extension wiring (`chrome-extension`)
 
 - `background.ts` — `createBackgroundSync({ api, store: createProfileStore(
-  createChromeStorageAdapter()) })` + `onProfileSyncRequest(sync.handlers)`.
+createChromeStorageAdapter()) })` + `onProfileSyncRequest(sync.handlers)`.
 - `useFillSession.ts` `saveProfile()` — after the local saves, send
   `requestProfilePush(bundle)`; best-effort, local-first (a failed push still
   reports "saved", surfaced as a soft "not synced yet" note).
