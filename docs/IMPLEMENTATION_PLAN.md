@@ -29,12 +29,14 @@ repo's iterations 4–6.
 > **Exploratory — not an approved iteration.** A potential **fourth surface**, a
 > Figma plugin (`apps/figma-plugin`) that _composes_ the existing shared packages
 > (adding only a Figma host-adapter, mirroring how `form-scanner`/`browser-adapter`
-> isolate the web/Chrome specifics), has been researched but **not committed**. It
-> is gated on a go/no-go decision — the **R2 classifier spike** (does `autofill-core`
-> classify Figma layer names usefully?) **and** an existing-web-user-base check —
-> and would need a named owner, since this engagement scopes only the three surfaces
-> above. Treat it as a retention/expansion play, not part of the build order. See
-> the requirements/feasibility brief: → [`FIGMA_PLUGIN_PLAN.md`](./FIGMA_PLUGIN_PLAN.md).
+> isolate the web/Chrome specifics), has been researched but **not committed**. Its
+> technical gate — **R2**, whether `autofill-core` classifies Figma layer names
+> usefully — is now **✅ cleared (GO-for-forms: 93% recall / 93% type-precision on a
+> labeled two-tier corpus; arbitrary dashboards out of scope)**. The remaining gate is
+> a **product call: does the web product have real users?** It would also need a named
+> owner, since this engagement scopes only the three surfaces above. Treat it as a
+> retention/expansion play, not part of the build order. See the requirements/
+> feasibility brief: → [`FIGMA_PLUGIN_PLAN.md`](./FIGMA_PLUGIN_PLAN.md).
 
 ## Status
 
