@@ -285,6 +285,19 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)
 
+  packages/figma-adapter:
+    dependencies:
+      '@quikfill/schemas':
+        specifier: workspace:*
+        version: link:../schemas
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)
+
   packages/form-scanner:
     dependencies:
       '@quikfill/schemas':
