@@ -12,7 +12,7 @@ import {
   onFillRunRecordRequest,
   onProfileSyncRequest,
 } from '@quikfill/browser-adapter'
-import type { AuthState } from '@quikfill/schemas'
+import { generatorKindSchema, type AuthState } from '@quikfill/schemas'
 
 /**
  * Reflect the session onto the toolbar icon: an amber badge when the account
@@ -61,6 +61,30 @@ export default defineBackground(() => {
   // single coalesced refresh — vital since refresh tokens are single-use).
   const ai = createAiClient(api.rest)
 
+  // AI uses the richer suggest-mappings path: it feeds the model the user's saved
+  // entity types + the generator kinds the client can realize, so it classifies
+  // with awareness of what real data exists. Entity types rarely change in a
+  // session, so cache them (lost on SW suspension, re-fetched on the next wake)
+  // to keep per-field classify calls from each re-fetching. Context is best-effort
+  // enrichment — a failed fetch still classifies, just without the saved-data hints.
+  let entityTypesCache: Awaited<ReturnType<typeof api.entityTypes.list>> | null = null
+  async function buildSuggestContext() {
+    const generatorPresetKinds = [...generatorKindSchema.options]
+    try {
+      entityTypesCache ??= await api.entityTypes.list()
+      return {
+        entityTypes: entityTypesCache.map((t) => ({
+          id: t.id,
+          name: t.name,
+          fieldKeys: t.fields.map((f) => f.key),
+        })),
+        generatorPresetKinds,
+      }
+    } catch {
+      return { generatorPresetKinds }
+    }
+  }
+
   // Two-way profile sync owns the same chrome.storage.local the surfaces read,
   // and pushes/reconciles through the authenticated api-client (background-only).
   const sync = createBackgroundSync({
@@ -69,7 +93,9 @@ export default defineBackground(() => {
   })
 
   onAuthRequest(auth.handlers)
-  onAiClassifyRequest((summaries) => ai.classifyFields(summaries))
+  onAiClassifyRequest(async (summaries) =>
+    ai.suggestMappings(summaries, await buildSuggestContext()),
+  )
   onProfileSyncRequest(sync.handlers)
   // Record fill-run history: create the run, then write its result. Best-effort —
   // the panel ignores failures, so an offline/expired session never blocks a fill.

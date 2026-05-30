@@ -143,6 +143,21 @@ async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillR
       : fail(ins.detectedFieldId, 'Checkbox/radio did not accept the toggle.')
   }
 
+  // A native <select> accepts only an option *value*, but the proposed value is
+  // often a human *label* (from a saved record or AI). Resolve label → value so
+  // those fills land instead of silently failing.
+  if (el.tagName.toLowerCase() === 'select') {
+    const value = resolveSelectOption(el as HTMLSelectElement, ins.proposedValue)
+    if (value === null) {
+      return fail(ins.detectedFieldId, `No option matching "${ins.proposedValue}" in the dropdown.`)
+    }
+    setValue(el, value)
+    await settle()
+    return readValue(el) === value
+      ? success(ins.detectedFieldId, value)
+      : fail(ins.detectedFieldId, `Select did not accept "${value}".`)
+  }
+
   // Coerce to the field's input mask (maska et al.) so the right characters land
   // — otherwise the mask reshapes our raw value (e.g. a phone country code shifts
   // into the area code). `valuesMatch` then ignores the delimiters the mask
@@ -266,6 +281,22 @@ function undoRadioGroup(entry: UndoEntry, root: Document): FillResult {
   if (!target) return skip(entry.detectedFieldId, `Couldn't restore previous selection "${prev}".`)
   setChecked(target, true) // checking one radio unchecks its siblings natively
   return success(entry.detectedFieldId, prev)
+}
+
+/**
+ * Resolve a proposed value to a `<select>` option's value: exact value, exact
+ * label, then case/whitespace-insensitive label or value. Returns the option's
+ * value, or null when nothing matches.
+ */
+function resolveSelectOption(select: HTMLSelectElement, want: string): string | null {
+  const options = Array.from(select.options)
+  const wantNorm = norm(want)
+  const match =
+    options.find((o) => o.value === want) ??
+    options.find((o) => (o.textContent ?? '').trim() === want) ??
+    options.find((o) => norm(o.textContent ?? '') === wantNorm) ??
+    options.find((o) => norm(o.value) === wantNorm)
+  return match ? match.value : null
 }
 
 /** A radio's visible label (wrapping `<label>` text), falling back to its value. */

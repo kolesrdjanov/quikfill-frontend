@@ -25,4 +25,13 @@ describe('fingerprint', () => {
     const b = fingerprint({ label: 'email' })
     expect(a.hash).toBe(b.hash)
   })
+
+  it('ignores the section heading so benign page restructuring keeps a field identity', () => {
+    // The nearest preceding heading is volatile (it changes when the page is
+    // relabeled or restructured), so it must not be part of a field's identity —
+    // otherwise a saved mapping stops matching after a cosmetic page edit.
+    const a = fingerprint({ label: 'Email', name: 'email', type: 'email', section: 'Contact' })
+    const b = fingerprint({ label: 'Email', name: 'email', type: 'email', section: 'Billing' })
+    expect(a.hash).toBe(b.hash)
+  })
 })

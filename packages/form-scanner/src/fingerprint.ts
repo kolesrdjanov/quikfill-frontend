@@ -7,6 +7,11 @@ export interface FingerprintInput {
   name?: string
   type?: string
   options?: string[]
+  /**
+   * Nearest preceding heading. Recorded as metadata but deliberately NOT part of
+   * the hash: it is volatile (changes on a cosmetic relabel/restructure), so
+   * hashing it would break a saved mapping after a benign page edit.
+   */
   section?: string
 }
 
@@ -16,7 +21,6 @@ function canonical(input: FingerprintInput): string {
     `label:${input.label ?? ''}`,
     `name:${input.name ?? ''}`,
     `type:${input.type ?? ''}`,
-    `section:${input.section ?? ''}`,
     `options:${(input.options ?? []).slice().sort().join('|')}`,
   ]
   return parts.join('::').toLowerCase()

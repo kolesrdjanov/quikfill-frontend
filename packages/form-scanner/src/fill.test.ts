@@ -86,6 +86,39 @@ describe('applyFill', () => {
     expect(results[0].status).toBe('failed')
   })
 
+  it('resolves a native select by its option LABEL when the proposed value is a label', async () => {
+    document.body.innerHTML =
+      '<select id="role"><option value="admin">Administrator</option><option value="user">Standard User</option></select>'
+    const { results } = await applyFill([
+      instruction({
+        detectedFieldId: 'role',
+        tagName: 'select',
+        inputType: 'select',
+        fillStrategy: 'select',
+        // A saved-record/AI value is often a human label, not the option value.
+        proposedValue: 'Standard User',
+      }),
+    ])
+    expect((document.getElementById('role') as HTMLSelectElement).value).toBe('user')
+    expect(results[0]).toMatchObject({ status: 'success', acceptedValue: 'user' })
+  })
+
+  it('matches a select option label case- and whitespace-insensitively', async () => {
+    document.body.innerHTML =
+      '<select id="c"><option value="ca">Canada</option><option value="us">United States</option></select>'
+    const { results } = await applyFill([
+      instruction({
+        detectedFieldId: 'c',
+        tagName: 'select',
+        inputType: 'select',
+        fillStrategy: 'select',
+        proposedValue: '  united states ',
+      }),
+    ])
+    expect((document.getElementById('c') as HTMLSelectElement).value).toBe('us')
+    expect(results[0].status).toBe('success')
+  })
+
   it('skips missing, disabled, and read-only fields', async () => {
     document.body.innerHTML = '<input id="ro" readonly /><input id="dis" disabled />'
     const { results } = await applyFill([
