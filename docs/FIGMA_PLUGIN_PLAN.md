@@ -1,5 +1,10 @@
 # Figma Plugin — Research & Requirements Brief (Exploratory)
 
+> ⏸️ **ON HOLD (paused 2026-05-30).** This project is paused. For the authoritative
+> done/missing status, see [`FIGMA_PLUGIN_STATUS.md`](./FIGMA_PLUGIN_STATUS.md). The
+> brief below is preserved as-is and its status table was never updated for the
+> adapter build or the scaffold-design approval — trust the status doc on state.
+
 > **This is a requirements/research brief, not an approved iteration.** It captures
 > a feasibility investigation into whether Quikfill can serve a Figma use-case, the
 > honest competitive read, and a de-risking spike to run **before** committing to a
