@@ -1,5 +1,9 @@
 # `@quikfill/figma-adapter` — Package Scope (Exploratory)
 
+> ⏸️ **ON HOLD (paused 2026-05-30).** This project is paused. The adapter package
+> described here was built, tested, and committed; the host app was not. For the
+> authoritative done/missing status, see [`FIGMA_PLUGIN_STATUS.md`](./FIGMA_PLUGIN_STATUS.md).
+
 > **Scope, not an approval.** This specifies the structure of the Figma host
 > adapter + plugin entrypoints in implementation-ready detail. It does **not**
 > authorize a build — that stays 🔒 blocked on the product user-base call (see
