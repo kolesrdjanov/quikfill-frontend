@@ -69,18 +69,16 @@ describe('api.subscriptions', () => {
   })
 
   it('surfaces a QUOTA_EXCEEDED code from a 429', async () => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse(
-          {
-            code: 'QUOTA_EXCEEDED',
-            message: 'Monthly AI token limit reached',
-            limitExceeded: true,
-          },
-          { status: 429 },
-        ),
-      )
+    const fetch = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          code: 'QUOTA_EXCEEDED',
+          message: 'Monthly AI token limit reached',
+          limitExceeded: true,
+        },
+        { status: 429 },
+      ),
+    )
     const api = createApiClient({ baseUrl: base, fetch })
 
     await expect(api.subscriptions.entitlements()).rejects.toMatchObject({
