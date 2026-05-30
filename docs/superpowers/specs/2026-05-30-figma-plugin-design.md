@@ -3,7 +3,9 @@
 > ⏸️ **ON HOLD (paused 2026-05-30).** This scaffold was designed and approved but
 > never built — no `apps/figma-plugin` directory exists yet. For the authoritative
 > done/missing status, see [`FIGMA_PLUGIN_STATUS.md`](../../FIGMA_PLUGIN_STATUS.md).
-> This design remains the implementation reference for whoever resumes.
+> This design remains the implementation reference for whoever resumes; the
+> actionable phased task breakdown is in
+> [`../plans/2026-05-30-figma-plugin-build.md`](../plans/2026-05-30-figma-plugin-build.md).
 
 > **Status:** design approved (2026-05-30). Product gate treated as cleared per user
 > instruction. Grounded in an 11-surface codebase audit (see commit body / workflow

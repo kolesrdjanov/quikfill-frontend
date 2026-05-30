@@ -148,6 +148,8 @@ Note: dashboard recall is 44%, but this is _reported_ by a deliberately bimodal 
 
 ## How to resume
 
+> **Actionable task breakdown:** the steps below are expanded into a phased, dependency-ordered task plan (Phase 0 gating decisions → Phases 1–6 → critical path → definition of done) in [`docs/superpowers/plans/2026-05-30-figma-plugin-build.md`](./superpowers/plans/2026-05-30-figma-plugin-build.md). Start there for the concrete tasks.
+
 Work from `docs/superpowers/specs/2026-05-30-figma-plugin-design.md` (the approved scaffold design). Suggested order:
 
 1. **Reconcile the gate first.** Decide whether the product user-base GO is actually cleared. Update `docs/FIGMA_PLUGIN_PLAN.md`'s status table to match reality (adapter built, design approved) and resolve the plan-vs-design conflict before any build work.
