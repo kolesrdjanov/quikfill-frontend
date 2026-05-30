@@ -717,9 +717,19 @@ export function useFillSession() {
     syncMessage.value = null
     try {
       const result = await requestProfileReconcile()
-      syncMessage.value = result.ok
-        ? `Synced — ${result.pushed} up, ${result.pulled} down.`
-        : 'Sync failed. Check your connection and try again.'
+      if (result.ok) {
+        syncMessage.value = `Synced — ${result.pushed} up, ${result.pulled} down.`
+      } else {
+        // Surface the real reason instead of a blanket "check your connection":
+        // `unreachable` means the background worker/network is down, anything else
+        // is the backend's own error (auth expired, a 5xx, an unexpected shape).
+        // The cause is otherwise swallowed, leaving a real failure undiagnosable.
+        console.error('[quikfill] sync failed:', result.error)
+        syncMessage.value =
+          result.error === 'unreachable'
+            ? 'Sync failed — Quikfill is unreachable. Check your connection and try again.'
+            : `Sync failed: ${result.error}`
+      }
     } finally {
       syncing.value = false
     }
