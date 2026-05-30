@@ -121,6 +121,10 @@ watch(
   (next) => {
     if (next.status === 'error' && next.error === 'unauthorized') screen.value = 'session'
     else if (next.status === 'signed-out' && screen.value === 'app') screen.value = 'email'
+    // Late hydration: the gate rendered the loader before the background resolved
+    // the session (cold worker / slow `users.me()`). When the snapshot lands,
+    // lift the loader instead of leaving the panel stuck on "Checking session".
+    else if (next.status === 'signed-in' && screen.value === 'loading') screen.value = 'app'
   },
 )
 

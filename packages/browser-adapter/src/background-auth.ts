@@ -64,6 +64,7 @@ export function createBackgroundAuth({
 }): BackgroundAuth {
   let state: AuthState = { status: 'loading' }
   let hydrated = false
+  let hydrating: Promise<void> | undefined
 
   async function setState(next: AuthState): Promise<AuthState> {
     state = next
@@ -71,21 +72,30 @@ export function createBackgroundAuth({
     return next
   }
 
-  /** Resolve the initial state from persisted tokens exactly once. */
-  async function hydrate(): Promise<void> {
-    if (hydrated) return
-    hydrated = true
-    if (!(await store.hasSession())) {
-      await setState({ status: 'signed-out' })
-      return
-    }
-    try {
-      const user = await api.users.me()
-      await setState({ status: 'signed-in', user })
-    } catch {
-      await store.clearTokens()
-      await setState({ status: 'signed-out' })
-    }
+  /**
+   * Resolve the initial state from persisted tokens exactly once. Concurrent
+   * callers share the in-flight promise and the single `users.me()` fetch — the
+   * worker fires an eager `getState()` the instant a surface wakes it, which
+   * races that surface's own request; without coalescing the second caller would
+   * skip the await and read the `loading` seed, leaving the panel stuck.
+   */
+  function hydrate(): Promise<void> {
+    if (hydrated) return Promise.resolve()
+    return (hydrating ??= (async () => {
+      if (!(await store.hasSession())) {
+        await setState({ status: 'signed-out' })
+      } else {
+        try {
+          const user = await api.users.me()
+          await setState({ status: 'signed-in', user })
+        } catch {
+          await store.clearTokens()
+          await setState({ status: 'signed-out' })
+        }
+      }
+      hydrated = true
+      hydrating = undefined
+    })())
   }
 
   async function getState(): Promise<AuthState> {

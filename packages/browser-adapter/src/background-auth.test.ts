@@ -81,6 +81,26 @@ describe('getState hydration', () => {
     await auth.handlers.getState()
     expect(api.users.me).not.toHaveBeenCalled()
   })
+
+  it('coalesces concurrent getState calls so a slow user fetch never leaks the loading placeholder', async () => {
+    // Mirrors first-open in the worker: background.ts fires an eager getState()
+    // the instant the panel wakes it, racing the panel's own getState() request.
+    // The user fetch is still in flight when the second caller arrives — it must
+    // wait for the real result, not skip the await and read the `loading` seed.
+    let resolveMe!: (u: UserAccount) => void
+    const mePromise = new Promise<UserAccount>((resolve) => (resolveMe = resolve))
+    const me = vi.fn(() => mePromise)
+    const { auth, store } = setup(makeApi({ me }))
+    await store.setTokens(tokens)
+
+    const first = auth.handlers.getState()
+    const second = auth.handlers.getState()
+    resolveMe(user)
+
+    expect(await first).toEqual({ status: 'signed-in', user })
+    expect(await second).toEqual({ status: 'signed-in', user })
+    expect(me).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('requestCode', () => {
