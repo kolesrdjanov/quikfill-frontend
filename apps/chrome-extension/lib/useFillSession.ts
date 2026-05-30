@@ -6,6 +6,8 @@ import {
   getActiveTabId,
   requestAiClassify,
   requestFill,
+  requestProfilePush,
+  requestProfileReconcile,
   requestScan,
   requestUndo,
 } from '@quikfill/browser-adapter'
@@ -23,12 +25,14 @@ import { buildFieldSummaries, suggestionToProposal, type SuggestionProposal } fr
 import type {
   AiSuggestion,
   DetectedField,
+  Domain,
   FieldMapping,
   FillInstruction,
   FillPlanItem,
   FillResult,
   FillSource,
   FillSourceType,
+  FormProfile,
   GeneratorRule,
   ScanLimitation,
   ScanScope,
@@ -81,6 +85,8 @@ export function useFillSession() {
   const mappingByFieldId = ref<Map<string, FieldMapping>>(new Map())
   const saveMessage = ref<string | null>(null)
   const profileSaved = ref(false)
+  const syncing = ref(false)
+  const syncMessage = ref<string | null>(null)
 
   const aiState = ref<AiState>('idle')
   const aiSuggestions = ref<Map<string, AiSuggestion>>(new Map())
@@ -571,24 +577,40 @@ export function useFillSession() {
     try {
       const tab = await getActiveTab()
       if (!tab.url) throw new Error('No tab URL.')
-      const hostname = safeHostname(tab.url)
-      const name = tab.title || hostname
+      const host = safeHostname(tab.url)
+      const name = tab.title || host
+      // `updatedAt` makes the record last-write-wins comparable for sync; the
+      // store persists it verbatim (server timestamps survive a sync write-back).
+      const now = new Date().toISOString()
 
-      let domainId: string
       let profileId: string
+      let domain: Domain
       if (matchedProfileId.value) {
         const existing = await store.getFormProfile(matchedProfileId.value)
         profileId = existing?.id ?? crypto.randomUUID()
-        domainId = existing?.domainId ?? crypto.randomUUID()
+        const domainId = existing?.domainId ?? crypto.randomUUID()
+        domain = (await store.getDomain(domainId)) ?? {
+          id: domainId,
+          name: host,
+          hostnames: [host],
+          createdAt: now,
+          updatedAt: now,
+        }
       } else {
-        domainId = crypto.randomUUID()
         profileId = crypto.randomUUID()
-        await store.saveDomain({ id: domainId, name: hostname, hostnames: [hostname] })
+        domain = {
+          id: crypto.randomUUID(),
+          name: host,
+          hostnames: [host],
+          createdAt: now,
+          updatedAt: now,
+        }
       }
+      await store.saveDomain(domain)
 
-      await store.saveFormProfile({
+      const profile: FormProfile = {
         id: profileId,
-        domainId,
+        domainId: domain.id,
         name,
         urlPatterns: [`${safeOrigin(tab.url)}/*`],
         pageTitlePatterns: tab.title ? [tab.title] : [],
@@ -597,13 +619,16 @@ export function useFillSession() {
           fieldCount: fields.value.length,
           structureHash: structureHash.value,
         },
-      })
+        updatedAt: now,
+      }
+      await store.saveFormProfile(profile)
 
       const byId = new Map(fields.value.map((f) => [f.id, f]))
+      const mappings: FieldMapping[] = []
       for (const item of includedItems()) {
         const f = byId.get(item.detectedFieldId)
         if (!f) continue
-        await store.saveMapping({
+        const m: FieldMapping = {
           id: crypto.randomUUID(),
           formProfileId: profileId,
           fieldFingerprint: f.domFingerprint,
@@ -617,15 +642,40 @@ export function useFillSession() {
           fillSource: item.fillSource,
           fillStrategy: item.fillStrategy,
           confidence: item.confidence,
-        })
+          updatedAt: now,
+        }
+        await store.saveMapping(m)
+        mappings.push(m)
       }
 
       matchedProfileId.value = profileId
       matchedProfileName.value = name
-      saveMessage.value = `Saved profile "${name}".`
       profileSaved.value = true
+
+      // Local-first: the save above already stuck. Best-effort write-through so the
+      // dashboard (and other devices) see it; a failure is a soft note, not an
+      // error — "Sync now" reconciles later.
+      const pushed = await requestProfilePush({ domain, profile, mappings })
+      saveMessage.value = pushed.ok
+        ? `Saved profile "${name}".`
+        : `Saved profile "${name}" locally — not synced yet.`
     } catch {
       error.value = 'Could not save the profile.'
+    }
+  }
+
+  /** Force a full two-way reconcile with the backend (the "Sync now" action). */
+  async function syncNow() {
+    if (syncing.value) return
+    syncing.value = true
+    syncMessage.value = null
+    try {
+      const result = await requestProfileReconcile()
+      syncMessage.value = result.ok
+        ? `Synced — ${result.pushed} up, ${result.pulled} down.`
+        : 'Sync failed. Check your connection and try again.'
+    } finally {
+      syncing.value = false
     }
   }
 
@@ -654,6 +704,8 @@ export function useFillSession() {
     savedMappings,
     saveMessage,
     profileSaved,
+    syncing,
+    syncMessage,
     aiState,
     aiSuggestions,
     aiProposals,
@@ -685,6 +737,7 @@ export function useFillSession() {
     fill,
     undo,
     saveProfile,
+    syncNow,
   }
 }
 

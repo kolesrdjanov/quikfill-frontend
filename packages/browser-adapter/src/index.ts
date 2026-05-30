@@ -50,3 +50,15 @@ export {
 export { createBackgroundAuth, type AuthApi, type BackgroundAuth } from './background-auth'
 export { createChromeStorageAdapter } from './storage'
 export { createProfileStore, type ProfileBundle, type ProfileStore } from './profile-store'
+export {
+  PROFILE_SYNC,
+  isProfileSyncRequest,
+  requestProfilePush,
+  requestProfileReconcile,
+  onProfileSyncRequest,
+  type ProfileSyncMessage,
+  type PushResult,
+  type ReconcileResult,
+  type SyncHandlers,
+} from './profile-sync-messaging'
+export { createBackgroundSync, type SyncApi, type BackgroundSync } from './background-sync'

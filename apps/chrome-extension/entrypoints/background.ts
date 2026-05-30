@@ -2,9 +2,13 @@ import { createAiClient, createApiClient } from '@quikfill/api-client'
 import {
   AUTH_STATE_KEY,
   createBackgroundAuth,
+  createBackgroundSync,
   createChromeAuthStore,
+  createChromeStorageAdapter,
+  createProfileStore,
   onAiClassifyRequest,
   onAuthRequest,
+  onProfileSyncRequest,
 } from '@quikfill/browser-adapter'
 import type { AuthState } from '@quikfill/schemas'
 
@@ -55,8 +59,16 @@ export default defineBackground(() => {
   // single coalesced refresh — vital since refresh tokens are single-use).
   const ai = createAiClient(api.rest)
 
+  // Two-way profile sync owns the same chrome.storage.local the surfaces read,
+  // and pushes/reconciles through the authenticated api-client (background-only).
+  const sync = createBackgroundSync({
+    api,
+    store: createProfileStore(createChromeStorageAdapter()),
+  })
+
   onAuthRequest(auth.handlers)
   onAiClassifyRequest((summaries) => ai.classifyFields(summaries))
+  onProfileSyncRequest(sync.handlers)
 
   // Keep the toolbar badge in sync with the session snapshot every surface reads.
   void Promise.resolve(auth.handlers.getState()).then(reflectBadge)

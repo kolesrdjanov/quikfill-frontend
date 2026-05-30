@@ -141,6 +141,16 @@ const fieldContext = computed(() => {
               variant="ghost"
               size="icon"
               class="size-[30px]"
+              :disabled="s.syncing.value"
+              aria-label="Sync now"
+              @click="s.syncNow()"
+            >
+              <RefreshCw class="size-4" :class="{ 'animate-spin': s.syncing.value }" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-[30px]"
               :aria-label="s.hideValues.value ? 'Show values' : 'Hide values'"
               @click="s.hideValues.value = !s.hideValues.value"
             >
@@ -158,6 +168,9 @@ const fieldContext = computed(() => {
             </Button>
           </div>
         </div>
+        <p v-if="s.syncMessage.value" class="text-muted-foreground text-[12px]">
+          {{ s.syncMessage.value }}
+        </p>
         <SiteChip
           :hostname="s.hostname.value || 'this page'"
           :initial="siteInitial"
