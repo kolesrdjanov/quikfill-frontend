@@ -30,7 +30,7 @@ const { toggle } = useTheme()
           <Moon class="t-moon" />
         </button>
         <a class="signin" href="#">Sign in</a>
-        <a class="btn btn--primary btn--sm" href="#pricing"><Zap /> Start free trial</a>
+        <a class="btn btn--primary btn--sm" href="#pricing"><Zap /> Get started</a>
       </div>
     </div>
   </header>
