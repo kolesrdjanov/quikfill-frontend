@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { timestamps, uuid } from './common'
+import { nullableOptional, timestamps, uuid } from './common'
 
 /** Field value types an entity field can hold. Mirrors the backend EntityFieldDef.type. */
 export const entityFieldTypeSchema = z.enum([
@@ -31,7 +31,7 @@ export type EntityFieldDef = z.infer<typeof entityFieldDefSchema>
 export const entityTypeSchema = z.object({
   id: uuid,
   name: z.string().min(1),
-  description: z.string().optional(),
+  description: nullableOptional(z.string()),
   fields: z.array(entityFieldDefSchema),
   ...timestamps,
 })

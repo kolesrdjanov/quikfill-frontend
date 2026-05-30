@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { timestamps, uuid } from './common'
+import { nullableOptional, timestamps, uuid } from './common'
 
 /** Generator kinds in the catalog. Mirrors the backend GeneratorRule.kind. */
 export const generatorKindSchema = z.enum([
@@ -38,7 +38,7 @@ export const generatorPresetSchema = z.object({
   name: z.string().min(1),
   locale: z.string().default('en'),
   seedMode: seedModeSchema.default('random'),
-  seed: z.string().optional(),
+  seed: nullableOptional(z.string()),
   rules: z.array(generatorRuleSchema),
   ...timestamps,
 })

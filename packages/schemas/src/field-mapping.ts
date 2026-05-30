@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateTime, timestamps, uuid } from './common'
+import { isoDateTime, nullableOptional, timestamps, uuid } from './common'
 import { fillSourceSchema } from './fill-source'
 
 /**
@@ -43,12 +43,12 @@ export const fieldMappingSchema = z.object({
   formProfileId: uuid,
   fieldFingerprint: z.string(),
   selectorCandidates: z.array(z.string()).default([]),
-  semanticHints: semanticHintsSchema.optional(),
+  semanticHints: nullableOptional(semanticHintsSchema),
   target: fieldMappingTargetSchema,
   fillSource: fillSourceSchema,
   fillStrategy: fillStrategySchema,
   confidence: z.number().min(0).max(1).default(0),
-  lastSuccessfulFillAt: isoDateTime.optional(),
+  lastSuccessfulFillAt: nullableOptional(isoDateTime),
   ...timestamps,
 })
 export type FieldMapping = z.infer<typeof fieldMappingSchema>

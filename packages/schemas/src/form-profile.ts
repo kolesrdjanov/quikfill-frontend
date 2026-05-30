@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import { timestamps, uuid } from './common'
+import { nullableOptional, timestamps, uuid } from './common'
 
 /** A site/app grouping one or more form profiles. */
 export const domainSchema = z.object({
   id: uuid,
   name: z.string().min(1),
   hostnames: z.array(z.string()).default([]),
-  description: z.string().optional(),
+  description: nullableOptional(z.string()),
   ...timestamps,
 })
 export type Domain = z.infer<typeof domainSchema>
@@ -29,8 +29,8 @@ export const formProfileSchema = z.object({
   name: z.string().min(1),
   urlPatterns: z.array(z.string()).default([]),
   pageTitlePatterns: z.array(z.string()).default([]),
-  fieldFingerprintHash: z.string().optional(),
-  structureMetadata: structureMetadataSchema.optional(),
+  fieldFingerprintHash: nullableOptional(z.string()),
+  structureMetadata: nullableOptional(structureMetadataSchema),
   ...timestamps,
 })
 export type FormProfile = z.infer<typeof formProfileSchema>

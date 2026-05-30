@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateTime, uuid } from './common'
+import { isoDateTime, nullableOptional, uuid } from './common'
 import { customWidgetSchema } from './detected-field'
 import { fillSourceSchema, fillSourceTypeSchema } from './fill-source'
 import { fillStrategySchema } from './field-mapping'
@@ -67,15 +67,15 @@ export type FillRunStatus = z.infer<typeof fillRunStatusSchema>
 /** A recorded fill attempt (history). Aligns 1:1 with the backend FillRun. */
 export const fillRunSchema = z.object({
   id: uuid,
-  formProfileId: uuid.optional(),
-  domainId: uuid.optional(),
+  formProfileId: nullableOptional(uuid),
+  domainId: nullableOptional(uuid),
   url: z.string(),
   mode: fillModeSchema,
   status: fillRunStatusSchema,
   plan: z.array(redactedFillPlanItemSchema),
   results: z.array(fillResultSchema),
   startedAt: isoDateTime,
-  completedAt: isoDateTime.optional(),
+  completedAt: nullableOptional(isoDateTime),
   createdAt: isoDateTime.optional(),
 })
 export type FillRun = z.infer<typeof fillRunSchema>
