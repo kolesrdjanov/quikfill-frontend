@@ -40,17 +40,21 @@ export type UpdateGeneratorPresetInput = z.infer<typeof updateGeneratorPresetInp
 // `id` is optional on create: the local-first clients (extension) supply the
 // UUID they already minted so a backend push is idempotent (upsert on that id);
 // the dashboard omits it and lets the server assign one. See common.ts `uuid`.
+// `updatedAt` is kept (optional) so the backend can apply server-side
+// last-write-wins and skip a stale re-POST; the dashboard omits it on create.
 export const createDomainInputSchema = domainSchema
-  .omit({ createdAt: true, updatedAt: true })
-  .partial({ id: true })
+  .omit({ createdAt: true })
+  .partial({ id: true, updatedAt: true })
 export type CreateDomainInput = z.infer<typeof createDomainInputSchema>
-export const updateDomainInputSchema = createDomainInputSchema.omit({ id: true }).partial()
+export const updateDomainInputSchema = createDomainInputSchema
+  .omit({ id: true, updatedAt: true })
+  .partial()
 export type UpdateDomainInput = z.infer<typeof updateDomainInputSchema>
 
 /* ── Form profiles ────────────────────────────────────────────────────────── */
 export const createFormProfileInputSchema = formProfileSchema
-  .omit({ createdAt: true, updatedAt: true })
-  .partial({ id: true })
+  .omit({ createdAt: true })
+  .partial({ id: true, updatedAt: true })
 export type CreateFormProfileInput = z.infer<typeof createFormProfileInputSchema>
 export const updateFormProfileInputSchema = formProfileSchema
   .omit({ id: true, domainId: true, createdAt: true, updatedAt: true })
@@ -63,9 +67,10 @@ export const createFieldMappingInputSchema = fieldMappingSchema
     formProfileId: true,
     lastSuccessfulFillAt: true,
     createdAt: true,
-    updatedAt: true,
   })
-  .partial({ id: true })
+  .partial({ id: true, updatedAt: true })
 export type CreateFieldMappingInput = z.infer<typeof createFieldMappingInputSchema>
-export const updateFieldMappingInputSchema = createFieldMappingInputSchema.partial()
+export const updateFieldMappingInputSchema = createFieldMappingInputSchema
+  .omit({ updatedAt: true })
+  .partial()
 export type UpdateFieldMappingInput = z.infer<typeof updateFieldMappingInputSchema>

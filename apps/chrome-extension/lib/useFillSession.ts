@@ -7,6 +7,7 @@ import {
   requestAiClassify,
   requestEntityData,
   requestFill,
+  requestFillRunRecord,
   requestProfilePush,
   requestProfileReconcile,
   requestScan,
@@ -37,6 +38,7 @@ import type {
   FillInstruction,
   FillPlanItem,
   FillResult,
+  FillRunStatus,
   FillSource,
   FillSourceType,
   FormProfile,
@@ -600,10 +602,52 @@ export function useFillSession() {
       results.value = response.results
       undoSnapshot.value = response.undoSnapshot
       await bumpSuccessfulMappings(response.results)
+      void recordFillRun(response.results)
     } catch {
       error.value = 'Fill failed. Reload the page and try again.'
     } finally {
       filling.value = false
+    }
+  }
+
+  /**
+   * Record a fill run for the dashboard's history (best-effort, fire-and-forget).
+   * Only redacted data leaves the page: field labels, source type, confidence,
+   * and per-field status/reason — never a proposed, current, or filled value.
+   */
+  async function recordFillRun(fillResults: FillResult[]) {
+    try {
+      const tab = await getActiveTab()
+      const url = tab.url
+      if (!url) return
+      const items = includedItems()
+      const labelById = new Map(items.map((i) => [i.detectedFieldId, i.label]))
+      const failed = fillResults.filter((r) => r.status === 'failed').length
+      const succeeded = fillResults.filter((r) => r.status === 'success').length
+      const status: FillRunStatus =
+        failed === 0 ? 'success' : succeeded === 0 ? 'failed' : 'partial'
+      await requestFillRunRecord({
+        create: {
+          url,
+          mode: 'fill',
+          formProfileId: matchedProfileId.value ?? undefined,
+          plan: items.map((i) => ({
+            fieldLabel: i.label,
+            fillSourceType: i.fillSource.sourceType,
+            confidence: i.confidence,
+          })),
+        },
+        finish: {
+          status,
+          results: fillResults.map((r) => ({
+            fieldLabel: labelById.get(r.detectedFieldId),
+            status: r.status,
+            reason: r.reason,
+          })),
+        },
+      })
+    } catch {
+      // History is non-essential — never let it disrupt the fill.
     }
   }
 

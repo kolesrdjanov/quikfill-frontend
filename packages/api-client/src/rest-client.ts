@@ -5,12 +5,14 @@ import {
   createEntityTypeInputSchema,
   createFieldMappingInputSchema,
   createFormProfileInputSchema,
+  createFillRunInputSchema,
   createGeneratorPresetInputSchema,
   domainSchema,
   entityRecordSchema,
   entityTypeSchema,
   fieldMappingSchema,
   fillRunSchema,
+  updateFillRunInputSchema,
   formProfileMatchCandidateSchema,
   formProfileMatchInputSchema,
   formProfileSchema,
@@ -24,6 +26,7 @@ import type {
   CreateEntityRecordInput,
   CreateEntityTypeInput,
   CreateFieldMappingInput,
+  CreateFillRunInput,
   CreateFormProfileInput,
   CreateGeneratorPresetInput,
   Domain,
@@ -31,6 +34,7 @@ import type {
   EntityType,
   FieldMapping,
   FillRun,
+  UpdateFillRunInput,
   FormProfile,
   FormProfileMatchCandidate,
   FormProfileMatchInput,
@@ -116,6 +120,8 @@ export interface ApiClient {
       signal?: AbortSignal,
     ): Promise<FillRun[]>
     get(id: string, signal?: AbortSignal): Promise<FillRun>
+    create(input: CreateFillRunInput, signal?: AbortSignal): Promise<FillRun>
+    update(id: string, input: UpdateFillRunInput, signal?: AbortSignal): Promise<FillRun>
   }
 }
 
@@ -262,6 +268,16 @@ export function createApiClient(config: RestClientConfig): ApiClient {
           signal,
         }),
       get: (id, signal) => rest.get(`/fill-runs/${id}`, { schema: fillRunSchema, signal }),
+      create: (input, signal) =>
+        rest.post('/fill-runs', createFillRunInputSchema.parse(input), {
+          schema: fillRunSchema,
+          signal,
+        }),
+      update: (id, input, signal) =>
+        rest.patch(`/fill-runs/${id}`, updateFillRunInputSchema.parse(input), {
+          schema: fillRunSchema,
+          signal,
+        }),
     },
   }
 }

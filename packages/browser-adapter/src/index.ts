@@ -30,6 +30,15 @@ export {
   type AiClassifyReason,
 } from './ai-messaging'
 export {
+  FILL_RUN_RECORD,
+  isFillRunRecordRequest,
+  requestFillRunRecord,
+  onFillRunRecordRequest,
+  type FillRunRecord,
+  type FillRunRecordMessage,
+  type FillRunRecordResponse,
+} from './fill-run-messaging'
+export {
   AUTH_REQUEST,
   isAuthRequest,
   requestAuthState,

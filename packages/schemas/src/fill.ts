@@ -81,6 +81,46 @@ export const fillRunSchema = z.object({
 export type FillRun = z.infer<typeof fillRunSchema>
 
 /**
+ * Input to record a new fill run (`POST /fill-runs`). The plan is pre-redacted on
+ * the client — only label, source type, and confidence; never a proposed or
+ * current value. The backend re-redacts as defence in depth.
+ */
+export const createFillRunInputSchema = z.object({
+  formProfileId: uuid.optional(),
+  domainId: uuid.optional(),
+  url: z.string(),
+  mode: fillModeSchema,
+  plan: z
+    .array(
+      z.object({
+        fieldLabel: z.string(),
+        fillSourceType: fillSourceTypeSchema,
+        confidence: z.number().min(0).max(1),
+      }),
+    )
+    .optional(),
+})
+export type CreateFillRunInput = z.infer<typeof createFillRunInputSchema>
+
+/**
+ * Input to finalize a fill run (`PATCH /fill-runs/:id`). Results are pre-redacted:
+ * label, status, and reason only — never a filled value.
+ */
+export const updateFillRunInputSchema = z.object({
+  status: fillRunStatusSchema,
+  results: z
+    .array(
+      z.object({
+        fieldLabel: z.string().optional(),
+        status: fillResultStatusSchema,
+        reason: z.string().optional(),
+      }),
+    )
+    .optional(),
+})
+export type UpdateFillRunInput = z.infer<typeof updateFillRunInputSchema>
+
+/**
  * Everything the DOM filler needs to apply one field, sent panel → content.
  * Carries selectors + frame/shadow context (the FillPlanItem itself does not).
  */

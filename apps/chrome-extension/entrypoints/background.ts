@@ -9,6 +9,7 @@ import {
   onAiClassifyRequest,
   onAuthRequest,
   onEntityDataRequest,
+  onFillRunRecordRequest,
   onProfileSyncRequest,
 } from '@quikfill/browser-adapter'
 import type { AuthState } from '@quikfill/schemas'
@@ -70,6 +71,12 @@ export default defineBackground(() => {
   onAuthRequest(auth.handlers)
   onAiClassifyRequest((summaries) => ai.classifyFields(summaries))
   onProfileSyncRequest(sync.handlers)
+  // Record fill-run history: create the run, then write its result. Best-effort —
+  // the panel ignores failures, so an offline/expired session never blocks a fill.
+  onFillRunRecordRequest(async ({ create, finish }) => {
+    const run = await api.fillRuns.create(create)
+    await api.fillRuns.update(run.id, finish)
+  })
   // Read-only snapshot of the user's saved entity data so the panel can fill a
   // field from a saved record (recordField) instead of a synthetic generator.
   onEntityDataRequest(async () => {
