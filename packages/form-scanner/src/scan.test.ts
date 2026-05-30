@@ -212,6 +212,48 @@ describe('scanForms', () => {
     expect(fields.some((f) => f.domId === '_r_17c_')).toBe(false)
   })
 
+  it('detects a closed custom select whose options render on demand', () => {
+    // Mirrors app.dev.quikstor.com: a data-trigger="select" combobox, collapsed,
+    // with a placeholder and NO option nodes in the DOM until it is opened. The
+    // human label ("Country") lives in an ancestor wrapper, not inside the widget,
+    // and there is no inner <input> to link a `for=`.
+    setBody(`
+      <div class="input-container">
+        <label>Country<span>*</span></label>
+        <div class="relative">
+          <div name="address.country" data-test-id="address-country" class="relative">
+            <div class="relative">
+              <div role="button" data-trigger="select" aria-expanded="false">
+                <div class="select-value-container"><p>i.e. United States</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields).toHaveLength(1)
+    const country = fields[0]
+    expect(country.inputType).toBe('customSelect')
+    expect(country.name).toBe('address.country')
+    expect(country.labelText).toBe('Country')
+    expect(country.options ?? []).toHaveLength(0)
+    expect(country.customWidget?.kind).toBe('select')
+  })
+
+  it('does not treat a plain expandable button (no options) as a custom select', () => {
+    // A disclosure/accordion toggle: role=button + aria-expanded but no select
+    // signal and no option list. Must not be mistaken for a fillable dropdown.
+    setBody(`
+      <div>
+        <div role="button" aria-expanded="false">Show advanced options</div>
+        <div hidden>more content</div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields).toHaveLength(0)
+  })
+
   it('drops junk framework-id-only fields but keeps labeled ones', () => {
     setBody(`
       <input id="_r_f4_" type="text" />
