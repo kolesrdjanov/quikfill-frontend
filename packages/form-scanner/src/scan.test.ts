@@ -53,6 +53,40 @@ describe('scanForms', () => {
     expect(search.ariaLabel).toBe('Search')
   })
 
+  it('stamps a stable data-qf-id marker on every detected element', () => {
+    setBody(`
+      <input id="a" />
+      <input name="b" />
+      <input autocomplete="off" />
+    `)
+    const { fields } = scanForms(document)
+    expect(fields.length).toBeGreaterThan(0)
+    for (const f of fields) {
+      const marked = document.querySelector(`[data-qf-id="${f.id}"]`)
+      expect(marked).not.toBeNull()
+    }
+  })
+
+  it('clears stale markers from a previous scan before re-stamping', () => {
+    setBody(`<input id="a" /><input id="b" />`)
+    scanForms(document)
+    // Drop one field from the DOM, then rescan: no orphaned data-qf-id may remain.
+    document.getElementById('b')!.remove()
+    scanForms(document)
+    const marked = Array.from(document.querySelectorAll('[data-qf-id]'))
+    expect(marked).toHaveLength(1)
+  })
+
+  it('does not use autocomplete as a selector candidate (non-unique token)', () => {
+    setBody(`<input id="x" autocomplete="off" />`)
+    const { fields } = scanForms(document)
+    const x = fields[0]
+    // autocomplete is still captured as matching metadata...
+    expect(x.autocomplete).toBe('off')
+    // ...but never as a selector — input[autocomplete="off"] matches many elements.
+    expect(x.selectorCandidates.some((s) => s.includes('autocomplete'))).toBe(false)
+  })
+
   it('excludes non-fillable (disabled/readonly) fields by default, keeps fillable ones', () => {
     setBody(`
       <input name="ok" />

@@ -225,9 +225,10 @@ export function getSelectorCandidates(el: Element): string[] {
   const dataTestId = el.getAttribute('data-testid')
   if (dataTestId) candidates.push(`${tag}[data-testid="${cssEscape(dataTestId)}"]`)
 
-  const ac = el.getAttribute('autocomplete')
-  if (ac) candidates.push(`${tag}[autocomplete="${cssEscape(ac)}"]`)
-
+  // NB: autocomplete is deliberately NOT a candidate. Its value is a fixed token
+  // set (off/on/organization/email/…), so `input[autocomplete="off"]` matches the
+  // first such input on the page — not the intended one. It stays as matching
+  // metadata only (DetectedField.autocomplete). See getSelectorCandidates callers.
   candidates.push(structuralPath(el))
   return Array.from(new Set(candidates))
 }

@@ -76,6 +76,10 @@ export function scanForms(
     const visibleEnough = options.includeHidden || field.visible
     const fillable = options.includeNonFillable || (!field.disabled && !field.readonly)
     if (visibleEnough && fillable && !isJunkField(field)) {
+      // Stamp a stable per-element marker. Fill resolves by `[data-qf-id="..."]`
+      // first, guaranteeing it writes to the exact element detected here — never a
+      // different element that merely shares a fuzzy selector (name/structural path).
+      el.setAttribute('data-qf-id', field.id)
       fields.push(field)
       fieldEls.push(el)
       counter++
@@ -86,6 +90,7 @@ export function scanForms(
   const dropInside = (widgetRoot: Element): void => {
     for (let i = fieldEls.length - 1; i >= 0; i--) {
       if (widgetRoot.contains(fieldEls[i])) {
+        fieldEls[i].removeAttribute('data-qf-id')
         fields.splice(i, 1)
         fieldEls.splice(i, 1)
       }
@@ -141,6 +146,12 @@ export function scanForms(
         })
       }
     }
+  }
+
+  // Clear markers from a prior scan: an element no longer detected would otherwise
+  // keep a stale data-qf-id that could shadow the current scan's marker at fill time.
+  for (const stale of Array.from(root.querySelectorAll('[data-qf-id]'))) {
+    stale.removeAttribute('data-qf-id')
   }
 
   visit({ frame: 'main', shadow: false, walk: root, lookup: lookupOf(root) })

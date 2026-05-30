@@ -288,6 +288,129 @@ describe('applyFill — custom select', () => {
   })
 })
 
+// A searchable combobox (e.g. a React country picker): the value lives in a
+// typeahead <input>, not a text node, and a placeholder <p> is shown until a
+// pick is made. Selecting an option sets input.value and drops the placeholder.
+const comboboxWidget: CustomWidget = {
+  kind: 'select',
+  triggerSelectorCandidates: ['#trigger'],
+  valueDisplaySelectorCandidates: ['.select-value-container'],
+  optionItemSelector: '[role="option"], [role="button"][aria-label*="option" i]',
+  optionsOpenOnDemand: true,
+}
+
+function mountSearchableCombobox() {
+  document.body.innerHTML = `
+    <div id="country" data-test-id="country" name="address.country">
+      <label for="countryInput">Country</label>
+      <div class="relative">
+        <div role="button" data-trigger="select" id="trigger">
+          <div class="select-value-container">
+            <p class="placeholder">i.e. United States</p>
+            <input id="countryInput" type="text" autocomplete="off" />
+          </div>
+        </div>
+        <div class="dropdown">
+          <div role="button" aria-label="Select option">United States</div>
+          <div role="button" aria-label="Select option">Canada</div>
+          <div role="button" aria-label="Select option">Mexico</div>
+        </div>
+      </div>
+    </div>`
+  const container = document.querySelector('.select-value-container')!
+  const input = document.getElementById('countryInput') as HTMLInputElement
+  for (const opt of Array.from(document.querySelectorAll('.dropdown [role="button"]'))) {
+    opt.addEventListener('mousedown', () => {
+      input.value = opt.textContent ?? ''
+      container.querySelector('p')?.remove()
+    })
+  }
+}
+
+function comboboxInstruction(proposedValue: string): FillInstruction {
+  return {
+    detectedFieldId: 'country',
+    selectorCandidates: ['#country'],
+    frame: 'main',
+    shadow: false,
+    tagName: 'div',
+    inputType: 'customSelect',
+    fillStrategy: 'customSelect',
+    proposedValue,
+    customWidget: comboboxWidget,
+  }
+}
+
+describe('applyFill — searchable custom select (value in a typeahead input)', () => {
+  // Regression: the picked value lands in the inner <input>, so verifying via
+  // textContent read "" and false-failed a fill that actually succeeded.
+  it('reports success when the selection lands in the typeahead input', async () => {
+    mountSearchableCombobox()
+    const { results } = await applyFill([comboboxInstruction('United States')])
+    expect((document.getElementById('countryInput') as HTMLInputElement).value).toBe(
+      'United States',
+    )
+    expect(results[0].status).toBe('success')
+  })
+
+  it('works for any option, not just the first', async () => {
+    mountSearchableCombobox()
+    const { results } = await applyFill([comboboxInstruction('Mexico')])
+    expect((document.getElementById('countryInput') as HTMLInputElement).value).toBe('Mexico')
+    expect(results[0].status).toBe('success')
+  })
+})
+
+describe('element identity (no cross-field collision)', () => {
+  // Regression: two fields that share a non-unique selector (e.g. autocomplete
+  // token) must each fill THEIR OWN element. Previously both resolved to the
+  // first match, so a later field's value overwrote an earlier field's element
+  // while the real target stayed empty — e.g. the EIN value landed in DBA.
+  it('resolves each field by its stamped data-qf-id marker, not a shared selector', async () => {
+    document.body.innerHTML =
+      '<input data-qf-id="qf-0" autocomplete="off" />' +
+      '<input data-qf-id="qf-1" autocomplete="off" />'
+    await applyFill([
+      instruction({
+        detectedFieldId: 'qf-0',
+        selectorCandidates: ['input[autocomplete="off"]'],
+        proposedValue: 'Liam Becker',
+      }),
+      instruction({
+        detectedFieldId: 'qf-1',
+        selectorCandidates: ['input[autocomplete="off"]'],
+        proposedValue: '395',
+      }),
+    ])
+    const inputs = document.querySelectorAll('input')
+    expect((inputs[0] as HTMLInputElement).value).toBe('Liam Becker')
+    expect((inputs[1] as HTMLInputElement).value).toBe('395')
+  })
+
+  it('never double-targets one element when markers are absent (claimed-set fallback)', async () => {
+    // No data-qf-id stamps: both instructions fall back to the shared selector.
+    // Claimed-tracking must route the second write to the second matching
+    // element instead of overwriting the first.
+    document.body.innerHTML = '<input autocomplete="off" /><input autocomplete="off" />'
+    const { results } = await applyFill([
+      instruction({
+        detectedFieldId: 'a',
+        selectorCandidates: ['input[autocomplete="off"]'],
+        proposedValue: 'first',
+      }),
+      instruction({
+        detectedFieldId: 'b',
+        selectorCandidates: ['input[autocomplete="off"]'],
+        proposedValue: 'second',
+      }),
+    ])
+    const inputs = document.querySelectorAll('input')
+    expect((inputs[0] as HTMLInputElement).value).toBe('first')
+    expect((inputs[1] as HTMLInputElement).value).toBe('second')
+    expect(results.map((r) => r.status)).toEqual(['success', 'success'])
+  })
+})
+
 describe('applyUndo', () => {
   it('restores previous input values and checkbox state', async () => {
     document.body.innerHTML = '<input id="name" value="Ada" /><input id="agree" type="checkbox" />'

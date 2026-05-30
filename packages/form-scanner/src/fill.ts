@@ -29,6 +29,9 @@ export async function applyFill(
 ): Promise<FillOutcome> {
   const results: FillResult[] = []
   const entries: UndoEntry[] = []
+  // Elements already written this batch — never targeted twice (a later field's
+  // value must not overwrite an earlier field's element via a shared selector).
+  const claimed = new Set<Element>()
 
   // Assisted-autocomplete fields go last: typing focuses the input and opens its
   // suggestion dropdown, and we want that dropdown left open — so no later field
@@ -48,17 +51,22 @@ export async function applyFill(
     }
 
     if (ins.fillStrategy === 'customSelect' && ins.customWidget) {
-      const { result, entry } = await fillCustomSelect(ins, ins.customWidget, root)
+      const { result, entry } = await fillCustomSelect(ins, ins.customWidget, root, claimed)
       results.push(result)
       if (entry) entries.push(entry)
       continue
     }
 
-    const el = findElement(root, ins.selectorCandidates)
+    const el = findElement(
+      root,
+      markedSelectors(ins.detectedFieldId, ins.selectorCandidates),
+      claimed,
+    )
     if (!el) {
       results.push(skip(ins.detectedFieldId, 'Element not found on the page.'))
       continue
     }
+    claimed.add(el)
     if (ins.fillStrategy === 'assistedAutocomplete') {
       entries.push(capture(ins, el))
       results.push(assistAutocomplete(ins, el))
@@ -96,7 +104,7 @@ export async function applyUndo(
       results.push(await undoCustomSelect(entry, entry.customWidget, root))
       continue
     }
-    const el = findElement(root, entry.selectorCandidates)
+    const el = findElement(root, markedSelectors(entry.detectedFieldId, entry.selectorCandidates))
     if (!el) {
       results.push(skip(entry.detectedFieldId, 'Element not found on the page.'))
       continue
@@ -200,9 +208,15 @@ async function fillCustomSelect(
   ins: FillInstruction,
   widget: CustomWidget,
   root: Document,
+  claimed: Set<Element>,
 ): Promise<{ result: FillResult; entry?: UndoEntry }> {
-  const widgetEl = findElement(root, ins.selectorCandidates)
+  const widgetEl = findElement(
+    root,
+    markedSelectors(ins.detectedFieldId, ins.selectorCandidates),
+    claimed,
+  )
   if (!widgetEl) return { result: skip(ins.detectedFieldId, 'Element not found on the page.') }
+  claimed.add(widgetEl)
 
   const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
   const previousDisplayText = readDisplay(widgetEl, widget, root)
@@ -257,7 +271,10 @@ async function undoCustomSelect(
   if (!prev) {
     return skip(entry.detectedFieldId, "Couldn't auto-undo this dropdown — reset it manually.")
   }
-  const widgetEl = findElement(root, entry.selectorCandidates)
+  const widgetEl = findElement(
+    root,
+    markedSelectors(entry.detectedFieldId, entry.selectorCandidates),
+  )
   if (!widgetEl) return skip(entry.detectedFieldId, 'Element not found on the page.')
 
   const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
@@ -288,10 +305,27 @@ function findOption(scope: ParentNode, selector: string, value: string): Element
 function readDisplay(widgetEl: Element, widget: CustomWidget, root: Document): string {
   for (const sel of widget.valueDisplaySelectorCandidates) {
     const m = queryIn(widgetEl, sel) ?? queryIn(root, sel)
-    if (m) return textOf(m)
+    if (m) return displayValue(m)
   }
   const trigger = findElement(root, widget.triggerSelectorCandidates)
-  return textOf(trigger ?? widgetEl)
+  return displayValue(trigger ?? widgetEl)
+}
+
+/**
+ * The value a custom widget is currently showing. Searchable comboboxes (e.g. a
+ * React country picker) keep the chosen value in a typeahead `<input>` and render
+ * a hint as sibling text — so a non-empty contained form control wins. Falls back
+ * to text content for widgets that render the selection as plain text (e.g. a
+ * `<div>` holding the label). Without this, a successful pick whose value lives in
+ * an input reads as "" and verification false-negatives the fill.
+ */
+function displayValue(el: Element): string {
+  const control = (
+    el.matches('input, textarea, select') ? el : el.querySelector('input, textarea, select')
+  ) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null
+  const value = control?.value.replace(/\s+/g, ' ').trim()
+  if (value) return value
+  return textOf(el)
 }
 
 function queryIn(scope: ParentNode, selector: string): Element | null {
@@ -401,28 +435,53 @@ function dispatch(el: Element, type: 'input' | 'change' | 'blur'): void {
   el.dispatchEvent(new Event(type, { bubbles: true }))
 }
 
-/** First element matching any selector candidate, searched across open shadow roots. */
-function findElement(root: Document | ShadowRoot, selectors: string[]): Fillable | null {
+/**
+ * Prepend the scanner's stable per-element marker so resolution hits the exact
+ * element that was detected. The marker is derived from the field id (the scanner
+ * stamps `data-qf-id="<id>"`), never persisted into saved mappings — so it can't
+ * pollute cross-scan matching. Falls back to the fuzzy candidates if the marker is
+ * gone (e.g. the framework re-rendered the node between scan and fill).
+ */
+function markedSelectors(detectedFieldId: string, candidates: string[]): string[] {
+  return [`[data-qf-id="${detectedFieldId}"]`, ...candidates]
+}
+
+/**
+ * First element matching any selector candidate, searched across open shadow roots.
+ * Skips elements already claimed by an earlier instruction in the same batch, so a
+ * non-unique fuzzy selector can never double-target one element.
+ */
+function findElement(
+  root: Document | ShadowRoot,
+  selectors: string[],
+  claimed?: Set<Element>,
+): Fillable | null {
   for (const selector of selectors) {
-    const found = deepQuery(root, selector)
+    const found = deepQuery(root, selector, claimed)
     if (found) return found
   }
   return null
 }
 
-function deepQuery(root: Document | ShadowRoot, selector: string): Fillable | null {
-  let match: Element | null
+function deepQuery(
+  root: Document | ShadowRoot,
+  selector: string,
+  claimed?: Set<Element>,
+): Fillable | null {
+  let matches: Element[]
   try {
-    match = root.querySelector(selector)
+    matches = Array.from(root.querySelectorAll(selector))
   } catch {
-    match = null // invalid/structural selector — skip
+    matches = [] // invalid/structural selector — skip
   }
-  if (match) return match as Fillable
+  for (const match of matches) {
+    if (!claimed?.has(match)) return match as Fillable
+  }
 
   for (const el of Array.from(root.querySelectorAll('*'))) {
     const shadow = (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot
     if (shadow) {
-      const inner = deepQuery(shadow, selector)
+      const inner = deepQuery(shadow, selector, claimed)
       if (inner) return inner
     }
   }
