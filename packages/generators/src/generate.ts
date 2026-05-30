@@ -14,6 +14,8 @@ import {
 } from './data'
 import { createRng, type Rng } from './rng'
 
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
 export interface GenerateContext {
   /** When set, generation is deterministic (seeded mode). */
   seed?: string | number
@@ -134,5 +136,19 @@ const GENERATORS: Record<GeneratorKind, (rng: Rng, o: Options, ctx: GenerateCont
   customEnum(rng, o) {
     const values = strArray(o, 'values') ?? []
     return values.length ? rng.pick(values) : ''
+  },
+  patterned(rng, o) {
+    const format = str(o, 'format') ?? '########'
+    return format.replace(/[#@*]/g, (ch) => {
+      if (ch === '#') return String(rng.int(0, 9))
+      if (ch === '@') return LETTERS[rng.int(0, 25)]!
+      return rng.bool() ? String(rng.int(0, 9)) : LETTERS[rng.int(0, 25)]!
+    })
+  },
+  handle(rng, o) {
+    const first = rng.pick(FIRST_NAMES).toLowerCase()
+    const last = rng.pick(LAST_NAMES).toLowerCase()
+    const sep = str(o, 'separator') ?? ''
+    return `${first}${sep}${last}${rng.int(1, 99)}`
   },
 }

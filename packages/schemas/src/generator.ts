@@ -17,6 +17,8 @@ export const generatorKindSchema = z.enum([
   'notes',
   'selectOption',
   'customEnum',
+  'patterned',
+  'handle',
 ])
 export type GeneratorKind = z.infer<typeof generatorKindSchema>
 

@@ -85,4 +85,17 @@ describe('catalog kinds', () => {
     const values = ['red', 'green', 'blue']
     expect(values).toContain(runGenerator(rule('customEnum', { values }), { seed: 'a' }))
   })
+
+  it('patterned fills maska tokens (# digit, @ letter, * alnum)', () => {
+    expect(runGenerator(rule('patterned', { format: '##-#######' }), { seed: 'x' })).toMatch(
+      /^\d{2}-\d{7}$/,
+    )
+    expect(runGenerator(rule('patterned', { format: '@@##' }), { seed: 'x' })).toMatch(
+      /^[A-Z]{2}\d{2}$/,
+    )
+  })
+
+  it('handle looks like a username', () => {
+    expect(runGenerator(rule('handle'), { seed: 'x' })).toMatch(/^[a-z]+\d{1,2}$/)
+  })
 })
