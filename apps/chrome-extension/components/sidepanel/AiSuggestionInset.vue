@@ -13,13 +13,16 @@ defineEmits<{ accept: []; reject: [] }>()
     <div class="text-foreground flex items-center justify-between gap-2 font-semibold">
       <span class="flex items-center gap-1.5">
         <WandSparkles class="text-warning size-3.5" />
-        AI thinks this is <span class="text-primary">{{ suggestion.semanticType }}</span>
+        AI identified this as <span class="text-primary">{{ suggestion.semanticType }}</span>
       </span>
       <span class="text-muted-foreground tabular-nums">{{ pct(suggestion.confidence) }}</span>
     </div>
     <ul v-if="suggestion.reasons.length" class="text-muted-foreground list-disc space-y-0.5 pl-4">
       <li v-for="(reason, i) in suggestion.reasons" :key="i">{{ reason }}</li>
     </ul>
+    <p class="text-muted-foreground text-[11px] leading-snug">
+      Accepting fills this from your saved data or a labeled sample — AI never invents a value.
+    </p>
     <div class="flex gap-2 pt-1">
       <Button size="sm" class="flex-1" @click="$emit('accept')">
         <Check class="size-3.5" />
