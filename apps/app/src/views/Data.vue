@@ -236,7 +236,7 @@ const fieldTypeOptions = entityFieldTypes as readonly EntityFieldType[]
           <Database />
           <div>
             <p class="font-semibold">No records yet</p>
-            <p>Records hold the values Quikfill uses to fill forms.</p>
+            <p>Records hold the values QuikFill uses to fill forms.</p>
           </div>
         </Alert>
         <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

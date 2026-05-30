@@ -16,7 +16,7 @@ it reads "AI") produced the warning **"AI suggestion not generated yet (Iteratio
    placeholder, so picking "AI" on a field can never produce a value.
 
 Iteration 7 ("Gemini assistance") _did_ ship — but only as the batch **"Ask
-Quikfill AI"** flow over ambiguous fields (classify → suggestion → accept →
+QuikFill AI"** flow over ambiguous fields (classify → suggestion → accept →
 generator-backed proposal). The per-field `aiGenerated` source was never wired to
 that path.
 

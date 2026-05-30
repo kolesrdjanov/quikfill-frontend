@@ -8,7 +8,7 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   manifest: {
-    name: 'Quikfill',
+    name: 'QuikFill',
     description: 'Scan, map, and fill any web form.',
     // Minimal permissions; host access is requested on user action (activeTab).
     permissions: ['sidePanel', 'scripting', 'storage', 'activeTab'],

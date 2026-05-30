@@ -6,7 +6,7 @@
 > adapter build or the scaffold-design approval — trust the status doc on state.
 
 > **This is a requirements/research brief, not an approved iteration.** It captures
-> a feasibility investigation into whether Quikfill can serve a Figma use-case, the
+> a feasibility investigation into whether QuikFill can serve a Figma use-case, the
 > honest competitive read, and a de-risking spike to run **before** committing to a
 > build. Parent roadmap: [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md).
 > Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md). Sibling
@@ -35,12 +35,12 @@
 ## The request (original use-case)
 
 > A designer wants to fill Figma text layers with realistic boilerplate — names,
-> emails, lorem ipsum, product copy — instead of typing it by hand. Does Quikfill
+> emails, lorem ipsum, product copy — instead of typing it by hand. Does QuikFill
 > fit this use-case, and can the Chrome extension work in Figma?
 
 ## Key finding: the extension cannot run inside Figma
 
-Quikfill's web engine (`form-scanner`) is **pure DOM manipulation** — it walks the
+QuikFill's web engine (`form-scanner`) is **pure DOM manipulation** — it walks the
 page with `querySelectorAll`, identifies `<input>`/`<textarea>`/`<select>`/
 `contenteditable`, and writes via the native `.value` setter plus dispatched
 `input`/`change` events (`form-scanner/src/scan.ts`, `fill.ts`).
@@ -217,7 +217,7 @@ only that makes us plugin #51.
    persona library. So it only holds as long as we own the user's data layer on the
    web side.
 
-**Strategic read:** this only makes sense as an **extension of an existing Quikfill
+**Strategic read:** this only makes sense as an **extension of an existing QuikFill
 web user base** ("your data, now in Figma too"), _not_ as a standalone land-grab
 against Content Reel. Free-vs-gated and 4th-surface ownership are **gate inputs**, not
 post-build details (see Gaps).
@@ -370,7 +370,7 @@ The audit flagged these as **inputs to the go decision**, not afterthoughts:
 
 - Does the web product have enough active users to justify a retention/expansion
   surface? (This is the real gating question, more than any technical risk.)
-- Free Community plugin vs. gated behind a Quikfill account? (The moat argues for
+- Free Community plugin vs. gated behind a QuikFill account? (The moat argues for
   requiring sign-in so it pulls the user's existing profiles.)
 - FigJam support, or Figma design files only? (Recommend design-only for v1.)
 

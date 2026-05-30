@@ -129,7 +129,7 @@ async function confirmDelete(): Promise<void> {
       <Globe />
       <div>
         <p class="font-semibold">No apps yet</p>
-        <p>Add the first site you want Quikfill to recognise.</p>
+        <p>Add the first site you want QuikFill to recognise.</p>
       </div>
     </Alert>
 

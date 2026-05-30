@@ -60,7 +60,7 @@ prerequisites for everything below.)
 ## MV3 architecture
 
 ```txt
-┌─────────────────┐  user clicks Quikfill         ┌────────────────────────────┐
+┌─────────────────┐  user clicks QuikFill         ┌────────────────────────────┐
 │  side_panel     │ ◀───────────────────────────▶ │  service_worker (background)│
 │  (Vue 3 — the   │     typed messages            │  - routing/orchestration    │
 │   primary UI)   │                               │  - chrome.storage (adapter) │
@@ -122,7 +122,7 @@ nothing it isn't given; the worker is the only hop that talks to storage/backend
 ## Primary product flow (target)
 
 1. User opens any third-party form.
-2. User opens the Quikfill **side panel**.
+2. User opens the QuikFill **side panel**.
 3. Extension requests current-tab access if needed (`activeTab` on click).
 4. User clicks **Scan** → `SCAN_REQUEST`.
 5. Content script (`form-scanner`) returns `DetectedField[]` + limitations.
@@ -229,7 +229,7 @@ validation, review/accept/reject UI. AI is **user-initiated** and tied to a clic
 **Privacy:** never send current values or full HTML; no key in the bundle; all
 calls mediated by `quikfill-services`; all responses schema-validated and treated
 as untrusted.
-**UI:** "Ask Quikfill AI" on ambiguous fields → suggested semantic type / source
+**UI:** "Ask QuikFill AI" on ambiguous fields → suggested semantic type / source
 with reasons + confidence → accept (writes a mapping) or reject.
 **Tests:** summary redaction + size guard; response validator rejects malformed
 output; accepted suggestion produces a valid `FieldMapping`.
@@ -241,7 +241,7 @@ and turns an accepted suggestion into a reviewable proposal (reusing
 `/ai/classify-fields` and `/ai/suggest-mappings` (transport-injectable, schema-
 validated). `browser-adapter` adds the `AI_CLASSIFY` panel→background message;
 the background worker owns the api-client call. The side panel surfaces "Ask
-Quikfill AI" on ambiguous fields with accept/reject and fails gracefully when
+QuikFill AI" on ambiguous fields with accept/reject and fails gracefully when
 the backend is unavailable. Unit tests cover redaction/leak-proofing, the
 response validator, the proposal mapping, the typed client, and the message.
 Also wired as a **per-field** source: cycling a field's source pill to AI runs

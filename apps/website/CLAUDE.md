@@ -6,7 +6,7 @@
 
 ## What this is
 
-The **public marketing site** that explains and sells Quikfill and directs
+The **public marketing site** that explains and sells QuikFill and directs
 visitors to the Chrome extension and the dashboard. Built last, so it can use real
 product screenshots instead of placeholders.
 

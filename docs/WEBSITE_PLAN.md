@@ -1,6 +1,6 @@
 # Website (Marketing) — Implementation Plan
 
-`apps/website` is the **public-facing** surface that explains and sells Quikfill
+`apps/website` is the **public-facing** surface that explains and sells QuikFill
 and directs visitors to the Chrome extension and the dashboard. Parent roadmap:
 [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md).
 
@@ -47,9 +47,9 @@ Mirrors `vue3-template/apps/web`:
 
 The marketing copy must stay **honest** and consistent with the product:
 
-- Quikfill is cross-site form automation, single-user, local-first with optional
+- QuikFill is cross-site form automation, single-user, local-first with optional
   sync — not tied to one app or vertical.
-- AI **interprets**, the user confirms; Quikfill doesn't silently fill or send
+- AI **interprets**, the user confirms; QuikFill doesn't silently fill or send
   full page HTML.
 - Be upfront about field-support levels (some controls — closed shadow DOM,
   canvas, hostile pages — aren't reliably fillable).
@@ -61,7 +61,7 @@ a single config source, docs/support/privacy/terms placeholders, SEO meta +
 prerender config, CTAs to the Web Store listing and the dashboard.
 **Tests:** Playwright smoke tests (each route renders, nav works, primary CTAs
 resolve); Lighthouse/prerender sanity for the landing page.
-**Exit:** the public site can explain Quikfill and direct users to the
+**Exit:** the public site can explain QuikFill and direct users to the
 app/extension.
 
 ## Guardrails

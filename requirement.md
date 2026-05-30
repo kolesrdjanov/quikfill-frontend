@@ -1,8 +1,8 @@
-# Quikfill Frontend Requirements
+# QuikFill Frontend Requirements
 
 ## Purpose
 
-`quikfill-frontend` is the frontend monorepo for Quikfill.
+`quikfill-frontend` is the frontend monorepo for QuikFill.
 
 It should contain:
 
@@ -290,7 +290,7 @@ Shared config:
 Required target flow:
 
 1. User opens any third-party form.
-2. User opens Quikfill side panel.
+2. User opens QuikFill side panel.
 3. Extension requests current tab access if needed.
 4. User clicks Scan.
 5. Content script returns detected fields.
@@ -562,7 +562,7 @@ Deliverables:
 
 Exit criteria:
 
-- Public site can explain Quikfill and direct users to app/extension.
+- Public site can explain QuikFill and direct users to app/extension.
 
 ### Iteration 10: Backend Sync And Billing
 

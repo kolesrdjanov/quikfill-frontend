@@ -1,13 +1,13 @@
-# Quikfill Frontend — Conventions (read first)
+# QuikFill Frontend — Conventions (read first)
 
 This is the authoritative contract for `quikfill-frontend`. It applies to **every**
 app and package in this repo. Per-surface detail lives in each app's own
 `CLAUDE.md`; the living roadmap lives in [`docs/`](./docs) (start at
 [`IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md)).
 
-## What Quikfill is
+## What QuikFill is
 
-Quikfill is a **single-user**, local-first form-autofill product. It scans a web
+QuikFill is a **single-user**, local-first form-autofill product. It scans a web
 page, detects fields, matches saved profiles, optionally asks AI for help, builds
 a previewable fill plan, fills fields, and supports undo.
 

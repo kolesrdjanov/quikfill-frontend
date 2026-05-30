@@ -136,12 +136,12 @@ async function clearData() {
       <Card>
         <CardHeader><CardTitle>AI assistance</CardTitle></CardHeader>
         <OptionRow
-          title="Quikfill AI"
+          title="QuikFill AI"
           subtitle="Send redacted field summaries to classify ambiguous fields. Never your values or full HTML."
         >
           <Switch
             :model-value="settings.aiEnabled"
-            aria-label="Quikfill AI"
+            aria-label="QuikFill AI"
             @update:model-value="(v) => set('aiEnabled', !!v)"
           />
         </OptionRow>
@@ -173,7 +173,7 @@ async function clearData() {
         </OptionRow>
         <OptionRow
           title="Host access"
-          subtitle="Quikfill only reads a page after you click — never in the background."
+          subtitle="QuikFill only reads a page after you click — never in the background."
         >
           <Badge variant="success"><ShieldCheck /> On click only</Badge>
         </OptionRow>
@@ -184,7 +184,7 @@ async function clearData() {
         <CardHeader><CardTitle>Data</CardTitle></CardHeader>
         <OptionRow
           title="Saved profiles &amp; records"
-          :subtitle="`${profileCount} saved ${profileCount === 1 ? 'profile' : 'profiles'}. Manage details in the Quikfill dashboard.`"
+          :subtitle="`${profileCount} saved ${profileCount === 1 ? 'profile' : 'profiles'}. Manage details in the QuikFill dashboard.`"
         >
           <Button variant="outline" size="sm" disabled>
             <ExternalLink class="size-4" />

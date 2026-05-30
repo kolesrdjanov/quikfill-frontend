@@ -45,12 +45,12 @@ export const SOURCE_META: Record<FillSourceType, SourceMeta> = {
 
 /** User-facing copy for an AI failure cause (see `AiClassifyReason`). */
 export const AI_REASON_MESSAGE: Record<AiClassifyReason, string> = {
-  'not-configured': 'Quikfill AI isn’t enabled on the server right now.',
+  'not-configured': 'QuikFill AI isn’t enabled on the server right now.',
   quota: 'You’ve reached this month’s AI limit — it resets next month.',
   'rate-limited': 'Too many AI requests just now — wait a moment and try again.',
   auth: 'Your session expired — sign in again to use AI.',
-  offline: 'Quikfill AI is unreachable. Check your connection and try again.',
-  error: 'Quikfill AI hit an unexpected error — you can still preview and fill.',
+  offline: 'QuikFill AI is unreachable. Check your connection and try again.',
+  error: 'QuikFill AI hit an unexpected error — you can still preview and fill.',
 }
 
 /** Order the per-field "change source" pill cycles through. */

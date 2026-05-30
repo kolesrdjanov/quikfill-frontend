@@ -1,11 +1,11 @@
-# Quikfill Frontend — Implementation Plan (Master Roadmap)
+# QuikFill Frontend — Implementation Plan (Master Roadmap)
 
 This is the living roadmap for `quikfill-frontend`. It expands the iteration
 plan in [`requirement.md`](../requirement.md) into concrete, executable detail
 and links out to one plan per surface. It mirrors the structure of the backend
 plan in the sibling repo (`quikfill-services/docs/IMPLEMENTATION_PLAN.md`).
 
-> **North star:** Quikfill is a **single-user** product. The Chrome extension is
+> **North star:** QuikFill is a **single-user** product. The Chrome extension is
 > the primary execution surface; the dashboard manages data; the website sells
 > the product. The first implementation is **local-first** but every concept is
 > production-shaped, and storage/sync sit behind adapters so the backend can be

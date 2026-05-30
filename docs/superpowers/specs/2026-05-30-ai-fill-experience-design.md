@@ -7,7 +7,7 @@
 ## Problem
 
 Clicking **Ask AI** on a field like `EIN #` shows "AI thinks this is a number — 90%",
-then the field dead-ends at "Quikfill has no value to fill here yet". Users read
+then the field dead-ends at "QuikFill has no value to fill here yet". Users read
 this as a contradiction and as a failure ("AI fails to provide values for common
 fields"). Investigation shows it is mostly working-as-designed plus three real gaps:
 

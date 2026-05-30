@@ -256,7 +256,7 @@ change; the engine calls (`@quikfill/autofill-core`, `@quikfill/ai`) are identic
 
 ```jsonc
 {
-  "name": "Quikfill",
+  "name": "QuikFill",
   "id": "<assigned-on-first-publish>",
   "api": "1.0.0",
   "editorType": ["figma"],
@@ -264,7 +264,7 @@ change; the engine calls (`@quikfill/autofill-core`, `@quikfill/ai`) are identic
   "ui": "dist/ui.html",
   "networkAccess": {
     "allowedDomains": ["http://localhost:4010", "https://<prod-api-domain>"],
-    "reasoning": "Quikfill syncs your saved profiles and runs AI field classification through the Quikfill backend.",
+    "reasoning": "QuikFill syncs your saved profiles and runs AI field classification through the QuikFill backend.",
   },
 }
 ```
