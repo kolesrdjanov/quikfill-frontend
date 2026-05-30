@@ -32,3 +32,9 @@ export {
   type RecordIndex,
   type RecordMatch,
 } from './record-index'
+export {
+  defaultSourceFor,
+  isSensitiveSemanticType,
+  SENSITIVE_SEMANTIC_TYPES,
+  type SourcePolicyInput,
+} from './source-policy'
