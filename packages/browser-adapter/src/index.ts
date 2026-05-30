@@ -59,6 +59,26 @@ export {
   type AuthStore,
 } from './auth-store'
 export { createBackgroundAuth, type AuthApi, type BackgroundAuth } from './background-auth'
+export {
+  ENTITLEMENTS_REQUEST,
+  isEntitlementsRequest,
+  requestEntitlements,
+  refreshEntitlements,
+  onEntitlementsRequest,
+  type EntitlementsRequestMessage,
+  type EntitlementsHandlers,
+} from './entitlements-messaging'
+export {
+  createEntitlementsStore,
+  createChromeEntitlementsStore,
+  ENTITLEMENTS_STATE_KEY,
+  type EntitlementsStore,
+} from './entitlements-store'
+export {
+  createBackgroundEntitlements,
+  type EntitlementsApi,
+  type BackgroundEntitlements,
+} from './background-entitlements'
 export { createChromeStorageAdapter } from './storage'
 export { createProfileStore, type ProfileBundle, type ProfileStore } from './profile-store'
 export {
