@@ -226,17 +226,23 @@ onMounted(async () => {
               highlightedPlan === plan.key ? 'ring-primary ring-2' : '',
             ]"
           >
-            <CardHeader class="space-y-1">
-              <CardTitle class="flex items-center justify-between text-base">
-                {{ plan.displayName }}
-                <Badge v-if="isCurrent(plan)" variant="success">Current</Badge>
-                <Badge v-else-if="plan.recommended" variant="secondary">Most popular</Badge>
-              </CardTitle>
-              <p class="text-sm">
-                <span class="text-foreground text-xl font-semibold">{{ plan.priceLabel }}</span>
-                <span class="text-muted-foreground">{{ plan.pricePer }}</span>
-              </p>
-              <p class="text-muted-foreground text-xs">{{ plan.marketingFills }} form fills / mo</p>
+            <CardHeader>
+              <div class="flex flex-col gap-2">
+                <div class="flex min-h-6 items-start justify-between gap-2">
+                  <CardTitle class="text-base leading-tight">{{ plan.displayName }}</CardTitle>
+                  <Badge v-if="isCurrent(plan)" variant="success" class="shrink-0">Current</Badge>
+                  <Badge v-else-if="plan.recommended" variant="secondary" class="shrink-0">
+                    Most popular
+                  </Badge>
+                </div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-foreground text-2xl font-semibold">{{ plan.priceLabel }}</span>
+                  <span class="text-muted-foreground text-sm">{{ plan.pricePer }}</span>
+                </div>
+                <p class="text-muted-foreground text-xs">
+                  {{ plan.marketingFills }} form fills / mo
+                </p>
+              </div>
             </CardHeader>
             <CardContent class="flex flex-1 flex-col gap-4">
               <ul class="flex-1 space-y-2 text-sm">
