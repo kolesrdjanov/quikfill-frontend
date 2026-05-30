@@ -9,6 +9,8 @@ import type {
 } from '@quikfill/schemas'
 import { classifyFields, generatorRuleForSemanticType } from './classify'
 import { resolveFillSource, type ResolveContext } from './resolve'
+import { defaultSourceFor } from './source-policy'
+import { recordMatchForSemanticType, type RecordIndex } from './record-index'
 
 /** A field paired with the source chosen to fill it. */
 export interface PlanAssignment {
@@ -72,6 +74,10 @@ export interface PreviewOptions {
   savedMappings?: Map<string, FieldMapping>
   /** Saved entity-record values (recordId → values) for `recordField` sources. */
   records?: Record<string, Record<string, unknown>>
+  /** Whether the active preference permits synthetic sample data (default false). */
+  allowSampleData?: boolean
+  /** Saved-record index, so the default can prefer a real saved value. */
+  recordIndex?: RecordIndex
 }
 
 /**
@@ -101,24 +107,21 @@ export function buildPreviewPlan(fields: DetectedField[], opts: PreviewOptions =
     }
 
     const c = byId.get(field.id)
-    if (c?.suggestedKind) {
-      rules[c.semanticType] = {
-        fieldKey: c.semanticType,
-        kind: c.suggestedKind,
-        options: c.generatorOptions,
-      }
-      assignments.push({
-        field,
-        fillSource: { sourceType: 'generatorRule', ruleKey: c.semanticType },
-        confidence: c.confidence,
-      })
-    } else {
-      assignments.push({
-        field,
-        fillSource: { sourceType: 'staticValue', value: '' },
-        confidence: c?.confidence ?? 0.2,
-      })
-    }
+    const semanticType = c?.semanticType ?? 'unknown'
+    const generatorRule = c?.suggestedKind
+      ? { fieldKey: semanticType, kind: c.suggestedKind, options: c.generatorOptions }
+      : null
+    const recordMatch = opts.recordIndex
+      ? recordMatchForSemanticType(opts.recordIndex, semanticType)
+      : null
+    const { fillSource, rule } = defaultSourceFor({
+      semanticType,
+      allowSampleData: opts.allowSampleData ?? false,
+      recordMatch,
+      generatorRule,
+    })
+    if (rule) rules[semanticType] = rule
+    assignments.push({ field, fillSource, confidence: c?.confidence ?? 0.2 })
   }
 
   return buildFillPlan(assignments, {

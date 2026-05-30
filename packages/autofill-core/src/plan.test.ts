@@ -114,7 +114,7 @@ describe('buildPreviewPlan', () => {
       field({ id: 'mystery', name: 'xyzzy' }),
     ]
 
-    const plan = buildPreviewPlan(fields, { seed: 'seed-1' })
+    const plan = buildPreviewPlan(fields, { seed: 'seed-1', allowSampleData: true })
     expect(plan.mode).toBe('preview')
     expect(plan.items).toHaveLength(4)
 
@@ -125,7 +125,24 @@ describe('buildPreviewPlan', () => {
     expect(['admin', 'user']).toContain(role.proposedValue)
 
     // Deterministic with the same seed.
-    const again = buildPreviewPlan(fields, { seed: 'seed-1' })
+    const again = buildPreviewPlan(fields, { seed: 'seed-1', allowSampleData: true })
     expect(again.items.map((i) => i.proposedValue)).toEqual(plan.items.map((i) => i.proposedValue))
+  })
+
+  it('leaves classified fields for the user when sample data is off (no silent samples)', () => {
+    const plan = buildPreviewPlan([field({ id: 'email', name: 'email', inputType: 'email' })], {
+      seed: 's',
+      allowSampleData: false,
+    })
+    expect(plan.items[0].fillSource.sourceType).toBe('aiGenerated')
+    expect(plan.items[0].proposedValue).toBe('')
+  })
+
+  it('never auto-samples a sensitive type even with sample data on', () => {
+    const plan = buildPreviewPlan([field({ id: 't', name: 'ein', labelText: 'EIN #' })], {
+      seed: 's',
+      allowSampleData: true,
+    })
+    expect(plan.items[0].fillSource.sourceType).toBe('aiGenerated')
   })
 })
