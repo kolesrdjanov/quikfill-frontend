@@ -14,6 +14,7 @@ import {
   Sun,
 } from 'lucide-vue-next'
 import { Avatar, Button } from '@quikfill/ui'
+import logoUrl from '@quikfill/assets/logos/quikfill-icon.svg?url'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
 
@@ -58,11 +59,7 @@ async function signOut(): Promise<void> {
         to="/"
         class="flex items-center gap-2.5 px-2 pb-4 text-base font-extrabold tracking-tight"
       >
-        <span
-          class="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-lg text-xs"
-        >
-          Q
-        </span>
+        <img :src="logoUrl" alt="" class="size-7" />
         <span>Quik<span class="text-primary">Fill</span></span>
       </RouterLink>
 

@@ -41,6 +41,9 @@ importers:
       '@quikfill/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@quikfill/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
       '@quikfill/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas

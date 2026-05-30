@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import logoUrl from '@quikfill/assets/logos/quikfill-icon.svg?url'
 </script>
 
 <template>
@@ -8,11 +9,7 @@ import { RouterLink } from 'vue-router'
       to="/"
       class="mb-8 flex items-center gap-2.5 text-[19px] font-extrabold tracking-tight"
     >
-      <span
-        class="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg text-sm"
-      >
-        Q
-      </span>
+      <img :src="logoUrl" alt="" class="size-8" />
       <span>Quik<span class="text-primary">Fill</span></span>
     </RouterLink>
     <div class="w-full max-w-md">
