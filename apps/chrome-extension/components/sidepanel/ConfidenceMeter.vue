@@ -18,7 +18,7 @@ const width = computed(() => `${Math.round(props.confidence * 100)}%`)
 
 <template>
   <div class="flex flex-1 items-center gap-2">
-    <span class="text-muted-foreground shrink-0 text-[11px]">{{ label }}</span>
+    <span class="text-muted-foreground shrink-0 text-[11px]" aria-hidden="true">{{ label }}</span>
     <div
       class="bg-muted h-1.5 flex-1 overflow-hidden rounded-full"
       role="meter"
