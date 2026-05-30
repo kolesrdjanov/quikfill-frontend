@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { confidenceTone, pct } from '../../lib/display-maps'
 
-const props = defineProps<{ confidence: number }>()
+const props = withDefaults(defineProps<{ confidence: number; label?: string }>(), {
+  label: 'AI confidence',
+})
 
 const tone = computed(() => confidenceTone(props.confidence))
 const barClass = computed(
@@ -16,13 +18,14 @@ const width = computed(() => `${Math.round(props.confidence * 100)}%`)
 
 <template>
   <div class="flex flex-1 items-center gap-2">
+    <span class="text-muted-foreground shrink-0 text-[11px]">{{ label }}</span>
     <div
       class="bg-muted h-1.5 flex-1 overflow-hidden rounded-full"
       role="meter"
       :aria-valuenow="Math.round(confidence * 100)"
       aria-valuemin="0"
       aria-valuemax="100"
-      :aria-label="`Confidence ${pct(confidence)}`"
+      :aria-label="`${label} ${pct(confidence)}`"
     >
       <div class="h-full rounded-full transition-all" :class="barClass" :style="{ width }" />
     </div>
