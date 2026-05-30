@@ -19,3 +19,11 @@ export {
   type MatchableProfile,
 } from './profile-match'
 export { matchMappings, scoreMapping, type MappingMatch } from './mapping-match'
+export {
+  buildRecordIndex,
+  recordMatchForSemanticType,
+  recordValuesById,
+  semanticTypeForEntityField,
+  type RecordIndex,
+  type RecordMatch,
+} from './record-index'

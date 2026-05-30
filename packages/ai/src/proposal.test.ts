@@ -48,6 +48,21 @@ describe('suggestionToProposal', () => {
     expect(proposal.generatorRule).toBeNull()
   })
 
+  it('prefers the user saved data (recordField) over a generator when a record matches', () => {
+    const proposal = suggestionToProposal(
+      suggestion({ fieldId: 'a', semanticType: 'person.firstName' }),
+      field({ id: 'a' }),
+      { entityTypeId: 'person', recordId: 'r1', fieldKey: 'firstName' },
+    )
+    expect(proposal.fillSource).toEqual({
+      sourceType: 'recordField',
+      entityTypeId: 'person',
+      recordId: 'r1',
+      fieldKey: 'firstName',
+    })
+    expect(proposal.generatorRule).toBeNull()
+  })
+
   it('infers the fill strategy from the field type', () => {
     const proposal = suggestionToProposal(
       suggestion({ fieldId: 'a', semanticType: 'enum' }),

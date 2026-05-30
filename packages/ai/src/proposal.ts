@@ -1,4 +1,8 @@
-import { defaultFillStrategy, generatorRuleForSemanticType } from '@quikfill/autofill-core'
+import {
+  defaultFillStrategy,
+  generatorRuleForSemanticType,
+  type RecordMatch,
+} from '@quikfill/autofill-core'
 import type {
   AiSuggestion,
   DetectedField,
@@ -23,25 +27,40 @@ export interface SuggestionProposal {
 }
 
 /**
- * Convert an accepted AiSuggestion into a fill proposal. When the semantic type
- * maps to a generator we propose a deterministic `generatorRule` source; for
- * everything else we fall back to an advisory `aiGenerated` hint.
+ * Convert an accepted AiSuggestion into a fill proposal. Preference order:
+ * the user's own saved data (`recordField`, when `recordMatch` is supplied) wins,
+ * then a deterministic `generatorRule` when the semantic type maps to one, and
+ * finally an advisory `aiGenerated` hint when nothing can produce a value.
  */
 export function suggestionToProposal(
   suggestion: AiSuggestion,
   field: DetectedField,
+  recordMatch?: RecordMatch | null,
 ): SuggestionProposal {
+  const base = {
+    fieldId: suggestion.fieldId,
+    semanticType: suggestion.semanticType,
+    confidence: suggestion.confidence,
+    fillStrategy: defaultFillStrategy(field),
+  }
+
+  if (recordMatch) {
+    return {
+      ...base,
+      fillSource: {
+        sourceType: 'recordField',
+        entityTypeId: recordMatch.entityTypeId,
+        recordId: recordMatch.recordId,
+        fieldKey: recordMatch.fieldKey,
+      },
+      generatorRule: null,
+    }
+  }
+
   const generatorRule = generatorRuleForSemanticType(suggestion.semanticType)
   const fillSource: FillSource = generatorRule
     ? { sourceType: 'generatorRule', ruleKey: suggestion.semanticType }
     : { sourceType: 'aiGenerated', hint: suggestion.semanticType }
 
-  return {
-    fieldId: suggestion.fieldId,
-    semanticType: suggestion.semanticType,
-    confidence: suggestion.confidence,
-    fillSource,
-    fillStrategy: defaultFillStrategy(field),
-    generatorRule,
-  }
+  return { ...base, fillSource, generatorRule }
 }

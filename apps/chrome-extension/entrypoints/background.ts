@@ -8,6 +8,7 @@ import {
   createProfileStore,
   onAiClassifyRequest,
   onAuthRequest,
+  onEntityDataRequest,
   onProfileSyncRequest,
 } from '@quikfill/browser-adapter'
 import type { AuthState } from '@quikfill/schemas'
@@ -69,6 +70,12 @@ export default defineBackground(() => {
   onAuthRequest(auth.handlers)
   onAiClassifyRequest((summaries) => ai.classifyFields(summaries))
   onProfileSyncRequest(sync.handlers)
+  // Read-only snapshot of the user's saved entity data so the panel can fill a
+  // field from a saved record (recordField) instead of a synthetic generator.
+  onEntityDataRequest(async () => {
+    const [types, records] = await Promise.all([api.entityTypes.list(), api.entityRecords.list()])
+    return { types, records }
+  })
 
   // Keep the toolbar badge in sync with the session snapshot every surface reads.
   void Promise.resolve(auth.handlers.getState()).then(reflectBadge)

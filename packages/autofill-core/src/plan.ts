@@ -70,6 +70,8 @@ export interface PreviewOptions {
   locale?: string
   /** Saved mappings to apply first, keyed by field fingerprint (`domFingerprint`). */
   savedMappings?: Map<string, FieldMapping>
+  /** Saved entity-record values (recordId → values) for `recordField` sources. */
+  records?: Record<string, Record<string, unknown>>
 }
 
 /**
@@ -119,5 +121,10 @@ export function buildPreviewPlan(fields: DetectedField[], opts: PreviewOptions =
     }
   }
 
-  return buildFillPlan(assignments, { seed: opts.seed, locale: opts.locale, rules })
+  return buildFillPlan(assignments, {
+    seed: opts.seed,
+    locale: opts.locale,
+    rules,
+    records: opts.records,
+  })
 }

@@ -62,3 +62,12 @@ export {
   type SyncHandlers,
 } from './profile-sync-messaging'
 export { createBackgroundSync, type SyncApi, type BackgroundSync } from './background-sync'
+export {
+  ENTITY_DATA_REQUEST,
+  isEntityDataRequest,
+  requestEntityData,
+  onEntityDataRequest,
+  type EntityDataMessage,
+  type EntityDataResponse,
+  type EntityDataHandler,
+} from './entity-data-messaging'

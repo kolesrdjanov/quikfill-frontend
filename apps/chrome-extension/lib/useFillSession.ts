@@ -5,6 +5,7 @@ import {
   getActiveTab,
   getActiveTabId,
   requestAiClassify,
+  requestEntityData,
   requestFill,
   requestProfilePush,
   requestProfileReconcile,
@@ -14,12 +15,16 @@ import {
 import {
   buildFillPlan,
   buildPreviewPlan,
+  buildRecordIndex,
   classifyFields,
   generatorRuleForSemanticType,
   matchMappings,
   matchProfiles,
+  recordMatchForSemanticType,
+  recordValuesById,
   type FieldClassification,
   type MatchableProfile,
+  type RecordIndex,
 } from '@quikfill/autofill-core'
 import { buildFieldSummaries, suggestionToProposal, type SuggestionProposal } from '@quikfill/ai'
 import type {
@@ -87,6 +92,26 @@ export function useFillSession() {
   const profileSaved = ref(false)
   const syncing = ref(false)
   const syncMessage = ref<string | null>(null)
+
+  // Saved entity data, lazily fetched once and reused: a semanticType → record
+  // index (for routing AI proposals to a saved value) and the recordId → values
+  // map (for resolving `recordField` sources). Empty until loaded / if offline.
+  const recordIndex = ref<RecordIndex>(new Map())
+  const recordValues = ref<Record<string, Record<string, unknown>>>({})
+  let entityDataLoad: Promise<void> | null = null
+
+  /** Fetch saved entity types + records once (best-effort) and build the index. */
+  function ensureEntityData(): Promise<void> {
+    return (entityDataLoad ??= (async () => {
+      const data = await requestEntityData()
+      if (!data.ok) {
+        entityDataLoad = null // allow a retry next time (e.g. backend was offline)
+        return
+      }
+      recordIndex.value = buildRecordIndex(data.types, data.records)
+      recordValues.value = recordValuesById(data.records)
+    })())
+  }
 
   const aiState = ref<AiState>('idle')
   const aiSuggestions = ref<Map<string, AiSuggestion>>(new Map())
@@ -282,7 +307,7 @@ export function useFillSession() {
           confidence: proposal.confidence,
         },
       ],
-      { seed: seed.value, locale: locale.value, rules },
+      { seed: seed.value, locale: locale.value, rules, records: recordValues.value },
     ).items
     return rebuilt
   }
@@ -305,6 +330,7 @@ export function useFillSession() {
         seed: seed.value,
         locale: locale.value,
         savedMappings: savedMappings.value,
+        records: recordValues.value,
       }).items,
     )
   }
@@ -314,6 +340,7 @@ export function useFillSession() {
     results.value = null
     undoSnapshot.value = null
     saveMessage.value = null
+    void ensureEntityData() // warm saved records for record-backed sources / cycling
     rebuildPlan()
   }
 
@@ -344,12 +371,23 @@ export function useFillSession() {
           confidence: c?.confidence ?? 0.5,
         }
       }
-      case 'recordField':
+      case 'recordField': {
+        // Prefer a real saved-record match for this semantic type; fall back to a
+        // placeholder source that resolves to an honest "no saved value" warning.
+        const match = recordMatchForSemanticType(recordIndex.value, key)
         return {
-          source: { sourceType: 'recordField', entityTypeId: 'identity', fieldKey: key },
+          source: match
+            ? {
+                sourceType: 'recordField',
+                entityTypeId: match.entityTypeId,
+                recordId: match.recordId,
+                fieldKey: match.fieldKey,
+              }
+            : { sourceType: 'recordField', entityTypeId: 'identity', fieldKey: key },
           rules: {},
           confidence: c?.confidence ?? 0.5,
         }
+      }
       case 'aiGenerated':
         return {
           source: { sourceType: 'aiGenerated', hint: field.labelText || key },
@@ -386,6 +424,7 @@ export function useFillSession() {
       seed: seed.value,
       locale: locale.value,
       rules,
+      records: recordValues.value,
     }).items
     // Manual override clears any accepted AI mapping for this field.
     if (aiProposals.value.has(fieldId)) {
@@ -411,6 +450,8 @@ export function useFillSession() {
     const field = fields.value.find((f) => f.id === fieldId)
     if (!field) return
     setAiFieldStatus(fieldId, 'loading')
+    // Load saved records alongside the classify request so a match adds no latency.
+    const entityReady = ensureEntityData()
     const response = await requestAiClassify(buildFieldSummaries([field]))
     // The field may have been re-cycled away from AI while the request was in flight.
     if (aiFieldStatus.value.get(fieldId) !== 'loading') return
@@ -421,7 +462,9 @@ export function useFillSession() {
       setAiFieldStatus(fieldId, 'unavailable')
       return
     }
-    const proposal = suggestionToProposal(suggestion, field)
+    await entityReady
+    const recordMatch = recordMatchForSemanticType(recordIndex.value, suggestion.semanticType)
+    const proposal = suggestionToProposal(suggestion, field, recordMatch)
     const proposals = new Map(aiProposals.value)
     proposals.set(fieldId, proposal)
     aiProposals.value = proposals
@@ -437,6 +480,8 @@ export function useFillSession() {
   async function askAi() {
     if (!ambiguousFields.value.length) return
     aiState.value = 'loading'
+    // Have saved records ready by the time the user accepts a suggestion.
+    void ensureEntityData()
     const response = await requestAiClassify(buildFieldSummaries(ambiguousFields.value))
     if (!response.ok) {
       aiState.value = 'unavailable'
@@ -452,8 +497,9 @@ export function useFillSession() {
     const suggestion = aiSuggestions.value.get(fieldId)
     const field = fields.value.find((f) => f.id === fieldId)
     if (!suggestion || !field) return
+    const recordMatch = recordMatchForSemanticType(recordIndex.value, suggestion.semanticType)
     const proposals = new Map(aiProposals.value)
-    proposals.set(fieldId, suggestionToProposal(suggestion, field))
+    proposals.set(fieldId, suggestionToProposal(suggestion, field, recordMatch))
     aiProposals.value = proposals
     const suggestions = new Map(aiSuggestions.value)
     suggestions.delete(fieldId)
