@@ -22,6 +22,7 @@ import {
 } from 'lucide-vue-next'
 import {
   Alert,
+  Badge,
   Button,
   ConfirmDialog,
   DropdownMenu,
@@ -46,11 +47,27 @@ import { useSettings } from '../../lib/useSettings'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
 import { AI_REASON_MESSAGE } from '../../lib/display-maps'
+import { useEntitlements } from '../../lib/useEntitlements'
 
 const s = useFillSession()
 const { settings, load: loadSettings } = useSettings()
 const { init: initTheme } = useExtensionTheme()
 const gate = useAuthGate()
+const entitlements = useEntitlements()
+
+/** Compact AI-budget chip for the header; null for unlimited / unknown plans. */
+const usageChip = computed(() => {
+  if (!entitlements.known.value || entitlements.isUnlimited.value) return null
+  const variant = entitlements.isOverQuota.value
+    ? 'danger'
+    : entitlements.isNearQuota.value
+      ? 'warning'
+      : 'gray'
+  const label = entitlements.isOverQuota.value
+    ? 'AI limit reached'
+    : `≈ ${entitlements.fillsRemaining.value.toLocaleString()} AI fills left`
+  return { variant, label } as const
+})
 
 // Settings live inside the panel now — no chrome:// modal. `view` swaps the body.
 const view = ref<'main' | 'settings'>('main')
@@ -83,6 +100,7 @@ onMounted(async () => {
     await browser.storage.session?.remove('ui:pendingView')
   }
   await gate.init()
+  await entitlements.init()
 })
 
 // Filling is gated when any included field still needs confirmation: clicking
@@ -101,7 +119,9 @@ function confirmFill() {
 
 const ambiguousIds = computed(() => new Set(s.ambiguousFields.value.map((f) => f.id)))
 const aiAvailable = computed(() => settings.value.aiEnabled)
-const canAskAi = computed(() => s.hasAmbiguous.value && aiAvailable.value)
+const canAskAi = computed(
+  () => s.hasAmbiguous.value && aiAvailable.value && !entitlements.isOverQuota.value,
+)
 const aiUnavailableMessage = computed(() =>
   s.aiError.value
     ? AI_REASON_MESSAGE[s.aiError.value.reason]
@@ -144,7 +164,8 @@ const fieldContext = computed(() => {
       <template v-else>
         <div class="flex items-center justify-between">
           <BrandLockup />
-          <div class="flex gap-1">
+          <div class="flex items-center gap-1.5">
+            <Badge v-if="usageChip" :variant="usageChip.variant">{{ usageChip.label }}</Badge>
             <Button
               variant="ghost"
               size="icon"

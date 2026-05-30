@@ -49,6 +49,7 @@ import type {
   UndoSnapshot,
 } from '@quikfill/schemas'
 import { SOURCE_CYCLE } from './display-maps'
+import { useEntitlements } from './useEntitlements'
 
 export type SessionPhase = 'prescan' | 'scanning' | 'detected' | 'preview' | 'filling' | 'results'
 type AiState = 'idle' | 'loading' | 'ready' | 'unavailable'
@@ -129,6 +130,10 @@ export function useFillSession() {
   // The cause of the most recent AI failure, so the panel can show an actionable
   // message instead of one opaque "AI unavailable". Cleared on the next attempt.
   const aiError = ref<{ reason: AiClassifyReason; message?: string } | null>(null)
+
+  // AI-only soft-gate: scanning / preview / fill from saved data are never gated;
+  // only the backend-AI step is metered against the monthly entitlement.
+  const entitlements = useEntitlements()
 
   const hideValues = ref(false)
 
@@ -472,6 +477,7 @@ export function useFillSession() {
     if (!response.ok) {
       aiError.value = { reason: response.reason, message: response.message }
       setAiFieldStatus(fieldId, 'unavailable')
+      if (response.reason === 'quota') void entitlements.refresh()
       return
     }
     const suggestion = response.suggestions.find((s) => s.fieldId === fieldId)
@@ -498,6 +504,12 @@ export function useFillSession() {
 
   async function askAi() {
     if (!ambiguousFields.value.length) return
+    // Proactive gate: skip a guaranteed-429 round-trip when the budget is spent.
+    if (entitlements.isOverQuota.value) {
+      aiError.value = { reason: 'quota' }
+      aiState.value = 'unavailable'
+      return
+    }
     aiState.value = 'loading'
     aiError.value = null
     // Have saved records ready by the time the user accepts a suggestion.
@@ -506,6 +518,8 @@ export function useFillSession() {
     if (!response.ok) {
       aiError.value = { reason: response.reason, message: response.message }
       aiState.value = 'unavailable'
+      // A real quota hit means the budget just ran out — refresh so the chip + gate flip.
+      if (response.reason === 'quota') void entitlements.refresh()
       return
     }
     const next = new Map(aiSuggestions.value)
