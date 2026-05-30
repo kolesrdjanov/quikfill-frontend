@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { UserAccount } from '@quikfill/schemas'
+import type { UpdateProfileInput, UserAccount } from '@quikfill/schemas'
 import { api } from '@/lib/api'
 import { authTokens } from '@/lib/auth-tokens'
 
@@ -60,6 +60,11 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
+  /** Update the signed-in user's profile; mirrors the result so the UI updates live. */
+  async function updateProfile(input: UpdateProfileInput): Promise<void> {
+    user.value = await api.users.updateMe(input)
+  }
+
   /** Called by the API client when a refresh fails — drop the local session. */
   function forceSignOut(): void {
     authTokens.clear()
@@ -74,6 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
     verify,
     restore,
     logout,
+    updateProfile,
     forceSignOut,
   }
 })

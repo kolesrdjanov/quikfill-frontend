@@ -45,6 +45,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/FillHistory.vue'),
   },
   {
+    path: '/settings',
+    name: 'settings',
+    meta: { layout: 'app', requiresAuth: true, title: 'Settings' },
+    component: () => import('@/views/Settings.vue'),
+  },
+  {
     path: '/sign-in',
     name: 'sign-in',
     meta: { layout: 'auth', title: 'Sign in' },

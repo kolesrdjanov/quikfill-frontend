@@ -45,6 +45,12 @@ export const entityRecordMetaSchema = z.object({
 })
 export type EntityRecordMetaValues = z.input<typeof entityRecordMetaSchema>
 
+export const profileFormSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+})
+export type ProfileFormValues = z.input<typeof profileFormSchema>
+
 export const generatorPresetFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   locale: z.string().min(1).default('en'),

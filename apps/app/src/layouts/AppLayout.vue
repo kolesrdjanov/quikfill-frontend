@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Moon,
+  Settings,
   Sun,
 } from 'lucide-vue-next'
 import { Avatar, Button } from '@quikfill/ui'
@@ -83,8 +84,21 @@ async function signOut(): Promise<void> {
         </RouterLink>
       </nav>
 
-      <div class="mt-auto border-t pt-3">
-        <div class="flex items-center gap-2.5 px-1 py-1.5">
+      <div class="mt-auto flex flex-col gap-0.5 border-t pt-3">
+        <RouterLink
+          to="/settings"
+          :aria-current="isActive('/settings') ? 'page' : undefined"
+          :class="[
+            'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+            isActive('/settings')
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+          ]"
+        >
+          <Settings class="size-[18px]" />
+          Settings
+        </RouterLink>
+        <div class="mt-1 flex items-center gap-2.5 px-1 py-1.5">
           <Avatar :name="displayName" class="size-9" />
           <div class="min-w-0">
             <div class="truncate text-[13px] leading-tight font-semibold">{{ displayName }}</div>
