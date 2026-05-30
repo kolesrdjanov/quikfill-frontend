@@ -19,6 +19,17 @@ describe('normalizeSemanticType', () => {
     expect(normalizeSemanticType('')).toBe('unknown')
     expect(normalizeSemanticType(42)).toBe('unknown')
   })
+
+  it('maps the new identifier/alias spellings', () => {
+    expect(normalizeSemanticType('ein')).toBe('taxId')
+    expect(normalizeSemanticType('EIN')).toBe('taxId')
+    expect(normalizeSemanticType('tax-id')).toBe('taxId')
+    expect(normalizeSemanticType('ssn')).toBe('ssn')
+    expect(normalizeSemanticType('social-security-number')).toBe('ssn')
+    expect(normalizeSemanticType('handle')).toBe('username')
+    expect(normalizeSemanticType('nickname')).toBe('username')
+    expect(normalizeSemanticType('masked')).toBe('masked')
+  })
 })
 
 describe('aiSuggestionSchema', () => {

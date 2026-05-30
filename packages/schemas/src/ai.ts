@@ -42,6 +42,10 @@ export const SEMANTIC_TYPES = [
   'boolean',
   'enum',
   'notes',
+  'taxId',
+  'ssn',
+  'username',
+  'masked',
   'unknown',
 ] as const
 export const semanticTypeSchema = z.enum(SEMANTIC_TYPES)
@@ -108,6 +112,17 @@ const SEMANTIC_ALIASES: Record<string, SemanticType> = {
   comments: 'notes',
   bio: 'notes',
   description: 'notes',
+  ein: 'taxId',
+  fein: 'taxId',
+  taxid: 'taxId',
+  employeridentificationnumber: 'taxId',
+  socialsecurity: 'ssn',
+  socialsecuritynumber: 'ssn',
+  handle: 'username',
+  nickname: 'username',
+  screenname: 'username',
+  displayname: 'username',
+  alias: 'username',
 }
 
 /**
