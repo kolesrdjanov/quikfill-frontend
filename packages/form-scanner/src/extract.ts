@@ -291,15 +291,33 @@ export interface CustomSelectInfo {
   selectedLabel: string | null
 }
 
+/**
+ * How strongly an element signals "custom select".
+ * - `strong`: an unambiguous select/listbox opener (role=combobox,
+ *   aria-haspopup=listbox, data-trigger=select). These own an option list even
+ *   before it is rendered, so we can detect them with the list still closed.
+ * - `weak`: could be a select but could equally be an accordion/menu/disclosure
+ *   (a plain expandable or aria-controls button). We treat it as a select only
+ *   once its options are actually present in the DOM.
+ * - `null`: not a trigger.
+ */
+function customSelectStrength(el: Element): 'strong' | 'weak' | null {
+  const role = el.getAttribute('role')
+  if (role === 'combobox') return 'strong'
+  if (el.getAttribute('aria-haspopup') === 'listbox') return 'strong'
+  // A data-trigger is a deliberate opt-in: honor it only for "select" and, as
+  // before, treat data-trigger="<other>" as explicitly NOT a select trigger.
+  if (el.hasAttribute('data-trigger')) {
+    return el.getAttribute('data-trigger') === 'select' ? 'strong' : null
+  }
+  if (role === 'button' && el.hasAttribute('aria-expanded')) return 'weak'
+  if (el.hasAttribute('aria-controls') && (role === 'button' || role === 'combobox')) return 'weak'
+  return null
+}
+
 /** Cheap pre-check: does this element look like a custom-select trigger? */
 export function isCustomSelectTrigger(el: Element): boolean {
-  const role = el.getAttribute('role')
-  if (role === 'combobox') return true
-  if (el.getAttribute('aria-haspopup') === 'listbox') return true
-  if (el.hasAttribute('data-trigger')) return el.getAttribute('data-trigger') === 'select'
-  if (role === 'button' && el.hasAttribute('aria-expanded')) return true
-  if (el.hasAttribute('aria-controls') && (role === 'button' || role === 'combobox')) return true
-  return false
+  return customSelectStrength(el) !== null
 }
 
 /**
@@ -309,31 +327,41 @@ export function isCustomSelectTrigger(el: Element): boolean {
  * library markup (data-trigger="select", option-labeled buttons).
  */
 export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
-  if (!isCustomSelectTrigger(trigger)) return null
+  const strength = customSelectStrength(trigger)
+  if (!strength) return null
 
   // 1) Locate the option list. Prefer aria-controls, else the nearest ancestor
-  //    that contains option nodes.
+  //    that contains option nodes. May be null when the list is closed/unrendered.
   const optionsScope = findOptionsScope(trigger)
-  if (!optionsScope) return null
-  const optionNodes = Array.from(optionsScope.querySelectorAll(CUSTOM_OPTION_SELECTOR))
+  const optionNodes = optionsScope
+    ? Array.from(optionsScope.querySelectorAll(CUSTOM_OPTION_SELECTOR))
+    : []
   // The trigger itself can match the option selector (role=button); exclude it.
   const options = optionNodes.filter((o) => o !== trigger && !trigger.contains(o))
-  if (options.length === 0) return null
 
-  // 2) Pick a stable field-level root that wraps this one widget.
-  const widgetRoot = resolveWidgetRoot(trigger, optionsScope)
-
-  // 3) Current selection display: a value-ish child of the trigger, else trigger text.
+  // 2) Current selection display: a value-ish child of the trigger, else trigger text.
   const valueDisplay = trigger.querySelector('[class*="value" i], [class*="selected" i]') ?? trigger
-  const selectedLabel = normalizeWidgetText(valueDisplay) || null
-
-  return {
-    widgetRoot,
+  const base = {
     trigger,
     valueDisplay: valueDisplay === trigger ? null : valueDisplay,
     optionItemSelector: CUSTOM_OPTION_SELECTOR,
+    selectedLabel: normalizeWidgetText(valueDisplay) || null,
+  }
+
+  // 3) No option nodes in the DOM yet. A strong signal (combobox / haspopup=listbox
+  //    / data-trigger=select) reliably owns an on-demand list, so detect it now with
+  //    empty options — the filler opens the trigger and reads the list at fill time.
+  //    A weak signal could be an accordion/menu/disclosure, so without visible
+  //    options we decline (the guard that keeps plain buttons from becoming selects).
+  if (options.length === 0) {
+    if (strength !== 'strong') return null
+    return { ...base, widgetRoot: resolveWidgetRoot(trigger, null), optionLabels: [] }
+  }
+
+  return {
+    ...base,
+    widgetRoot: resolveWidgetRoot(trigger, optionsScope),
     optionLabels: options.map((o) => normalizeWidgetText(o)).filter(Boolean),
-    selectedLabel,
   }
 }
 
@@ -358,15 +386,18 @@ function findOptionsScope(trigger: Element): Element | null {
  * and has a stable identity or its own label — a good field-level root. Stops at
  * the first match so we never over-climb into a form/page wrapper.
  */
-function resolveWidgetRoot(trigger: Element, optionsScope: Element): Element {
-  let node: Element | null = optionsScope
+function resolveWidgetRoot(trigger: Element, optionsScope: Element | null): Element {
+  // Climb from the options scope when we have one, else from the trigger (closed
+  // on-demand selects expose no list at scan time).
+  let node: Element | null = optionsScope ?? trigger
   for (let i = 0; i < 4 && node; i++) {
     const wrapsOneWidget = node.contains(trigger) && countTriggers(node) <= 1
     const hasOwnIdentity = hasStableIdentity(node) || !!node.querySelector(':scope > label')
     if (wrapsOneWidget && hasOwnIdentity) return node
     node = node.parentElement
   }
-  return optionsScope.contains(trigger) ? optionsScope : (trigger.parentElement ?? trigger)
+  if (optionsScope?.contains(trigger)) return optionsScope
+  return trigger.parentElement ?? trigger
 }
 
 function countTriggers(el: Element): number {
@@ -410,8 +441,34 @@ export function getWidgetLabel(
     const text = forLabel?.textContent?.trim()
     if (text) return text
   }
-  const ownLabel = widgetRoot.querySelector('label')?.textContent?.trim()
-  return ownLabel || undefined
+  const ownLabel = widgetRoot.querySelector('label')
+  if (ownLabel) {
+    const text = cleanLabelText(ownLabel)
+    if (text) return text
+  }
+  // Cousin layout: the <label> sits in an ancestor wrapper, not inside the widget
+  // (common for on-demand selects with no inner <input> to link a `for=`). Climb to
+  // the nearest single-widget container and read its label.
+  return getContainerWidgetLabel(widgetRoot)
+}
+
+/**
+ * Climb from a custom-select widget root to the nearest ancestor that still wraps
+ * just this one widget and read its `<label>`. Stops before any ancestor holding a
+ * second trigger, so a widget can only claim a label that unambiguously belongs to
+ * it. Mirrors getContainerLabel for native controls.
+ */
+function getContainerWidgetLabel(widgetRoot: Element): string | undefined {
+  let node = widgetRoot.parentElement
+  for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+    if (countTriggers(node) > 1) break
+    const label = node.querySelector('label')
+    if (label) {
+      const text = cleanLabelText(label)
+      if (text) return text
+    }
+  }
+  return undefined
 }
 
 /** Minimal CSS.escape fallback for environments without it. */

@@ -43,9 +43,14 @@ export async function applyFill(
 
   for (const ins of ordered) {
     // No value to write (unknown field, AI-draft stub, missing generator) — skip
-    // rather than write "" and falsely report success. Toggles are exempt: an
-    // empty value there is a meaningful "unchecked".
-    if (ins.fillStrategy !== 'clickToggle' && ins.proposedValue.trim() === '') {
+    // rather than write "" and falsely report success. Toggles and custom selects
+    // are exempt: an empty value on a toggle is a meaningful "unchecked", and a
+    // custom select fills by clicking its first option, so it has nothing to type.
+    if (
+      ins.fillStrategy !== 'clickToggle' &&
+      ins.fillStrategy !== 'customSelect' &&
+      ins.proposedValue.trim() === ''
+    ) {
       results.push(skip(ins.detectedFieldId, 'Nothing to fill — no value was proposed.'))
       continue
     }
@@ -345,7 +350,13 @@ function collectRadiosInto(
 
 // --- Custom (non-native) select -------------------------------------------
 
-/** Open the trigger, click the option whose text matches, verify the display. */
+/**
+ * Fill a custom (non-native) select by opening it and clicking its FIRST option.
+ * Per product choice, custom selects do not value-match — they always take the
+ * first available option, so `proposedValue` is intentionally ignored here. (To
+ * switch to "match the proposed value, else first" later, replace the firstOption
+ * call with a value lookup that falls back to firstOption.)
+ */
 async function fillCustomSelect(
   ins: FillInstruction,
   widget: CustomWidget,
@@ -366,17 +377,17 @@ async function fillCustomSelect(
   clickElement(trigger)
   await settle()
 
+  // First option in the now-open list. Prefer one inside the widget; fall back to
+  // the document for libraries that portal the dropdown outside the widget root.
   const option =
-    findOption(widgetEl, widget.optionItemSelector, ins.proposedValue) ??
-    findOption(root, widget.optionItemSelector, ins.proposedValue)
+    firstOption(widgetEl, widget.optionItemSelector, trigger) ??
+    firstOption(root, widget.optionItemSelector, trigger)
   if (!option) {
     return {
-      result: fail(
-        ins.detectedFieldId,
-        `No option matching "${ins.proposedValue}" in the dropdown.`,
-      ),
+      result: fail(ins.detectedFieldId, 'Opened the dropdown but found no option to select.'),
     }
   }
+  const chosenLabel = textOf(option)
 
   const entry: UndoEntry = {
     detectedFieldId: ins.detectedFieldId,
@@ -392,13 +403,19 @@ async function fillCustomSelect(
   await settle()
 
   const got = readDisplay(widgetEl, widget, root)
-  if (norm(got) === norm(ins.proposedValue) || option.getAttribute('aria-selected') === 'true') {
-    return { result: success(ins.detectedFieldId, ins.proposedValue), entry }
+  // Accept if the displayed selection changed, now matches the option we clicked,
+  // or the option reports itself selected — any one confirms the pick landed.
+  const landed =
+    norm(got) !== norm(previousDisplayText) ||
+    norm(got) === norm(chosenLabel) ||
+    option.getAttribute('aria-selected') === 'true'
+  if (landed) {
+    return { result: success(ins.detectedFieldId, chosenLabel || got || null), entry }
   }
   return {
     result: fail(
       ins.detectedFieldId,
-      `Selected "${ins.proposedValue}" but the dropdown still shows "${got}".`,
+      `Clicked the first option ("${chosenLabel}") but the dropdown still shows "${got}".`,
     ),
     entry,
   }
@@ -442,6 +459,21 @@ function findOption(scope: ParentNode, selector: string, value: string): Element
   }
   const target = norm(value)
   return nodes.find((n) => norm(textOf(n)) === target) ?? null
+}
+
+/** The first option node matching the selector, never the trigger itself. */
+function firstOption(scope: ParentNode, selector: string, exclude: Element | null): Element | null {
+  let nodes: Element[]
+  try {
+    nodes = Array.from(scope.querySelectorAll(selector))
+  } catch {
+    return null
+  }
+  for (const n of nodes) {
+    if (exclude && (n === exclude || exclude.contains(n) || n.contains(exclude))) continue
+    return n
+  }
+  return null
 }
 
 function readDisplay(widgetEl: Element, widget: CustomWidget, root: Document): string {

@@ -19,7 +19,14 @@ const props = defineProps<{
 defineEmits<{ toggle: []; cycle: []; accept: []; reject: []; retry: []; remove: [] }>()
 
 const meta = computed(() => SOURCE_META[props.item.fillSource.sourceType])
-const proposed = computed(() => mask(props.item.proposedValue, !!props.hideValues) || '—')
+// Custom selects always fill with the first available option (the actual option
+// text isn't known until the dropdown is opened at fill time), so preview that
+// intent rather than a proposed value the filler ignores.
+const proposed = computed(() =>
+  props.item.fillStrategy === 'customSelect'
+    ? 'First available option'
+    : mask(props.item.proposedValue, !!props.hideValues) || '—',
+)
 </script>
 
 <template>

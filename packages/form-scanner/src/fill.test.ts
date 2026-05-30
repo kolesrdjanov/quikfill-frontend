@@ -331,27 +331,33 @@ function customInstruction(proposedValue: string): FillInstruction {
   }
 }
 
-describe('applyFill — custom select', () => {
-  it('clicks the matching option and verifies the displayed value', async () => {
-    mountCustomSelect('Locker')
+describe('applyFill — custom select (always first option)', () => {
+  it('clicks the first option regardless of the proposed value', async () => {
+    mountCustomSelect('Parking')
     const { results, undoSnapshot } = await applyFill([customInstruction('Office')])
-    expect(document.querySelector('.val')!.textContent).toBe('Office')
+    expect(document.querySelector('.val')!.textContent).toBe('Locker')
     expect(results[0].status).toBe('success')
-    expect(undoSnapshot.entries[0].previousDisplayText).toBe('Locker')
+    expect(results[0].acceptedValue).toBe('Locker')
+    expect(undoSnapshot.entries[0].previousDisplayText).toBe('Parking')
   })
 
-  it('fails when no option matches the proposed value', async () => {
-    mountCustomSelect('Locker')
-    const { results } = await applyFill([customInstruction('Ghost')])
+  it('fills the first option even when no value was proposed', async () => {
+    mountCustomSelect('Parking')
+    const { results } = await applyFill([customInstruction('')])
+    expect(document.querySelector('.val')!.textContent).toBe('Locker')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('fails cleanly when the opened dropdown exposes no options', async () => {
+    document.body.innerHTML = `
+      <div id="cat" data-test-id="cat" name="cat">
+        <div role="button" data-trigger="select" id="trigger">
+          <div class="val">—</div>
+        </div>
+      </div>`
+    const { results } = await applyFill([customInstruction('whatever')])
     expect(results[0].status).toBe('failed')
-    expect(results[0].reason).toMatch(/no option matching/i)
-  })
-
-  it('matches options case- and whitespace-insensitively', async () => {
-    mountCustomSelect('Locker')
-    const { results } = await applyFill([customInstruction('  office ')])
-    expect(document.querySelector('.val')!.textContent).toBe('Office')
-    expect(results[0].status).toBe('success')
+    expect(results[0].reason).toMatch(/no option/i)
   })
 })
 
@@ -420,10 +426,12 @@ describe('applyFill — searchable custom select (value in a typeahead input)', 
     expect(results[0].status).toBe('success')
   })
 
-  it('works for any option, not just the first', async () => {
+  it('ignores the proposed value and picks the first option', async () => {
     mountSearchableCombobox()
     const { results } = await applyFill([comboboxInstruction('Mexico')])
-    expect((document.getElementById('countryInput') as HTMLInputElement).value).toBe('Mexico')
+    expect((document.getElementById('countryInput') as HTMLInputElement).value).toBe(
+      'United States',
+    )
     expect(results[0].status).toBe('success')
   })
 })
@@ -558,12 +566,12 @@ describe('applyUndo', () => {
   })
 
   it('restores a custom select to its previous selection', async () => {
-    mountCustomSelect('Locker')
+    mountCustomSelect('Office')
     const { undoSnapshot } = await applyFill([customInstruction('Parking')])
-    expect(document.querySelector('.val')!.textContent).toBe('Parking')
+    expect(document.querySelector('.val')!.textContent).toBe('Locker') // always first
 
     const results = await applyUndo(undoSnapshot)
     expect(results[0].status).toBe('success')
-    expect(document.querySelector('.val')!.textContent).toBe('Locker')
+    expect(document.querySelector('.val')!.textContent).toBe('Office')
   })
 })
