@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /**
  * Default proposed-source policy when no saved mapping exists for a field, and
- * the gate for AI-suggested values. Quikfill is a real-info filler, so the
+ * the gate for AI-suggested values. QuikFill is a real-info filler, so the
  * default is `recordField` (only the user's own saved data). `hybrid` /
  * `generatorRule` opt into clearly-labeled synthetic **sample** data as a
  * fallback; `aiGenerated` leaves the field for the user to fill.
@@ -44,7 +44,7 @@ export const extensionSettingsSchema = z.object({
 export type ExtensionSettings = z.infer<typeof extensionSettingsSchema>
 
 export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
-  defaultFillSource: 'recordField',
+  defaultFillSource: 'hybrid',
   autoMatchProfiles: true,
   hideValuesByDefault: false,
   aiEnabled: true,
