@@ -25,6 +25,11 @@ const DEFAULT_TOKENS: Record<string, RegExp> = {
   '*': /[a-zA-Z0-9]/,
 }
 
+/** The raw maska pattern string for an element, if any (for scan-time capture). */
+export function getMaskPattern(el: Element): string | undefined {
+  return getMaskSpec(el)?.pattern
+}
+
 /** Read a maska-style mask off a live element, if any. */
 export function getMaskSpec(el: Element): MaskSpec | undefined {
   const raw = el.getAttribute('data-maska')

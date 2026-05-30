@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { applyMask, coerceToMask, getMaskSpec, valuesMatch, type MaskSpec } from './mask'
+import {
+  applyMask,
+  coerceToMask,
+  getMaskPattern,
+  getMaskSpec,
+  valuesMatch,
+  type MaskSpec,
+} from './mask'
 
 const phone: MaskSpec = { pattern: '(###) ###-####', tokens: { '#': /[0-9]/ } }
 const ein: MaskSpec = { pattern: '##-#######', tokens: { '#': /[0-9]/ } }
+
+describe('getMaskPattern', () => {
+  it('reads a data-maska pattern off an element', () => {
+    const el = document.createElement('input')
+    el.setAttribute('data-maska', '##-#######')
+    expect(getMaskPattern(el)).toBe('##-#######')
+  })
+  it('returns undefined when there is no mask', () => {
+    expect(getMaskPattern(document.createElement('input'))).toBeUndefined()
+  })
+})
 
 describe('getMaskSpec', () => {
   it('reads a data-maska pattern off an element', () => {

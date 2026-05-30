@@ -78,6 +78,8 @@ export const detectedFieldSchema = z.object({
    * surface that dropdown rather than trying to complete the field outright.
    */
   autocompleteHint: z.enum(['googlePlaces']).optional(),
+  /** The field's input-mask pattern (maska `data-maska`), if any — drives the `masked` generator. */
+  mask: z.string().optional(),
   selectorCandidates: z.array(z.string()).default([]),
   domFingerprint: z.string(),
   /** `'main'` for the top document, otherwise an opaque frame id. */
