@@ -80,4 +80,25 @@ describe('createProfileStore', () => {
     await store.deleteMapping('p1', 'm1')
     expect(await store.listMappings('p1')).toEqual([])
   })
+
+  it('heals a legacy mapping whose selectors were stored as an object', async () => {
+    const adapter = memoryAdapter()
+    const store = createProfileStore(adapter)
+    // A past write left selectorCandidates as a numeric-keyed object (top-level
+    // and inside target) — reconcile/matching expect a string[].
+    await adapter.set('mapping:p1:m1', {
+      ...mapping('m1'),
+      selectorCandidates: { 0: '#a', 1: '#b' },
+      target: {
+        fieldFingerprint: 'fp-m1',
+        selectorCandidates: { 0: '#a' },
+        frame: 'main',
+        shadow: false,
+      },
+    })
+
+    const [m] = await store.listMappings('p1')
+    expect(m.selectorCandidates).toEqual(['#a', '#b'])
+    expect(m.target.selectorCandidates).toEqual(['#a'])
+  })
 })

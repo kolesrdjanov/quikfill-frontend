@@ -17,6 +17,36 @@ export interface ProfileBundle {
 }
 
 /**
+ * Coerce a stray object-shaped selector list back to an array. An array that was
+ * round-tripped through some serializers comes back as a numeric-keyed object
+ * (`{"0":"#a","1":"#b"}`); `Object.values` recovers it in key order. A no-op on a
+ * well-formed array.
+ */
+function healSelectors(value: unknown): unknown {
+  if (Array.isArray(value) || value == null || typeof value !== 'object') return value
+  return Object.values(value)
+}
+
+/**
+ * Self-heal a legacy/malformed local mapping on read: repair `selectorCandidates`
+ * (top-level and inside `target`) if a past write stored it as an object instead
+ * of an array. The schema requires `string[]`, so without this reconcile can't
+ * push the record and the matcher's array methods throw on it. A subsequent sync
+ * persists the clean shape via the backend echo.
+ */
+function normalizeMapping(mapping: FieldMapping): FieldMapping {
+  const target = mapping.target as { selectorCandidates?: unknown } | null | undefined
+  return {
+    ...mapping,
+    selectorCandidates: healSelectors(mapping.selectorCandidates) as string[],
+    target:
+      target && typeof target === 'object'
+        ? { ...mapping.target, selectorCandidates: healSelectors(target.selectorCandidates) }
+        : mapping.target,
+  } as FieldMapping
+}
+
+/**
  * Local-first repository for domains, form profiles, and field mappings over any
  * StorageAdapter. Browser-agnostic: the chrome.storage adapter is injected, so
  * this is fully testable with an in-memory adapter and unchanged when backend
@@ -55,7 +85,8 @@ export function createProfileStore(adapter: StorageAdapter) {
       await adapter.set(KEY.mapping(mapping.formProfileId, mapping.id), mapping)
     },
     async listMappings(profileId: string): Promise<FieldMapping[]> {
-      return getAll<FieldMapping>(await adapter.list(KEY.mappingPrefix(profileId)))
+      const mappings = await getAll<FieldMapping>(await adapter.list(KEY.mappingPrefix(profileId)))
+      return mappings.map(normalizeMapping)
     },
     async deleteMapping(profileId: string, mappingId: string): Promise<void> {
       await adapter.delete(KEY.mapping(profileId, mappingId))
