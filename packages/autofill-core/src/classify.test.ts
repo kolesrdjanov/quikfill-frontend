@@ -11,6 +11,26 @@ function field(partial: Partial<DetectedField> & { id: string }): DetectedField 
   })
 }
 
+describe('classifyField — new coverage', () => {
+  it('classifies an EIN field as taxId with an EIN format', () => {
+    const c = classifyField(field({ id: 'f1', labelText: 'EIN #' }))
+    expect(c.semanticType).toBe('taxId')
+    expect(c.suggestedKind).toBe('patterned')
+    expect(c.generatorOptions).toEqual({ format: '##-#######' })
+  })
+  it('classifies an alias field as username', () => {
+    expect(classifyField(field({ id: 'f2', labelText: 'Messaging Alias' })).semanticType).toBe(
+      'username',
+    )
+  })
+  it('falls back to masked for a masked field with no keyword match, carrying the format', () => {
+    const c = classifyField(field({ id: 'f3', labelText: 'Reference', mask: '##-####' }))
+    expect(c.semanticType).toBe('masked')
+    expect(c.suggestedKind).toBe('patterned')
+    expect(c.generatorOptions).toEqual({ format: '##-####' })
+  })
+})
+
 describe('classifyField', () => {
   it('trusts the autocomplete token most', () => {
     const c = classifyField(field({ id: 'a', autocomplete: 'email', name: 'whatever' }))

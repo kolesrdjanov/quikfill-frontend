@@ -33,6 +33,10 @@ const KIND_BY_SEMANTIC: Record<string, { kind: GeneratorKind; options?: Record<s
     boolean: { kind: 'boolean' },
     enum: { kind: 'selectOption' },
     notes: { kind: 'notes' },
+    taxId: { kind: 'patterned', options: { format: '##-#######' } },
+    ssn: { kind: 'patterned', options: { format: '###-##-####' } },
+    username: { kind: 'handle' },
+    masked: { kind: 'patterned' },
   }
 
 /** Standard autocomplete tokens → semantic type (strongest signal). */
@@ -81,6 +85,13 @@ const KEYWORD_RULES: KeywordRule[] = [
   { semanticType: 'url', re: /website|\burl\b|homepage/, confidence: 0.8 },
   { semanticType: 'currency', re: /price|salary|cost|currency|amount/, confidence: 0.7 },
   { semanticType: 'date', re: /\bdate\b|\bdob\b|birth/, confidence: 0.75 },
+  { semanticType: 'ssn', re: /\bssn\b|social.?security/, confidence: 0.85 },
+  { semanticType: 'taxId', re: /\bein\b|\bfein\b|employer id|tax.?id/, confidence: 0.8 },
+  {
+    semanticType: 'username',
+    re: /user.?name|\bhandle\b|nickname|screen.?name|display.?name|\balias\b/,
+    confidence: 0.7,
+  },
   { semanticType: 'number', re: /number|\bqty\b|quantity|\bcounts?\b/, confidence: 0.65 },
   { semanticType: 'notes', re: /message|comment|\bnote|\bbio\b|description/, confidence: 0.7 },
 ]
@@ -127,6 +138,16 @@ export function classifyField(field: DetectedField): FieldClassification {
 
   for (const rule of KEYWORD_RULES) {
     if (rule.re.test(haystack)) return classification(field.id, rule.semanticType, rule.confidence)
+  }
+
+  if (field.mask) {
+    return {
+      fieldId: field.id,
+      semanticType: 'masked',
+      confidence: 0.7,
+      suggestedKind: 'patterned',
+      generatorOptions: { format: field.mask },
+    }
   }
 
   if (type === 'number') return classification(field.id, 'number', 0.7)

@@ -77,8 +77,8 @@ export const FIGMA_R2_CORPUS: readonly CorpusEntry[] = [
   {
     name: 'Username',
     tier: 'forms',
-    expectedType: 'unknown',
-    rationale: 'username has no semantic generator',
+    expectedType: 'username',
+    rationale: 'username/handle field — now covered by the username generator',
   },
   {
     name: 'Full name',
