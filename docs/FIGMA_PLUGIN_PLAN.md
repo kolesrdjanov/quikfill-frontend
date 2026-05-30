@@ -8,18 +8,22 @@
 > surface for comparison: [`CHROME_EXTENSION_PLAN.md`](./CHROME_EXTENSION_PLAN.md).
 
 > **North star:** if we build this, it is a **fourth surface** (`apps/figma-plugin`)
-> that **composes the existing shared packages** exactly like the extension does. It
-> does **not** reimplement classification, planning, generation, or contracts.
+> that **composes the existing shared packages** like the extension does. It does
+> **not** reimplement classification, planning, generation, or contracts.
 > Figma-API-specific code is isolated in a new host adapter, mirroring how
-> `form-scanner`/`browser-adapter` isolate the web/Chrome specifics.
+> `form-scanner`/`browser-adapter` isolate the web/Chrome specifics. "Compose" here
+> means **reuse without source edits**, _not_ "drop in unchanged" — every package is
+> source-only TypeScript and must still be **re-bundled, placed by runtime realm,
+> and wired to a network transport** (see [Where each piece runs](#where-each-piece-runs-realm-split)).
 
 ## Status
 
-| #   | Item                                                          | Status        |
-| --- | ------------------------------------------------------------- | ------------- |
-| R1  | Feasibility research (architecture + competitive scan)        | ✅ Done       |
-| R2  | **Decision-gate spike** (classification quality on layer names) | ⛔ Not started |
-| —   | Build (only if R2 passes the gate — see "Decision gate")      | 🔒 Blocked    |
+| #   | Item                                                            | Status                                                                                                                                                                     |
+| --- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Feasibility research (architecture + competitive scan)          | ✅ Done                                                                                                                                                                    |
+| R1b | Audit of this brief against the real codebase + live Figma docs | ✅ Done (2026-05-30)                                                                                                                                                       |
+| R2  | **Decision-gate spike** (classification quality on layer names) | 🟡 Prototyped — bimodal (~92% forms / ~47% dashboards). Needs a formal two-tier corpus. Reproducible fixture: `packages/autofill-core/src/figma-layer-names.spike.test.ts` |
+| —   | Build (only if R2 passes the gate — see "Decision gate")        | 🔒 Blocked                                                                                                                                                                 |
 
 ---
 
@@ -34,7 +38,7 @@
 Quikfill's web engine (`form-scanner`) is **pure DOM manipulation** — it walks the
 page with `querySelectorAll`, identifies `<input>`/`<textarea>`/`<select>`/
 `contenteditable`, and writes via the native `.value` setter plus dispatched
-`input`/`change` events.
+`input`/`change` events (`form-scanner/src/scan.ts`, `fill.ts`).
 
 **Figma has no DOM for design content.** Figma renders its entire canvas to a
 **single WebGL/WebGPU `<canvas>` element** — they built their own DOM, compositor,
@@ -50,6 +54,15 @@ Consequences:
 So "install the extension and point it at Figma" is a dead end at the architecture
 level. The supported path is Figma's **Plugin API**.
 
+> **Audited alternatives (all dead ends for _writing_ design content):** the Figma
+> **REST API** is read-only for file content; **Dev Mode** plugins are read-only;
+> **FigJam widgets** can edit text but only by calling the _same_ Plugin API in
+> event handlers (a more constrained variant, not a different path); unofficial
+> **desktop-injection** hacks (e.g. `figma-patcher` via `--remote-debugging-port`)
+> only reach the surrounding app chrome — injected DOM JS still cannot read or write
+> canvas text nodes. **A Design-mode Plugin-API plugin (`editorType: ["figma"]`) is
+> the only supported way to create/edit text.**
+
 ## The supported approach: a Figma plugin that reuses our logic
 
 Figma's official extensibility model: a plugin traverses the node tree
@@ -59,49 +72,103 @@ Figma's official extensibility model: a plugin traverses the node tree
 (`figma.showUI`) that talks to the sandbox over `postMessage` — conceptually the
 same split as our content-script ↔ side-panel messaging, different transport.
 
-### What ports unchanged (the brains)
+### What is reused (the brains) — verified host-agnostic
 
-These packages have **no DOM/Chrome/Vue/Figma dependency** and are reused as-is:
+These packages have **no DOM/Chrome/Vue/Figma source dependency** (confirmed by
+`package.json` deps + a grep of source for `document`/`window`/`chrome.`/`vue`/
+`navigator`/`figma`) and are reused **without source edits** — after bundling
+(see realm split):
 
-| Package              | Role in the Figma plugin                                  |
-| -------------------- | --------------------------------------------------------- |
-| `@quikfill/autofill-core` | classify fields, match profiles, build the fill plan   |
-| `@quikfill/ai`       | redacted field summaries + AI proposal validation         |
-| `@quikfill/generators` | seeded/random value generation                          |
-| `@quikfill/schemas`  | Zod contracts (extend with Figma concepts — see below)    |
-| `@quikfill/ui`       | shadcn-vue components for the plugin's iframe UI           |
-| Backend (`quikfill-services`) | auth, AI routing, profile sync — same API contract |
+| Package                       | Role in the Figma plugin                                                                                                                             | Realm                          |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `@quikfill/schemas`           | Zod contracts (extend with Figma concepts — see below)                                                                                               | both                           |
+| `@quikfill/generators`        | seeded/random value generation                                                                                                                       | sandbox                        |
+| `@quikfill/autofill-core`     | classify fields, match profiles, build the fill plan                                                                                                 | sandbox                        |
+| `@quikfill/ai`                | **pure** redaction of field summaries + AI-proposal validation (no network code)                                                                     | sandbox                        |
+| `@quikfill/api-client`        | the **network-bearing** package — `POST /ai/classify-fields`, auth/refresh. Was missing from the original table; it dictates where network code runs | **iframe** (or sandbox + shim) |
+| `@quikfill/ui`                | shadcn-vue (reka-ui) components for the plugin's iframe UI                                                                                           | iframe                         |
+| Backend (`quikfill-services`) | auth, AI routing, profile sync — same API contract                                                                                                   | n/a                            |
+
+> **Correction to the original brief:** it listed `@quikfill/ai` as the AI/network
+> package. `@quikfill/ai` is **pure transform/validation** (`buildFieldSummaries`,
+> `validateAiSuggestions`, `suggestionToProposal`); the actual backend `fetch` lives
+> in **`@quikfill/api-client`** (`ai-client.ts` → `http.ts`). That distinction
+> determines realm placement below.
+
+### Where each piece runs (realm split)
+
+The Figma plugin has **two JS environments**, and "reuse unchanged" only holds once
+each package is placed in the right one:
+
+- **Sandbox (`code.ts`)** — a restricted realm (QuickJS-style): **has** the Figma
+  scene graph (`figma.*`, nodes, `loadFontAsync`); **lacks** `document`/`window` and
+  a standards `fetch` (`globalThis.fetch` is `undefined`). Pure logic runs here:
+  `schemas`, `generators`, `autofill-core`, `ai` (redaction/validation), and the new
+  `figma-adapter` scan/fill/storage.
+- **UI iframe (`figma.showUI`)** — a normal sandboxed iframe **with** a real DOM and
+  a permissive CSP (inline styles/eval OK). The Vue 3 + reka-ui + Tailwind UI from
+  `@quikfill/ui` runs here. It is also the only realm with a **standards `fetch`**.
+- **Network boundary (the crux the brief understated):** the sandbox cannot make a
+  normal `fetch`. Two options:
+  1. **Sandbox `figma.fetch`** — but it is a _reduced_ fetch (string URL only,
+     plain-object headers, and a **plain-object response with no `Response` class**).
+     Our `api-client/http.ts` assumes a standards `Response` (`response.ok`,
+     `.status`, `.clone().json()`, `204` handling), so this path needs a
+     **Response-shape shim**. The backend domain must be in `manifest.networkAccess.allowedDomains`.
+  2. **Iframe transport** — the iframe (real `fetch`, real `Response`) performs the
+     call and relays results to the sandbox over `postMessage`. Cleanest fit for
+     `api-client`, but the iframe has a **null origin**, so the backend must send
+     `Access-Control-Allow-Origin: *` (or echo the origin) for those routes.
+
+  The transport is already **dependency-injected** (`http.ts`: `config.fetch ?? globalThis.fetch`),
+  so we re-point it without rewriting call sites.
 
 ### What must be built new (the host adapter)
 
 `form-scanner` is the **web/DOM** host adapter and `browser-adapter` is the
-**Chrome** host adapter; neither is touched. The Figma plugin needs its own
+**Chrome** host adapter (it is the **only** package that touches `chrome.*` —
+verified by grep; the lone out-of-package hit is a doc comment in
+`schemas/src/adapters.ts`). Neither is touched. The Figma plugin needs its own
 **Figma-API host adapter**, isolated the same way:
 
 - **`packages/figma-adapter`** (NEW — Figma-API-aware, **not** Vue-aware): the
   Figma equivalent of `form-scanner` + the messaging half of `browser-adapter`.
-  - `scan-figma.ts` — traverse nodes → produce the existing `DetectedField` contract.
-  - `fill-figma.ts` — consume `FillInstruction[]` → group by font, `loadFontAsync`,
-    set `node.characters` / `insertCharacters`; capture prior text for undo.
-  - `bridge.ts` — `postMessage` transport between sandbox (`code.ts`) and UI iframe.
-  - `storage-figma.ts` — `figma.clientStorage` / `setPluginData` behind the existing
-    `StorageAdapter` interface.
-- **`apps/figma-plugin`** (NEW): `manifest.json` (`editorType: ["figma"]`, `main`,
-  `ui`, `networkAccess.allowedDomains` for the backend), `src/code.ts` (sandbox),
-  and `src/ui/` (Vue iframe reusing `@quikfill/ui`, mirroring the side panel).
+  - `scan-figma.ts` — traverse nodes → produce the existing `DetectedField` contract
+    (synthesizing all required fields — see the corrected mapping).
+  - `fill-figma.ts` — consume the plan → group by font, `loadFontAsync`, set
+    `node.characters` / `insertCharacters`; capture prior text for undo.
+  - `bridge.ts` — `postMessage` transport between sandbox (`code.ts`) and UI iframe;
+    also carries the network relay if the iframe-transport option is chosen.
+  - `storage-figma.ts` — `figma.clientStorage` (string-only; JSON-serialize) behind
+    the existing `StorageAdapter` interface (`get`/`set`/`delete`/`list`).
+- **`apps/figma-plugin`** (NEW): `manifest.json` (`name`, `id`, `api`,
+  `editorType: ["figma"]`, `main`, `ui`, `networkAccess.allowedDomains`),
+  `src/code.ts` (sandbox), and `src/ui/` (Vue iframe reusing `@quikfill/ui`,
+  mirroring the side panel).
 
-### The field mapping (the crux)
+### The field mapping (the crux) — corrected
 
-Map Figma nodes onto the existing `DetectedField` shape so `autofill-core` works untouched:
+Map Figma nodes onto the **real** `DetectedField` shape (`schemas/src/detected-field.ts`).
+The original table mapped the layer name to a field called `label` — **there is no
+`label` field**, and `classifyField` only reads `[name, domId, labelText, placeholder,
+ariaLabel]` (`classify.ts:123`). Routing the layer name anywhere else yields **zero
+classifier signal** (and would make the R2 spike fail artificially). Corrected mapping:
 
-| `DetectedField` field | Figma source                                                        |
-| --------------------- | ------------------------------------------------------------------- |
-| `label`               | layer name → nearby text node in same frame → component-property name |
-| `name`                | node `id`                                                           |
-| `inputType`           | always `text` (Figma has no input types)                            |
-| `sectionHeading`      | enclosing frame / component name                                    |
-| current value         | `TextNode.characters`                                               |
-| fill target           | node `id` (write back via `figma.getNodeById`)                      |
+| Target `DetectedField` field | Required?                     | Figma source                                                                                                                                                                                                                    |
+| ---------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `labelText`                  | optional but **load-bearing** | **layer name** (this is the field `classify()` reads) → nearby text → component-property name                                                                                                                                   |
+| `id`                         | **required** (`min(1)`)       | a scan-unique id (e.g. running index) — the scanner identity, **not** the node id                                                                                                                                               |
+| `tagName`                    | **required**                  | `"input"`, or `"textarea"` for multiline text (drives the `notes` fallback)                                                                                                                                                     |
+| `inputType`                  | **required**                  | always `"text"` (Figma has no input types)                                                                                                                                                                                      |
+| `domFingerprint`             | **required**                  | a **stable** hash of `node.id` + frame/page path. `buildPreviewPlan` keys saved mappings off this (`plan.ts:88`); it **is** the cross-surface-persona wedge — if it isn't stable across sessions, persona reuse silently breaks |
+| `currentValue`               | optional                      | `TextNode.characters`                                                                                                                                                                                                           |
+| `sectionHeading`             | optional (AI only)            | enclosing frame / component name (read by `ai/summaries.ts`, **not** by `classify()`)                                                                                                                                           |
+| `nearbyText`                 | optional (AI only)            | sibling text in the same frame (read by `ai/summaries.ts`)                                                                                                                                                                      |
+| fill target (out-of-band)    | —                             | the real `node.id`, kept by the adapter to write back via `figma.getNodeById`                                                                                                                                                   |
+
+> Note: schema `name` is the HTML _name attribute_ and is distinct from the scanner
+> `id`. Don't put the node id in `name`; put a scan-unique id in `id` and the node id
+> in the adapter's own write-back map.
 
 New Zod schemas (in `@quikfill/schemas`) for Figma-only concepts: node id, font
 descriptor, mixed-font/missing-font outcomes, selection scope.
@@ -112,67 +179,106 @@ descriptor, mixed-font/missing-font outcomes, selection scope.
 
 This is a **mature, partly-free category** — not open territory:
 
-| Plugin                       | What it does                                              | Overlaps our…           |
-| ---------------------------- | -------------------------------------------------------- | ----------------------- |
-| **Content Reel** (Microsoft) | Fills selected layers with names/emails/avatars from reusable "reels" | profile/reusable data   |
-| **Content Reel AI**          | Context-aware realistic content                          | AI field-classification |
-| **TinyFaces**                | Text layers → names, shape layers → matching avatars     | semantic layer matching |
-| **Data Lab**                 | Variables → names/emails/dates/phones with formatting    | generator rules + masks |
-| **Dummy Text AI / Typper / MagiCopy / FigGPT** | Prompt-driven realistic text into layers | AI generation           |
-| **AI Persona Generator**     | Generates a structured persona artifact                  | profile/persona concept |
-| **Lorem Ipsum / Random Name Generator** | The commodity boilerplate tier               | the "easy freebie"      |
+| Plugin                                                   | What it does                                                                          | Overlaps our…                     |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------- |
+| **Content Reel** (Microsoft)                             | Fills selected layers with names/emails/avatars from reusable "reels"                 | profile/reusable data             |
+| **TinyFaces**                                            | Text layers → names, shape layers → matching avatars                                  | semantic layer matching           |
+| **Data Lab**                                             | Variables → names/emails/dates/phones with formatting                                 | generator rules + masks           |
+| **Dummy Text AI / Typper / MagiCopy / FigGPT**           | Prompt-driven realistic text into layers                                              | AI generation                     |
+| **Persona / Random User / UserPop / Avatars Generators** | Generate one **coherent** fictional person (name + email + company + face) in a click | persona/coherent-identity concept |
+| **Lorem Ipsum / Random Name Generator**                  | The commodity boilerplate tier                                                        | the "easy freebie"                |
 
 **Honest conclusion:** "classify a layer named `Email` and put an email there" and
 "AI-generated realistic copy" are **already commoditized**, several free. Shipping
 only that makes us plugin #51.
 
-### What is actually defensible (narrower, but real)
+### What is actually defensible (narrower, and re-anchored)
 
-1. **Cross-surface persona consistency.** Competitors randomize per-layer, breaking
-   coherence (avatar, header name, email, settings end up four different people).
-   Our **profile = one coherent identity**, so we can fill an entire multi-screen
-   mockup with the *same* persona. That coherence is a genuine market gap.
-2. **The same profile the user built for web form-filling now fills their Figma
-   mockup.** No Figma-native plugin can replicate this — it requires our account,
-   backend, and the user's saved profiles. The moat is that **Quikfill already owns
-   the user's data layer on the web side**, not the (easily-copied) Figma mechanics.
+> **Correction:** the original brief called "one coherent identity" a _genuine market
+> gap_. The audit refutes that — Persona Generator, Random User Generator, UserPop and
+> Avatars Generator already produce a single coherent fictional person in one click, so
+> **coherence is table stakes, not a gap.** The defensible wedge is narrower:
+
+1. **One persona pinned across an entire multi-screen flow.** Competitors randomize
+   per-layer (or per-run), so a header, an avatar, a settings page, and a confirmation
+   email drift into four different people. A _managed library of reusable, named test
+   personas_ that stay identical across **every screen of a mockup** is the
+   under-served behavior. (Note: what designers want is usually a _plausible reusable
+   fake_ persona, not the user's own real identity repeated — frame the hook that way.)
+2. **Account / data integration as a distribution advantage.** The same profiles the
+   user already built for web form-filling, available in Figma, requires our account,
+   backend, and saved data. This is a **distribution/data advantage**, not a
+   defensible _mechanic_ — a competitor can copy the feature and bolt on a login +
+   persona library. So it only holds as long as we own the user's data layer on the
+   web side.
 
 **Strategic read:** this only makes sense as an **extension of an existing Quikfill
-web user base** ("your data, now in Figma too"), *not* as a standalone land-grab
-against Content Reel.
+web user base** ("your data, now in Figma too"), _not_ as a standalone land-grab
+against Content Reel. Free-vs-gated and 4th-surface ownership are **gate inputs**, not
+post-build details (see Gaps).
 
 ---
 
-## Decision gate (run this BEFORE building)
+## Decision gate (run this BEFORE building) — revised to two-tier
 
 The one thing that isn't obviously feasible is **whether `autofill-core`'s
 classifier produces useful results on Figma layer names** (designers name layers
 `Text`, `Label`, `email copy 2`, not `<label for>`). This is go/no-go.
 
-**Spike (≈0.5–1 day, no new app needed):**
-1. Collect layer-name sets from 5–10 real Figma Community mockups (forms, profile
-   cards, dashboards, tables).
-2. Feed those names through the existing `autofill-core` `classify()` offline
-   (a Vitest fixture or a tiny script — no Figma runtime required).
-3. Measure the semantic hit rate and eyeball quality.
+Why it's genuinely at risk: with `inputType` forced to `"text"` and no
+`autocomplete`/`name`/`domId`, **every high-confidence path in `classifyField` is
+dead** — the `select`/`checkbox` branches, the `autocomplete` map (0.95), and the
+`email`/`tel`/`date` type fast-paths all require web-only signals. Everything
+collapses to the keyword regex over `labelText` (capped ~0.85).
 
-**Gate:**
-- Hit rate clears a useful bar **AND** the web product has real users → green-light;
-  lead with **cross-surface personas**, lorem ipsum as a freebie.
-- Hit rate weak → the project collapses to "another content filler"; only worth it
-  as a cheap retention feature for existing users, never a growth bet. Stop here.
+**Spike (≈0.5–1 day, no new app needed) — now reproducible:**
+
+1. Collect layer-name sets from real Figma Community mockups in **two named corpora**:
+   a **forms** corpus (sign-up/profile/checkout) and a **dashboards/tables** corpus.
+2. Feed each name through the real `classifyField()` **routed into `labelText`** (a
+   reproducible fixture exists at
+   `packages/autofill-core/src/figma-layer-names.spike.test.ts`).
+3. Score **both recall** (got a useful type vs `unknown`) **and precision** (got the
+   _correct_ type) per corpus, with an explicit numeric bar.
+
+**Prototype result (2026-05-30):** bimodal — **~92%** useful on form mockups (0
+decoration false-positives), **~47%** on dashboard/table vocabulary, **~60–70%**
+blended. The fixture also pins two known precision bugs (below).
+
+**Gate (two-tier, because one threshold can't express a bimodal result):**
+
+- **Forms** clear a useful bar (recall **and** precision) **AND** the web product has
+  real users → green-light; lead with **persona pinned across a flow**, lorem ipsum as
+  a freebie. Scope **form mockups** for v1; treat arbitrary dashboards as out of scope.
+- Forms weak → the project collapses to "another content filler"; only worth it as a
+  cheap retention feature for existing users, never a growth bet. Stop here.
 
 ## Build risks (only relevant after the gate passes)
 
-1. **Font loading** — mixed fonts in one node (`figma.mixed`), fonts not installed
-   locally (`loadFontAsync` rejects). Decide skip-vs-fallback; surface skips in results.
-2. **Component instances** — text inside an instance is often only writable via an
+1. **Bundling** — Figma ships **one** IIFE sandbox file (no ESM `import`) + **one**
+   inlined-HTML UI. All eight packages are source-only (`main: ./src/index.ts`), so a
+   single-file bundle (esbuild/Rollup `inlineDynamicImports`; `vite-plugin-singlefile`
+   for the UI) is mandatory — this is what "reuse unchanged" actually costs.
+2. **Network shim** — the sandbox has no standards `fetch`; pick `figma.fetch` + a
+   `Response`-shape shim, or an iframe `postMessage` transport with backend CORS
+   `Access-Control-Allow-Origin: *` (see realm split). Declare `networkAccess.allowedDomains`.
+3. **Classifier precision** — the recall-only framing misses wrong-fills:
+   `classify.ts:84` `/…|count/` matches `county`/`discount` → `number`; `classify.ts:83`
+   matches `updated` → `date` but `created` → `unknown`. Fix with word boundaries and
+   have the gate score precision (the spike fixture witnesses both).
+4. **Font loading** — mixed fonts in one node (`figma.mixed`) and fonts not installed
+   locally (`loadFontAsync` rejects). Load **all** fonts in a node before writing;
+   decide skip-vs-fallback and surface skips in results.
+5. **Component instances** — text inside an instance is often only writable via an
    exposed component property, not `characters`. Confirm what's reachable; degrade gracefully.
-3. **Selection scope** — fill current selection vs. whole frame vs. whole page.
+6. **Selection scope** — fill current selection vs. whole frame vs. whole page.
    Designers expect "fill what I selected"; default to selection.
-4. **Persona coherence** — prove the wedge: fill ≥3 layers across a frame from one
-   profile and confirm name/email/etc. stay consistent.
-5. **No-DOM mindset** — the implementer must not reach for `form-scanner`; it is
+7. **Persona coherence** — prove the wedge: fill ≥3 layers across a frame from one
+   profile and confirm name/email/etc. stay consistent (depends on a **stable** `domFingerprint`).
+8. **Manifest correctness** — `name`, `id`, `api` are required; `editorType` **must**
+   include `"figma"` (Dev Mode is read-only and cannot write nodes). `clientStorage`/
+   `setPluginData` store **strings only** → JSON-serialize structured data.
+9. **No-DOM mindset** — the implementer must not reach for `form-scanner`; it is
    web-only. All Figma I/O goes through the new `figma-adapter`.
 
 ---
@@ -182,34 +288,55 @@ classifier produces useful results on Figma layer names** (designers name layers
 ```txt
 packages/
   figma-adapter/        # NEW — Figma-API-aware, NOT Vue-aware (mirrors form-scanner)
-    src/scan-figma.ts
-    src/fill-figma.ts
-    src/bridge.ts        # postMessage transport
-    src/storage-figma.ts # behind StorageAdapter
+    src/scan-figma.ts    # nodes → DetectedField (synthesize id/tagName/inputType/domFingerprint, route name→labelText)
+    src/fill-figma.ts    # plan → loadFontAsync (all fonts) → characters/insertCharacters + undo
+    src/bridge.ts        # postMessage transport (+ optional network relay)
+    src/storage-figma.ts # figma.clientStorage behind StorageAdapter (JSON-serialized)
 apps/
   figma-plugin/         # NEW
-    manifest.json        # editorType:["figma"], main, ui, networkAccess.allowedDomains
-    src/code.ts          # sandbox entry — traverse + write + undo
-    src/ui/              # Vue iframe — reuse @quikfill/ui, mirror side-panel UX
+    manifest.json        # name, id, api, editorType:["figma"], main, ui, networkAccess.allowedDomains
+    src/code.ts          # sandbox entry — traverse + write + undo (bundled IIFE)
+    src/ui/              # Vue iframe — reuse @quikfill/ui, mirror side-panel UX (single-file)
 ```
 
 ## Conventions this must follow (same as the rest of the repo)
 
 - **Compose the shared packages; never reimplement the engine.** Figma specifics
-  live only in `figma-adapter` + the plugin entrypoints.
+  live only in `figma-adapter` + the plugin entrypoints. "Compose" = reuse without
+  source edits, _after_ bundling + realm placement + transport wiring.
 - **AI is review-first.** AI interprets, the user confirms in a preview; the plugin
   never silently writes layers. Send minimized/redacted field summaries (layer
   names, types, nearby text) — never dump full design content. No model key in the
-  bundle; production AI routes through `quikfill-services`.
+  bundle; production AI routes through `quikfill-services` (`api-client`, in the iframe realm).
 - **Schemas first.** Add/extend Zod contracts in `@quikfill/schemas` before code;
   parse all AI output and storage hydration with Zod.
 - **Persistence behind adapters** (`StorageAdapter`); local-first; never put
-  sensitive values in synced storage.
+  sensitive values in synced/shared (`document`) plugin data.
 - **UI:** shadcn-vue from `@quikfill/ui` only; Composition API + `<script setup>`;
-  Pinia setup stores own shared state; Tailwind v4 semantic classes; a11y on inputs.
+  Pinia setup stores own shared state; Tailwind v4 semantic classes; a11y on inputs
+  (with an explicit plan for the iframe).
 - **Quality gate (the "done" bar):** `pnpm lint && pnpm format:check && pnpm
-  typecheck && pnpm build && pnpm test` (+ `pnpm e2e` when behaviour changed).
+typecheck && pnpm build && pnpm test` (+ `pnpm e2e` when behaviour changed).
 - Update this file's Status table as work lands.
+
+## Gaps / open decisions that gate the build
+
+The audit flagged these as **inputs to the go decision**, not afterthoughts:
+
+- **Build effort estimate.** Only the spike is sized (~0.5–1 day). `figma-adapter`,
+  `apps/figma-plugin`, Zod extensions, single-file bundling, the `figma.fetch`
+  Response shim / iframe transport are all **unsized** — size them before committing.
+- **4th-surface ownership.** The parent roadmap (`IMPLEMENTATION_PLAN.md`) lists only
+  three surfaces with no owner or slot for Figma. A 4th surface is permanent
+  maintenance (Figma API churn, font/instance edge cases) — name a maintainer.
+- **Monetization decision.** Free-vs-gated is left open, yet the moat depends on
+  requiring sign-in to pull saved profiles (and Stripe billing is still Partial on the
+  parent roadmap). Decide before building.
+- **Figma Community publishing/review.** Submission + plugin review/approval + update
+  cadence are unaddressed — a real gate to reaching users.
+- **i18n & a11y.** The product is i18n-ready elsewhere but the plugin has no
+  localization plan, and a11y is a single line with no iframe-specific plan.
+- **FigJam scope.** Recommend design-only for v1 — but decide it explicitly.
 
 ## Open questions for product
 
@@ -225,5 +352,10 @@ apps/
 - [Figma Rendering: Powered by WebGPU — Figma](https://www.figma.com/blog/figma-rendering-powered-by-webgpu/)
 - [TextNode.characters — Figma Plugin Docs](https://www.figma.com/plugin-docs/api/properties/TextNode-characters/)
 - [Working with Text — Figma Plugin Docs](https://www.figma.com/plugin-docs/working-with-text/)
+- [Plugin manifest — Figma Plugin Docs](https://www.figma.com/plugin-docs/manifest/)
+- [Making network requests (`figma.fetch` / `networkAccess`) — Figma Plugin Docs](https://www.figma.com/plugin-docs/making-network-requests/)
+- [How plugins run (sandbox + UI iframe) — Figma Plugin Docs](https://www.figma.com/plugin-docs/how-plugins-run/)
 - [Plugins to design with real content — Figma](https://www.figma.com/blog/plugins-to-help-you-design-with-real-content/)
 - [Best Figma AI Plugins 2025 — F22 Labs](https://www.f22labs.com/blogs/15-best-figma-ai-plugins-for-ui-ux-designers/)
+- Internal audit (2026-05-30): codebase verification of `classify.ts`, `detected-field.ts`,
+  `plan.ts`, `adapters.ts`, `api-client/http.ts`; reproducible spike fixture.
