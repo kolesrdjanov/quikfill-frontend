@@ -8,6 +8,13 @@ export default defineNuxtConfig({
   telemetry: false,
   devtools: { enabled: true },
   srcDir: '.',
+  runtimeConfig: {
+    public: {
+      // Dashboard origin the pricing CTAs deep-link into. Inlined at build time
+      // for the static prerender — set NUXT_PUBLIC_APP_URL in CI/prod.
+      appUrl: 'http://localhost:5173',
+    },
+  },
   css: ['~/assets/css/main.css'],
   vite: {
     plugins: [tailwindcss()],

@@ -1,88 +1,29 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
 import { Check, Minus, Zap } from 'lucide-vue-next'
+import { PLAN_CATALOG, type PlanCatalogEntry } from '@quikfill/schemas'
 
-interface Feature {
-  text: string
-  muted?: boolean
-}
-interface Tier {
-  name: string
-  feature?: boolean
-  tag?: string
-  price: string
-  per: string
-  fills: string
-  toks: string
-  ctaLabel: string
-  ctaPrimary?: boolean
-  ctaIcon?: Component
-  features: Feature[]
+// Single source of truth: marketing pricing comes from the shared PLAN_CATALOG
+// (which mirrors the backend billing doc), so the site can never drift from the
+// app/extension. CTAs deep-link into the dashboard; the free tier starts sign-in,
+// paid tiers preselect a plan on /billing (self-serve checkout — incl. Enterprise).
+const appUrl = useRuntimeConfig().public.appUrl
+
+/** Short token label for the secondary line, e.g. "500K tokens" / "8M+ tokens". */
+function tokenLabel(plan: PlanCatalogEntry): string {
+  const n = plan.tokenLimit
+  const plus = plan.key === 'enterprise' ? '+' : ''
+  if (n >= 1_000_000) return `${n / 1_000_000}M${plus} tokens`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K${plus} tokens`
+  return `${n.toLocaleString('en-US')} tokens`
 }
 
-// Single source of truth for plan limits (WEBSITE_PLAN: don't scatter across components).
-const tiers: Tier[] = [
-  {
-    name: 'Free',
-    price: '$0',
-    per: '/ forever',
-    fills: '~10',
-    toks: '2,500 tokens',
-    ctaLabel: 'Get started',
-    features: [
-      { text: 'Unlimited manual scan & fill' },
-      { text: 'Saved profiles & records' },
-      { text: 'Generators & undo' },
-      { text: 'Limited AI classification', muted: true },
-    ],
-  },
-  {
-    name: 'Starter',
-    price: '$12',
-    per: '/ mo',
-    fills: '~2,000',
-    toks: '500K tokens',
-    ctaLabel: 'Start free trial',
-    features: [
-      { text: 'Everything in Free' },
-      { text: '500K AI tokens / month' },
-      { text: 'Priority field classification' },
-      { text: 'Email support' },
-    ],
-  },
-  {
-    name: 'Pro Tester',
-    feature: true,
-    tag: 'Most popular',
-    price: '$29',
-    per: '/ mo',
-    fills: '~8,000',
-    toks: '2M tokens',
-    ctaLabel: 'Start free trial',
-    ctaPrimary: true,
-    ctaIcon: Zap,
-    features: [
-      { text: 'Everything in Starter' },
-      { text: '2M AI tokens / month' },
-      { text: 'Seedable generators for QA' },
-      { text: 'Profile sync across devices' },
-    ],
-  },
-  {
-    name: 'Enterprise',
-    price: '$99',
-    per: '+ / mo',
-    fills: '32,000+',
-    toks: '8M+ tokens',
-    ctaLabel: 'Contact sales',
-    features: [
-      { text: 'Everything in Pro Tester' },
-      { text: '8M+ AI tokens / month' },
-      { text: 'SSO & team management' },
-      { text: 'Dedicated support & SLA' },
-    ],
-  },
-]
+function ctaLabel(plan: PlanCatalogEntry): string {
+  return plan.key === 'free' ? 'Get started' : 'Upgrade'
+}
+
+function ctaHref(plan: PlanCatalogEntry): string {
+  return plan.key === 'free' ? `${appUrl}/sign-in` : `${appUrl}/billing?plan=${plan.key}`
+}
 </script>
 
 <template>
@@ -97,27 +38,32 @@ const tiers: Tier[] = [
         </p>
       </div>
       <div class="price-grid">
-        <div v-for="t in tiers" :key="t.name" class="pcard" :class="{ feature: t.feature }">
-          <span v-if="t.tag" class="tag">{{ t.tag }}</span>
-          <span class="tier">{{ t.name }}</span>
+        <div
+          v-for="plan in PLAN_CATALOG"
+          :key="plan.key"
+          class="pcard"
+          :class="{ feature: plan.recommended }"
+        >
+          <span v-if="plan.recommended" class="tag">Most popular</span>
+          <span class="tier">{{ plan.displayName }}</span>
           <div class="price">
-            <span class="amt">{{ t.price }}</span
-            ><span class="per">{{ t.per }}</span>
+            <span class="amt">{{ plan.priceLabel }}</span
+            ><span class="per">{{ plan.pricePer }}</span>
           </div>
           <div class="fills">
-            <b>{{ t.fills }}</b> AI form fills / mo
+            <b>{{ plan.marketingFills }}</b> AI form fills / mo
           </div>
-          <div class="toks">{{ t.toks }}</div>
+          <div class="toks">{{ tokenLabel(plan) }}</div>
           <a
             class="btn btn--block pbtn"
-            :class="t.ctaPrimary ? 'btn--primary' : 'btn--ghost'"
-            href="#"
+            :class="plan.recommended ? 'btn--primary' : 'btn--ghost'"
+            :href="ctaHref(plan)"
             style="width: 100%"
           >
-            <component :is="t.ctaIcon" v-if="t.ctaIcon" />{{ t.ctaLabel }}
+            <Zap v-if="plan.recommended" />{{ ctaLabel(plan) }}
           </a>
           <ul>
-            <li v-for="f in t.features" :key="f.text" :class="{ muted: f.muted }">
+            <li v-for="f in plan.featureBullets" :key="f.text" :class="{ muted: f.muted }">
               <Minus v-if="f.muted" /><Check v-else /> {{ f.text }}
             </li>
           </ul>

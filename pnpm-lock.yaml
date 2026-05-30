@@ -169,6 +169,9 @@ importers:
 
   apps/website:
     dependencies:
+      '@quikfill/schemas':
+        specifier: workspace:*
+        version: link:../../packages/schemas
       '@quikfill/ui':
         specifier: workspace:*
         version: link:../../packages/ui

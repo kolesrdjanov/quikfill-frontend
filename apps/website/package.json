@@ -15,6 +15,7 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
+    "@quikfill/schemas": "workspace:*",
     "@quikfill/ui": "workspace:*",
     "lucide-vue-next": "^1.0.0",
     "nuxt": "^4.0.0",
