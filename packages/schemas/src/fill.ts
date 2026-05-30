@@ -48,18 +48,31 @@ export const fillResultSchema = z.object({
 export type FillResult = z.infer<typeof fillResultSchema>
 
 /**
- * Redacted plan item persisted on a FillRun — label, source type, confidence,
- * and strategy only. Never the proposed or current value.
+ * Redacted plan item persisted on a FillRun — field label, fill-source type, and
+ * confidence only. Never a proposed/current value, the ephemeral per-scan
+ * `detectedFieldId`, or the fill strategy. This is the canonical redacted shape:
+ * it mirrors the backend's `redactPlanItems` whitelist 1:1 and is reused as the
+ * `POST /fill-runs` plan input so the read and write contracts can never drift.
  */
 export const redactedFillPlanItemSchema = z.object({
-  detectedFieldId: z.string().min(1),
-  label: z.string(),
+  fieldLabel: z.string(),
   fillSourceType: fillSourceTypeSchema,
   confidence: z.number().min(0).max(1),
-  fillStrategy: fillStrategySchema,
-  requiresConfirmation: z.boolean().default(false),
 })
 export type RedactedFillPlanItem = z.infer<typeof redactedFillPlanItemSchema>
+
+/**
+ * Redacted per-field outcome persisted on a FillRun — label, status, and reason
+ * only; never a filled value. Mirrors the backend's `redactResultItems`
+ * whitelist. `fieldLabel` may be absent when a result had no matching included
+ * plan item. Reused as the `PATCH /fill-runs/:id` results input.
+ */
+export const redactedFillResultSchema = z.object({
+  fieldLabel: z.string().optional(),
+  status: fillResultStatusSchema,
+  reason: z.string().optional(),
+})
+export type RedactedFillResult = z.infer<typeof redactedFillResultSchema>
 
 export const fillRunStatusSchema = z.enum(['pending', 'success', 'partial', 'failed'])
 export type FillRunStatus = z.infer<typeof fillRunStatusSchema>
@@ -73,7 +86,7 @@ export const fillRunSchema = z.object({
   mode: fillModeSchema,
   status: fillRunStatusSchema,
   plan: z.array(redactedFillPlanItemSchema),
-  results: z.array(fillResultSchema),
+  results: z.array(redactedFillResultSchema),
   startedAt: isoDateTime,
   completedAt: nullableOptional(isoDateTime),
   createdAt: isoDateTime.optional(),
@@ -90,15 +103,7 @@ export const createFillRunInputSchema = z.object({
   domainId: uuid.optional(),
   url: z.string(),
   mode: fillModeSchema,
-  plan: z
-    .array(
-      z.object({
-        fieldLabel: z.string(),
-        fillSourceType: fillSourceTypeSchema,
-        confidence: z.number().min(0).max(1),
-      }),
-    )
-    .optional(),
+  plan: z.array(redactedFillPlanItemSchema).optional(),
 })
 export type CreateFillRunInput = z.infer<typeof createFillRunInputSchema>
 
@@ -108,15 +113,7 @@ export type CreateFillRunInput = z.infer<typeof createFillRunInputSchema>
  */
 export const updateFillRunInputSchema = z.object({
   status: fillRunStatusSchema,
-  results: z
-    .array(
-      z.object({
-        fieldLabel: z.string().optional(),
-        status: fillResultStatusSchema,
-        reason: z.string().optional(),
-      }),
-    )
-    .optional(),
+  results: z.array(redactedFillResultSchema).optional(),
 })
 export type UpdateFillRunInput = z.infer<typeof updateFillRunInputSchema>
 

@@ -88,26 +88,30 @@ describe('fill plan + run', () => {
     expect(plan.items[0].requiresConfirmation).toBe(false)
   })
 
-  it('parses a fill run with a redacted plan (no raw values)', () => {
+  it('parses a fill run with a redacted plan + results (no raw values, label-keyed)', () => {
+    // Mirrors exactly what the backend persists/returns: the redaction whitelist
+    // keeps `fieldLabel`/`fillSourceType`/`confidence` on plan items and
+    // `fieldLabel`/`status`/`reason` on results — never the ephemeral
+    // detectedFieldId, fillStrategy, or any proposed/current/accepted value.
     const run = fillRunSchema.parse({
       id: UUID_A,
+      formProfileId: UUID_B,
+      domainId: null,
       url: 'https://acme.com/signup',
       mode: 'fill',
       status: 'success',
-      plan: [
-        {
-          detectedFieldId: 'f1',
-          label: 'Email',
-          fillSourceType: 'generatorRule',
-          confidence: 0.9,
-          fillStrategy: 'nativeInput',
-        },
-      ],
-      results: [{ detectedFieldId: 'f1', status: 'success', acceptedValue: 'a@b.com' }],
+      plan: [{ fieldLabel: 'Email', fillSourceType: 'generatorRule', confidence: 0.9 }],
+      results: [{ fieldLabel: 'Email', status: 'success', reason: 'matched' }],
       startedAt: '2026-05-29T12:00:00.000Z',
+      completedAt: null,
+      createdAt: '2026-05-29T12:00:00.000Z',
     })
+    expect(run.plan[0].fieldLabel).toBe('Email')
     expect(run.plan[0].fillSourceType).toBe('generatorRule')
     expect(run.plan[0]).not.toHaveProperty('proposedValue')
+    expect(run.plan[0]).not.toHaveProperty('detectedFieldId')
+    expect(run.results[0].status).toBe('success')
+    expect(run.results[0]).not.toHaveProperty('acceptedValue')
   })
 })
 
