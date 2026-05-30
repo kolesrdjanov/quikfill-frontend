@@ -44,14 +44,16 @@ describe('api.subscriptions', () => {
     expect(result.url).toContain('checkout.stripe.com')
   })
 
-  it('rejects a non-paid plan before hitting the network', async () => {
+  it('rejects a non-paid plan before hitting the network', () => {
     const fetch = vi.fn()
     const api = createApiClient({ baseUrl: base, fetch })
 
-    await expect(
+    // The input is validated synchronously (before the request promise exists),
+    // so an invalid plan throws on the call rather than rejecting.
+    expect(() =>
       // @ts-expect-error — free is not a PaidPlanKey; guard runs at runtime too
       api.subscriptions.createCheckoutSession({ planKey: 'free' }),
-    ).rejects.toThrow()
+    ).toThrow()
     expect(fetch).not.toHaveBeenCalled()
   })
 

@@ -22,20 +22,38 @@ import OptionRow from '../options/OptionRow.vue'
 import { useSettings } from '../../lib/useSettings'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
+import { useEntitlements } from '../../lib/useEntitlements'
 
 // In-panel preferences. Same controls as the options page, but rendered inside the
 // side panel (our own surface) with stacked rows so the narrow width never truncates.
 const { settings, update } = useSettings()
 const { apply: applyTheme } = useExtensionTheme()
 const gate = useAuthGate()
+const entitlements = useEntitlements()
 const adapter = createChromeStorageAdapter()
 const store = createProfileStore(adapter)
+
+// Dev default; production builds point this at the deployed dashboard (matches
+// the other extension deep-links — see AuthPanel).
+const DASHBOARD_BILLING_URL = 'http://localhost:5173/billing'
+
+const planName = computed(() => entitlements.planName.value ?? 'Plan')
+const planUsage = computed(() => {
+  if (!entitlements.known.value) return 'Manage your plan and AI usage in the dashboard.'
+  if (entitlements.isUnlimited.value) return 'Unlimited AI on this plan.'
+  return `${entitlements.usagePercent.value}% of this month's AI used.`
+})
+
+function openBilling(): void {
+  void browser.tabs?.create({ url: DASHBOARD_BILLING_URL })
+}
 
 const profileCount = ref(0)
 const confirmClear = ref(false)
 const clearing = ref(false)
 
 onMounted(async () => {
+  void entitlements.init()
   profileCount.value = (await store.listFormProfiles()).length
 })
 
