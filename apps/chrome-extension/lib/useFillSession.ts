@@ -69,7 +69,7 @@ export function useFillSession() {
   const locale = ref<string>('en-US')
   // Whether an accepted AI suggestion (or a cycled-to-AI field) may fall back to
   // synthetic "sample" data when the user has no saved record. Off by default:
-  // Quikfill is a real-info filler. Mirrored from `defaultFillSource`.
+  // QuikFill is a real-info filler. Mirrored from `defaultFillSource`.
   const allowSampleData = ref(false)
 
   const hostname = ref('')
@@ -342,6 +342,8 @@ export function useFillSession() {
         locale: locale.value,
         savedMappings: savedMappings.value,
         records: recordValues.value,
+        allowSampleData: allowSampleData.value,
+        recordIndex: recordIndex.value,
       }).items,
     )
   }
@@ -799,7 +801,7 @@ export function useFillSession() {
         console.error('[quikfill] sync failed:', result.error)
         syncMessage.value =
           result.error === 'unreachable'
-            ? 'Sync failed — Quikfill is unreachable. Check your connection and try again.'
+            ? 'Sync failed — QuikFill is unreachable. Check your connection and try again.'
             : `Sync failed: ${result.error}`
       }
     } finally {
