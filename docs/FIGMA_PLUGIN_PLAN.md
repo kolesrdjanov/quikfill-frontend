@@ -18,12 +18,12 @@
 
 ## Status
 
-| #   | Item                                                            | Status                                                                                                                                                                     |
-| --- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | Feasibility research (architecture + competitive scan)          | ✅ Done                                                                                                                                                                    |
-| R1b | Audit of this brief against the real codebase + live Figma docs | ✅ Done (2026-05-30)                                                                                                                                                       |
-| R2  | **Decision-gate spike** (classification quality on layer names) | 🟡 Prototyped — bimodal (~92% forms / ~47% dashboards). Needs a formal two-tier corpus. Reproducible fixture: `packages/autofill-core/src/figma-layer-names.spike.test.ts` |
-| —   | Build (only if R2 passes the gate — see "Decision gate")        | 🔒 Blocked                                                                                                                                                                 |
+| #   | Item                                                            | Status                                                                                                                                                                        |
+| --- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Feasibility research (architecture + competitive scan)          | ✅ Done                                                                                                                                                                       |
+| R1b | Audit of this brief against the real codebase + live Figma docs | ✅ Done (2026-05-30)                                                                                                                                                          |
+| R2  | **Decision-gate** (classification quality on layer names)       | ✅ Done — two-tier gate: **forms 93% recall / 93% type-precision (GO-for-forms)**, dashboards 44% (out of v1 scope). Fixtures: `figma-r2-corpus.ts` + `figma-r2-gate.test.ts` |
+| —   | Build (only if R2 passes the gate — see "Decision gate")        | 🔒 Blocked on the **product user-base check** (the classifier bar is cleared)                                                                                                 |
 
 ---
 
@@ -231,28 +231,42 @@ dead** — the `select`/`checkbox` branches, the `autocomplete` map (0.95), and 
 `email`/`tel`/`date` type fast-paths all require web-only signals. Everything
 collapses to the keyword regex over `labelText` (capped ~0.85).
 
-**Spike (≈0.5–1 day, no new app needed) — now reproducible:**
+**Gate run (2026-05-30) — reproducible, committed:**
 
-1. Collect layer-name sets from real Figma Community mockups in **two named corpora**:
-   a **forms** corpus (sign-up/profile/checkout) and a **dashboards/tables** corpus.
-2. Feed each name through the real `classifyField()` **routed into `labelText`** (a
-   reproducible fixture exists at
-   `packages/autofill-core/src/figma-layer-names.spike.test.ts`).
-3. Score **both recall** (got a useful type vs `unknown`) **and precision** (got the
-   _correct_ type) per corpus, with an explicit numeric bar.
+1. A labeled **two-tier corpus** of 130 realistic Figma layer names — a **forms**
+   tier (sign-up/profile/checkout/contact) and a **dashboards/tables** tier, plus
+   decoration/structural noise — lives at
+   `packages/autofill-core/src/figma-r2-corpus.ts`. `expectedType` is ground truth
+   (assembled across 205 candidate names by 8 category agents, then adversarially
+   label-reviewed).
+2. `packages/autofill-core/src/figma-r2-gate.test.ts` feeds each name through the
+   real `classifyField()` **routed into `labelText`** and measures **recall**,
+   **type-precision**, and **decoration false-fill** per tier against explicit bars.
 
-**Prototype result (2026-05-30):** bimodal — **~92%** useful on form mockups (0
-decoration false-positives), **~47%** on dashboard/table vocabulary, **~60–70%**
-blended. The fixture also guards two classifier precision bugs it surfaced —
-now **fixed** in `classify.ts` with word-boundary keywords (see build risk #3).
+**Result (130 names):**
+
+| Tier                  | n   | recall  | type-precision | false-fill |
+| --------------------- | --- | ------- | -------------- | ---------- |
+| **forms**             | 63  | **93%** | **93%**        | 16%        |
+| **dashboards/tables** | 46  | **44%** | 100%           | 10%        |
+| decoration            | 21  | —       | —              | **0%**     |
+
+Bimodal, confirming the earlier prototype: form vocabulary classifies well; generic
+dashboard/table vocabulary (Revenue, MRR, Status, Role) recalls less than half, and
+decoration is never false-filled. The gate also guards the two classifier precision
+bugs it surfaced — now **fixed** in `classify.ts` with word-boundary keywords (see
+build risk #3). The 16% forms false-fill is the weakest axis (e.g. `Card Number` →
+`number`); harmless in a mockup but worth tightening.
 
 **Gate (two-tier, because one threshold can't express a bimodal result):**
 
-- **Forms** clear a useful bar (recall **and** precision) **AND** the web product has
-  real users → green-light; lead with **persona pinned across a flow**, lorem ipsum as
-  a freebie. Scope **form mockups** for v1; treat arbitrary dashboards as out of scope.
-- Forms weak → the project collapses to "another content filler"; only worth it as a
-  cheap retention feature for existing users, never a growth bet. Stop here.
+- **Forms cleared the bar** (93% recall / 93% type-precision, low false-fill), so the
+  only remaining gate is the **product question — does the web product have real
+  users?** If yes → green-light; lead with **persona pinned across a flow**, lorem ipsum
+  as a freebie. **Scope form mockups for v1; arbitrary dashboards (44% recall) are out
+  of scope.**
+- Had forms been weak → the project collapses to "another content filler"; only worth
+  it as a cheap retention feature for existing users, never a growth bet. (Not the case.)
 
 ## Build risks (only relevant after the gate passes)
 
