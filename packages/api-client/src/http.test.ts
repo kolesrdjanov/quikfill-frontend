@@ -50,6 +50,24 @@ describe('createRestClient request', () => {
     })
   })
 
+  it('carries the backend error code so callers can branch on the cause', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(
+          { code: 'QUOTA_EXCEEDED', message: 'Monthly AI usage limit reached' },
+          { status: 429 },
+        ),
+      )
+    const client = createRestClient({ baseUrl: base, fetch })
+    await expect(client.post('/ai/classify-fields', {})).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 429,
+      code: 'QUOTA_EXCEEDED',
+      message: 'Monthly AI usage limit reached',
+    })
+  })
+
   it('refreshes once on 401 then retries the original request', async () => {
     const fetch = vi
       .fn()

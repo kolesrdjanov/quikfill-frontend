@@ -24,8 +24,10 @@ export {
   isAiClassifyRequest,
   requestAiClassify,
   onAiClassifyRequest,
+  aiClassifyReason,
   type AiClassifyMessage,
   type AiClassifyResponse,
+  type AiClassifyReason,
 } from './ai-messaging'
 export {
   AUTH_REQUEST,

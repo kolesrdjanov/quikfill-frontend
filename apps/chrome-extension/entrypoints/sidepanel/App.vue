@@ -40,10 +40,12 @@ import PlanCard from '../../components/sidepanel/PlanCard.vue'
 import ResultCard from '../../components/sidepanel/ResultCard.vue'
 import LimitationsDisclosure from '../../components/sidepanel/LimitationsDisclosure.vue'
 import SettingsPanel from '../../components/sidepanel/SettingsPanel.vue'
+import { allowsSampleData } from '@quikfill/schemas'
 import { useFillSession } from '../../lib/useFillSession'
 import { useSettings } from '../../lib/useSettings'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
+import { AI_REASON_MESSAGE } from '../../lib/display-maps'
 
 const s = useFillSession()
 const { settings, load: loadSettings } = useSettings()
@@ -73,6 +75,7 @@ onMounted(async () => {
   s.hideValues.value = loaded.hideValuesByDefault
   s.autoMatch.value = loaded.autoMatchProfiles
   s.locale.value = loaded.locale
+  s.allowSampleData.value = allowsSampleData(loaded.defaultFillSource)
   // The popup deep-links here by leaving a one-shot flag in session storage.
   const pending = await browser.storage.session?.get('ui:pendingView')
   if (pending?.['ui:pendingView'] === 'settings') {
@@ -99,6 +102,11 @@ function confirmFill() {
 const ambiguousIds = computed(() => new Set(s.ambiguousFields.value.map((f) => f.id)))
 const aiAvailable = computed(() => settings.value.aiEnabled)
 const canAskAi = computed(() => s.hasAmbiguous.value && aiAvailable.value)
+const aiUnavailableMessage = computed(() =>
+  s.aiError.value
+    ? AI_REASON_MESSAGE[s.aiError.value.reason]
+    : 'Quikfill AI is unavailable — it’s optional, you can still preview and fill.',
+)
 
 const siteInitial = computed(
   () =>
@@ -246,7 +254,7 @@ const fieldContext = computed(() => {
         </Alert>
         <Alert v-if="s.aiState.value === 'unavailable'" variant="warning">
           <CloudOff />
-          <div>Quikfill AI is unavailable — it's optional, you can still preview and fill.</div>
+          <div>{{ aiUnavailableMessage }}</div>
         </Alert>
         <Alert
           v-else-if="s.aiState.value === 'ready'"

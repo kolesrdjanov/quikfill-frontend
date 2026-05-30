@@ -94,7 +94,7 @@ async function clearData() {
         <CardHeader><CardTitle>Filling</CardTitle></CardHeader>
         <OptionRow
           title="Default fill source"
-          subtitle="What Quikfill proposes when no saved mapping exists."
+          subtitle="What a field with no saved mapping (and an accepted AI suggestion) fills with. Sample data is synthetic and clearly labeled."
         >
           <Select
             :model-value="settings.defaultFillSource"
@@ -104,10 +104,10 @@ async function clearData() {
               (v) => set('defaultFillSource', v as ExtensionSettings['defaultFillSource'])
             "
           >
-            <option value="hybrid">Hybrid (record → generator)</option>
-            <option value="recordField">Saved record</option>
-            <option value="generatorRule">Generator preset</option>
-            <option value="aiGenerated">Ask AI</option>
+            <option value="recordField">Only my saved data</option>
+            <option value="hybrid">My saved data, then sample</option>
+            <option value="generatorRule">Sample data</option>
+            <option value="aiGenerated">Leave it for me to fill</option>
           </Select>
         </OptionRow>
         <OptionRow

@@ -22,20 +22,35 @@ export interface SuggestionProposal {
   confidence: number
   fillSource: FillSource
   fillStrategy: FillStrategy
-  /** Present when the semantic type maps to a known generator; null otherwise. */
+  /** Present when the proposal resolves to a known generator; null otherwise. */
   generatorRule: GeneratorRule | null
+}
+
+export interface ProposalOptions {
+  /**
+   * Whether to fall back to a deterministic value *generator* (synthetic
+   * "sample" data) when the user has no saved record for the field. Default
+   * `false`: Quikfill is a real-info filler, so by default an accepted
+   * suggestion either fills the user's own saved data or leaves an advisory
+   * placeholder — it never silently writes fake data. Enable per the
+   * `defaultFillSource` preference (opt-in sample data).
+   */
+  allowSampleData?: boolean
 }
 
 /**
  * Convert an accepted AiSuggestion into a fill proposal. Preference order:
- * the user's own saved data (`recordField`, when `recordMatch` is supplied) wins,
- * then a deterministic `generatorRule` when the semantic type maps to one, and
- * finally an advisory `aiGenerated` hint when nothing can produce a value.
+ * the user's own saved data (`recordField`, when `recordMatch` is supplied)
+ * always wins. Otherwise — only when sample data is explicitly allowed — a
+ * deterministic `generatorRule` produces clearly-labeled sample data. With
+ * neither, an advisory `aiGenerated` placeholder is left so the field is flagged
+ * for the user to supply a value (or save one), never filled with fake data.
  */
 export function suggestionToProposal(
   suggestion: AiSuggestion,
   field: DetectedField,
   recordMatch?: RecordMatch | null,
+  options: ProposalOptions = {},
 ): SuggestionProposal {
   const base = {
     fieldId: suggestion.fieldId,
@@ -57,7 +72,9 @@ export function suggestionToProposal(
     }
   }
 
-  const generatorRule = generatorRuleForSemanticType(suggestion.semanticType)
+  const generatorRule = options.allowSampleData
+    ? generatorRuleForSemanticType(suggestion.semanticType)
+    : null
   const fillSource: FillSource = generatorRule
     ? { sourceType: 'generatorRule', ruleKey: suggestion.semanticType }
     : { sourceType: 'aiGenerated', hint: suggestion.semanticType }

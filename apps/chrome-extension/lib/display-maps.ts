@@ -14,6 +14,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-vue-next'
+import type { AiClassifyReason } from '@quikfill/browser-adapter'
 import type { FillResult, FillSourceType, ScanLimitation } from '@quikfill/schemas'
 
 type BadgeTone = 'primary' | 'info' | 'success' | 'warning' | 'danger' | 'gray'
@@ -27,12 +28,24 @@ export interface SourceMeta {
 
 /** Fill-source presentation, keyed by `FillSource.sourceType`. */
 export const SOURCE_META: Record<FillSourceType, SourceMeta> = {
-  recordField: { label: 'Saved record', short: 'Record', badge: 'primary', icon: Database },
-  generatorRule: { label: 'Generator', short: 'Generator', badge: 'info', icon: Dices },
-  aiGenerated: { label: 'AI draft', short: 'AI', badge: 'warning', icon: WandSparkles },
+  recordField: { label: 'Your saved data', short: 'Saved', badge: 'primary', icon: Database },
+  // Synthetic, generated values — labeled "Sample" everywhere so they are never
+  // mistaken for the user's real information.
+  generatorRule: { label: 'Sample data', short: 'Sample', badge: 'info', icon: Dices },
+  aiGenerated: { label: 'Needs a value', short: 'Add value', badge: 'warning', icon: WandSparkles },
   staticValue: { label: 'Static value', short: 'Static', badge: 'gray', icon: Pin },
   runtimeValue: { label: 'Ask me', short: 'Ask me', badge: 'gray', icon: MessageSquareText },
   composed: { label: 'Composed', short: 'Composed', badge: 'primary', icon: Blocks },
+}
+
+/** User-facing copy for an AI failure cause (see `AiClassifyReason`). */
+export const AI_REASON_MESSAGE: Record<AiClassifyReason, string> = {
+  'not-configured': 'Quikfill AI isn’t enabled on the server right now.',
+  quota: 'You’ve reached this month’s AI limit — it resets next month.',
+  'rate-limited': 'Too many AI requests just now — wait a moment and try again.',
+  auth: 'Your session expired — sign in again to use AI.',
+  offline: 'Quikfill AI is unreachable. Check your connection and try again.',
+  error: 'Quikfill AI hit an unexpected error — you can still preview and fill.',
 }
 
 /** Order the per-field "change source" pill cycles through. */

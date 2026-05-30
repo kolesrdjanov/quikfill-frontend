@@ -13,10 +13,36 @@ export interface AiClassifyMessage {
   summaries: FieldSummary[]
 }
 
+/**
+ * Coarse, machine-readable cause of an AI failure so the panel can show an
+ * actionable message instead of one opaque "AI unavailable". Mapped from the
+ * backend's HTTP status + error code.
+ */
+export type AiClassifyReason =
+  | 'not-configured' // backend has no Gemini key (503 / SERVICE_UNAVAILABLE)
+  | 'quota' // monthly AI limit reached (429 / QUOTA_EXCEEDED)
+  | 'rate-limited' // too many requests in a short window (bare 429)
+  | 'auth' // session expired / unauthorized (401)
+  | 'offline' // background worker or backend unreachable (no HTTP status)
+  | 'error' // anything else
+
 /** Background → panel reply. AI is user-initiated and may be unavailable. */
 export type AiClassifyResponse =
   | { ok: true; suggestions: AiSuggestion[] }
-  | { ok: false; error: string }
+  | { ok: false; reason: AiClassifyReason; message?: string }
+
+/** Map a thrown api-client error (duck-typed `status`/`code`) to a coarse cause. */
+export function aiClassifyReason(error: unknown): { reason: AiClassifyReason; message?: string } {
+  const e = (error ?? {}) as { status?: number; code?: string; message?: unknown }
+  const message = typeof e.message === 'string' ? e.message : undefined
+  if (e.code === 'SERVICE_UNAVAILABLE' || e.status === 503)
+    return { reason: 'not-configured', message }
+  if (e.code === 'QUOTA_EXCEEDED') return { reason: 'quota', message }
+  if (e.status === 429) return { reason: 'rate-limited', message }
+  if (e.status === 401) return { reason: 'auth', message }
+  if (e.status === undefined) return { reason: 'offline', message }
+  return { reason: 'error', message }
+}
 
 export function isAiClassifyRequest(message: unknown): message is AiClassifyMessage {
   return (
@@ -28,7 +54,8 @@ export function isAiClassifyRequest(message: unknown): message is AiClassifyMess
 
 /**
  * Ask the background worker to classify the given (already redacted) summaries.
- * Never throws — a missing receiver or backend error resolves to `ok: false`.
+ * Never throws — a missing receiver resolves to an `offline` failure; the
+ * background forwards the backend's mapped cause for everything else.
  */
 export async function requestAiClassify(summaries: FieldSummary[]): Promise<AiClassifyResponse> {
   try {
@@ -39,16 +66,16 @@ export async function requestAiClassify(summaries: FieldSummary[]): Promise<AiCl
     if (response && typeof response === 'object' && 'ok' in response) {
       return response as AiClassifyResponse
     }
-    return { ok: false, error: 'AI unavailable' }
+    return { ok: false, reason: 'error' }
   } catch {
-    return { ok: false, error: 'AI unavailable' }
+    return { ok: false, reason: 'offline' }
   }
 }
 
 /**
  * Register the background handler for classify requests. Returning `true` keeps
- * the message channel open for the async `sendResponse`; handler failures are
- * reported as `ok: false` rather than crashing the worker.
+ * the message channel open for the async `sendResponse`; a handler failure is
+ * mapped to its cause (see {@link aiClassifyReason}) rather than crashing the worker.
  */
 export function onAiClassifyRequest(
   handler: (summaries: FieldSummary[]) => AiSuggestion[] | Promise<AiSuggestion[]>,
@@ -58,10 +85,7 @@ export function onAiClassifyRequest(
     Promise.resolve(handler(message.summaries))
       .then((suggestions) => sendResponse({ ok: true, suggestions } satisfies AiClassifyResponse))
       .catch((error: unknown) =>
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : 'AI unavailable',
-        } satisfies AiClassifyResponse),
+        sendResponse({ ok: false, ...aiClassifyReason(error) } satisfies AiClassifyResponse),
       )
     return true
   })

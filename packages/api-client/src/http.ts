@@ -51,19 +51,24 @@ function joinUrl(baseUrl: string, path: string, query?: Record<string, QueryValu
   return url
 }
 
-/** Pull a human-readable message out of an error body if the API supplied one. */
-async function errorMessage(response: Response): Promise<string> {
+/** Pull the human-readable message and machine `code` out of an error body. */
+async function errorInfo(response: Response): Promise<{ message: string; code?: string }> {
   try {
     const body: unknown = await response.clone().json()
-    if (body && typeof body === 'object' && 'message' in body) {
-      const m = (body as { message: unknown }).message
-      if (typeof m === 'string') return m
-      if (Array.isArray(m)) return m.join(', ')
+    if (body && typeof body === 'object') {
+      const code =
+        'code' in body && typeof (body as { code: unknown }).code === 'string'
+          ? (body as { code: string }).code
+          : undefined
+      const m = 'message' in body ? (body as { message: unknown }).message : undefined
+      if (typeof m === 'string') return { message: m, code }
+      if (Array.isArray(m)) return { message: m.join(', '), code }
+      if (code) return { message: `Request failed (${response.status}).`, code }
     }
   } catch {
     /* fall through to the generic message */
   }
-  return `Request failed (${response.status}).`
+  return { message: `Request failed (${response.status}).` }
 }
 
 export interface RestClient {
@@ -130,7 +135,8 @@ export function createRestClient(config: RestClientConfig): RestClient {
     }
 
     if (!response.ok) {
-      throw new ApiClientError(await errorMessage(response), response.status)
+      const info = await errorInfo(response)
+      throw new ApiClientError(info.message, response.status, info.code)
     }
 
     if (response.status === 204) return undefined as T

@@ -12,13 +12,19 @@ export interface AiClient {
   suggestMappings(fields: FieldSummary[], context?: SuggestContext): Promise<AiSuggestion[]>
 }
 
-/** Error thrown for any non-2xx response or malformed body. Carries the status. */
+/**
+ * Error thrown for any non-2xx response or malformed body. Carries the HTTP
+ * `status` and the backend's machine-readable `code` (e.g. `SERVICE_UNAVAILABLE`,
+ * `QUOTA_EXCEEDED`) so callers can branch on the cause instead of a flat message.
+ */
 export class ApiClientError extends Error {
   readonly status?: number
-  constructor(message: string, status?: number) {
+  readonly code?: string
+  constructor(message: string, status?: number, code?: string) {
     super(message)
     this.name = 'ApiClientError'
     this.status = status
+    this.code = code
   }
 }
 

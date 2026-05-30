@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AiSuggestion, FieldSummary } from '@quikfill/schemas'
 import {
   AI_CLASSIFY,
+  aiClassifyReason,
   isAiClassifyRequest,
   onAiClassifyRequest,
   requestAiClassify,
@@ -51,10 +52,40 @@ describe('requestAiClassify', () => {
     expect(response).toEqual({ ok: true, suggestions })
   })
 
-  it('fails gracefully when the background errors', async () => {
+  it('reports an offline cause when the background is unreachable', async () => {
     installChrome(vi.fn().mockRejectedValue(new Error('no receiver')))
     const response = await requestAiClassify(summaries)
-    expect(response.ok).toBe(false)
+    expect(response).toEqual({ ok: false, reason: 'offline' })
+  })
+})
+
+describe('aiClassifyReason', () => {
+  it('maps a 503 / SERVICE_UNAVAILABLE to "not-configured"', () => {
+    expect(
+      aiClassifyReason({
+        status: 503,
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'AI is not configured',
+      }),
+    ).toEqual({
+      reason: 'not-configured',
+      message: 'AI is not configured',
+    })
+  })
+  it('maps QUOTA_EXCEEDED (429) to "quota"', () => {
+    expect(aiClassifyReason({ status: 429, code: 'QUOTA_EXCEEDED' }).reason).toBe('quota')
+  })
+  it('maps a bare 429 (throttle) to "rate-limited"', () => {
+    expect(aiClassifyReason({ status: 429, code: 'HTTP_ERROR' }).reason).toBe('rate-limited')
+  })
+  it('maps a 401 to "auth"', () => {
+    expect(aiClassifyReason({ status: 401 }).reason).toBe('auth')
+  })
+  it('maps a statusless error (network) to "offline"', () => {
+    expect(aiClassifyReason(new Error('Failed to fetch')).reason).toBe('offline')
+  })
+  it('maps anything else to "error"', () => {
+    expect(aiClassifyReason({ status: 500, code: 'INTERNAL_SERVER_ERROR' }).reason).toBe('error')
   })
 })
 
@@ -69,13 +100,21 @@ describe('onAiClassifyRequest', () => {
     expect(sendResponse).toHaveBeenCalledWith({ ok: true, suggestions })
   })
 
-  it('responds with ok:false when the handler throws', async () => {
+  it('responds with the mapped failure cause when the handler throws', async () => {
     const { listeners } = installChrome()
-    onAiClassifyRequest(vi.fn().mockRejectedValue(new Error('AI unavailable')))
+    const err = Object.assign(new Error('AI is not configured'), {
+      status: 503,
+      code: 'SERVICE_UNAVAILABLE',
+    })
+    onAiClassifyRequest(vi.fn().mockRejectedValue(err))
     const sendResponse = vi.fn()
     listeners[0]({ type: AI_CLASSIFY, summaries }, {}, sendResponse)
     await new Promise((r) => setTimeout(r, 0))
-    expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: 'AI unavailable' })
+    expect(sendResponse).toHaveBeenCalledWith({
+      ok: false,
+      reason: 'not-configured',
+      message: 'AI is not configured',
+    })
   })
 
   it('ignores unrelated messages', () => {

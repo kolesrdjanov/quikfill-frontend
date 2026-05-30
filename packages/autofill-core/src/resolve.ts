@@ -51,9 +51,12 @@ export function resolveFillSource(source: FillSource, ctx: ResolveContext = {}):
 
     case 'aiGenerated':
       // The AI recognized the field (its `hint` is the semantic type) but only
-      // classifies — it never produces a value. With no matching generator or
-      // saved value, there is nothing to fill, so ask the user for one.
-      return needsInput('AI recognized this field but has no value to fill it — enter one.')
+      // classifies — it never produces a value. Quikfill is a real-info filler,
+      // so with no matching saved record (and sample data not opted into) there
+      // is nothing to fill: guide the user to supply or save a value.
+      return needsInput(
+        'Quikfill has no value to fill here yet — add it to your saved records, or turn on sample data in Settings.',
+      )
 
     case 'composed': {
       const parts = source.parts.map((p) => resolveFillSource(p, ctx))

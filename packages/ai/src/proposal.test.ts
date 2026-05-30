@@ -16,39 +16,7 @@ function suggestion(partial: Partial<AiSuggestion> & { fieldId: string }): AiSug
 }
 
 describe('suggestionToProposal', () => {
-  it('maps a generator-backed semantic type to a generatorRule source', () => {
-    const proposal = suggestionToProposal(
-      suggestion({ fieldId: 'a', semanticType: 'person.firstName', confidence: 0.82 }),
-      field({ id: 'a' }),
-    )
-    expect(proposal.fillSource).toEqual({
-      sourceType: 'generatorRule',
-      ruleKey: 'person.firstName',
-    })
-    expect(proposal.generatorRule?.kind).toBe('person')
-    expect(proposal.confidence).toBe(0.82)
-    expect(proposal.fillStrategy).toBe('nativeInput')
-  })
-
-  it('maps a website/URL suggestion to the url generator (not a dead aiGenerated source)', () => {
-    const proposal = suggestionToProposal(
-      suggestion({ fieldId: 'a', semanticType: 'url', confidence: 0.9 }),
-      field({ id: 'a' }),
-    )
-    expect(proposal.fillSource).toEqual({ sourceType: 'generatorRule', ruleKey: 'url' })
-    expect(proposal.generatorRule?.kind).toBe('url')
-  })
-
-  it('falls back to an advisory aiGenerated source when no generator maps', () => {
-    const proposal = suggestionToProposal(
-      suggestion({ fieldId: 'a', semanticType: 'unknown' }),
-      field({ id: 'a' }),
-    )
-    expect(proposal.fillSource).toEqual({ sourceType: 'aiGenerated', hint: 'unknown' })
-    expect(proposal.generatorRule).toBeNull()
-  })
-
-  it('prefers the user saved data (recordField) over a generator when a record matches', () => {
+  it('prefers the user saved data (recordField) over everything when a record matches', () => {
     const proposal = suggestionToProposal(
       suggestion({ fieldId: 'a', semanticType: 'person.firstName' }),
       field({ id: 'a' }),
@@ -63,10 +31,48 @@ describe('suggestionToProposal', () => {
     expect(proposal.generatorRule).toBeNull()
   })
 
+  it('does NOT fall back to sample/generated data by default — it leaves an advisory aiGenerated placeholder', () => {
+    const proposal = suggestionToProposal(
+      suggestion({ fieldId: 'a', semanticType: 'person.firstName', confidence: 0.82 }),
+      field({ id: 'a' }),
+    )
+    expect(proposal.fillSource).toEqual({ sourceType: 'aiGenerated', hint: 'person.firstName' })
+    expect(proposal.generatorRule).toBeNull()
+    expect(proposal.confidence).toBe(0.82)
+    expect(proposal.fillStrategy).toBe('nativeInput')
+  })
+
+  it('uses a generator (clearly-labeled sample data) only when the caller opts in', () => {
+    const proposal = suggestionToProposal(
+      suggestion({ fieldId: 'a', semanticType: 'person.firstName' }),
+      field({ id: 'a' }),
+      null,
+      { allowSampleData: true },
+    )
+    expect(proposal.fillSource).toEqual({
+      sourceType: 'generatorRule',
+      ruleKey: 'person.firstName',
+    })
+    expect(proposal.generatorRule?.kind).toBe('person')
+  })
+
+  it('leaves an unknown type as aiGenerated even when sample data is allowed (no generator maps)', () => {
+    const proposal = suggestionToProposal(
+      suggestion({ fieldId: 'a', semanticType: 'unknown' }),
+      field({ id: 'a' }),
+      null,
+      { allowSampleData: true },
+    )
+    expect(proposal.fillSource).toEqual({ sourceType: 'aiGenerated', hint: 'unknown' })
+    expect(proposal.generatorRule).toBeNull()
+  })
+
   it('infers the fill strategy from the field type', () => {
     const proposal = suggestionToProposal(
       suggestion({ fieldId: 'a', semanticType: 'enum' }),
       field({ id: 'a', inputType: 'select', tagName: 'select' }),
+      null,
+      { allowSampleData: true },
     )
     expect(proposal.fillStrategy).toBe('select')
   })

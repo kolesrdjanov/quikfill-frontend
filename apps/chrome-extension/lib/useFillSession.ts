@@ -11,6 +11,7 @@ import {
   requestProfileReconcile,
   requestScan,
   requestUndo,
+  type AiClassifyReason,
 } from '@quikfill/browser-adapter'
 import {
   buildFillPlan,
@@ -63,6 +64,10 @@ export function useFillSession() {
   // Preferences mirrored in from settings (see the panel's onMounted).
   const autoMatch = ref(true)
   const locale = ref<string>('en-US')
+  // Whether an accepted AI suggestion (or a cycled-to-AI field) may fall back to
+  // synthetic "sample" data when the user has no saved record. Off by default:
+  // Quikfill is a real-info filler. Mirrored from `defaultFillSource`.
+  const allowSampleData = ref(false)
 
   const hostname = ref('')
   const scanning = ref(false)
@@ -118,6 +123,9 @@ export function useFillSession() {
   const aiProposals = ref<Map<string, SuggestionProposal>>(new Map())
   // Per-field status while a single field is being classified via the source pill.
   const aiFieldStatus = ref<Map<string, AiFieldStatus>>(new Map())
+  // The cause of the most recent AI failure, so the panel can show an actionable
+  // message instead of one opaque "AI unavailable". Cleared on the next attempt.
+  const aiError = ref<{ reason: AiClassifyReason; message?: string } | null>(null)
 
   const hideValues = ref(false)
 
@@ -186,6 +194,7 @@ export function useFillSession() {
     aiSuggestions.value = new Map()
     aiProposals.value = new Map()
     aiFieldStatus.value = new Map()
+    aiError.value = null
   }
 
   /** Set or clear a single field's on-demand AI status (immutable map swap for reactivity). */
@@ -450,21 +459,27 @@ export function useFillSession() {
     const field = fields.value.find((f) => f.id === fieldId)
     if (!field) return
     setAiFieldStatus(fieldId, 'loading')
+    aiError.value = null
     // Load saved records alongside the classify request so a match adds no latency.
     const entityReady = ensureEntityData()
     const response = await requestAiClassify(buildFieldSummaries([field]))
     // The field may have been re-cycled away from AI while the request was in flight.
     if (aiFieldStatus.value.get(fieldId) !== 'loading') return
-    const suggestion = response.ok
-      ? response.suggestions.find((s) => s.fieldId === fieldId)
-      : undefined
+    if (!response.ok) {
+      aiError.value = { reason: response.reason, message: response.message }
+      setAiFieldStatus(fieldId, 'unavailable')
+      return
+    }
+    const suggestion = response.suggestions.find((s) => s.fieldId === fieldId)
     if (!suggestion) {
       setAiFieldStatus(fieldId, 'unavailable')
       return
     }
     await entityReady
     const recordMatch = recordMatchForSemanticType(recordIndex.value, suggestion.semanticType)
-    const proposal = suggestionToProposal(suggestion, field, recordMatch)
+    const proposal = suggestionToProposal(suggestion, field, recordMatch, {
+      allowSampleData: allowSampleData.value,
+    })
     const proposals = new Map(aiProposals.value)
     proposals.set(fieldId, proposal)
     aiProposals.value = proposals
@@ -480,10 +495,12 @@ export function useFillSession() {
   async function askAi() {
     if (!ambiguousFields.value.length) return
     aiState.value = 'loading'
+    aiError.value = null
     // Have saved records ready by the time the user accepts a suggestion.
     void ensureEntityData()
     const response = await requestAiClassify(buildFieldSummaries(ambiguousFields.value))
     if (!response.ok) {
+      aiError.value = { reason: response.reason, message: response.message }
       aiState.value = 'unavailable'
       return
     }
@@ -499,7 +516,12 @@ export function useFillSession() {
     if (!suggestion || !field) return
     const recordMatch = recordMatchForSemanticType(recordIndex.value, suggestion.semanticType)
     const proposals = new Map(aiProposals.value)
-    proposals.set(fieldId, suggestionToProposal(suggestion, field, recordMatch))
+    proposals.set(
+      fieldId,
+      suggestionToProposal(suggestion, field, recordMatch, {
+        allowSampleData: allowSampleData.value,
+      }),
+    )
     aiProposals.value = proposals
     const suggestions = new Map(aiSuggestions.value)
     suggestions.delete(fieldId)
@@ -745,6 +767,7 @@ export function useFillSession() {
     // preferences (mirrored from settings)
     autoMatch,
     locale,
+    allowSampleData,
     // state
     hostname,
     scanning,
@@ -772,6 +795,7 @@ export function useFillSession() {
     aiSuggestions,
     aiProposals,
     aiFieldStatus,
+    aiError,
     hideValues,
     // derived
     phase,

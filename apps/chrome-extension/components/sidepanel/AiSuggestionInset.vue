@@ -13,7 +13,7 @@ defineEmits<{ accept: []; reject: [] }>()
     <div class="text-foreground flex items-center justify-between gap-2 font-semibold">
       <span class="flex items-center gap-1.5">
         <WandSparkles class="text-warning size-3.5" />
-        AI suggests <span class="text-primary">{{ suggestion.semanticType }}</span>
+        AI thinks this is <span class="text-primary">{{ suggestion.semanticType }}</span>
       </span>
       <span class="text-muted-foreground tabular-nums">{{ pct(suggestion.confidence) }}</span>
     </div>
