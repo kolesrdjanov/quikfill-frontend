@@ -138,7 +138,7 @@ const GENERATORS: Record<GeneratorKind, (rng: Rng, o: Options, ctx: GenerateCont
     return values.length ? rng.pick(values) : ''
   },
   patterned(rng, o) {
-    const format = str(o, 'format') ?? '########'
+    const format = str(o, 'format') || '########'
     return format.replace(/[#@*]/g, (ch) => {
       if (ch === '#') return String(rng.int(0, 9))
       if (ch === '@') return LETTERS[rng.int(0, 25)]!

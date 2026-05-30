@@ -29,6 +29,15 @@ describe('classifyField — new coverage', () => {
     expect(c.suggestedKind).toBe('patterned')
     expect(c.generatorOptions).toEqual({ format: '##-####' })
   })
+  it('classifies "Employer ID Number" as taxId, not company', () => {
+    expect(classifyField(field({ id: 'f4', labelText: 'Employer ID Number' })).semanticType).toBe(
+      'taxId',
+    )
+  })
+  it('prefers a keyword match over the masked fallback', () => {
+    const c = classifyField(field({ id: 'f5', labelText: 'Phone', mask: '(###) ###-####' }))
+    expect(c.semanticType).toBe('phone')
+  })
 })
 
 describe('classifyField', () => {

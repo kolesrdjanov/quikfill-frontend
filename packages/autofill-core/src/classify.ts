@@ -75,6 +75,7 @@ const KEYWORD_RULES: KeywordRule[] = [
     confidence: 0.85,
   },
   { semanticType: 'person.fullName', re: /full.?name|your name|\bname\b/, confidence: 0.6 },
+  { semanticType: 'taxId', re: /\bein\b|\bfein\b|employer id|tax.?id/, confidence: 0.8 },
   { semanticType: 'company', re: /company|organi[sz]ation|employer|business/, confidence: 0.8 },
   { semanticType: 'address.zip', re: /zip|postal/, confidence: 0.85 },
   { semanticType: 'address.city', re: /\bcity\b|town/, confidence: 0.8 },
@@ -86,7 +87,6 @@ const KEYWORD_RULES: KeywordRule[] = [
   { semanticType: 'currency', re: /price|salary|cost|currency|amount/, confidence: 0.7 },
   { semanticType: 'date', re: /\bdate\b|\bdob\b|birth/, confidence: 0.75 },
   { semanticType: 'ssn', re: /\bssn\b|social.?security/, confidence: 0.85 },
-  { semanticType: 'taxId', re: /\bein\b|\bfein\b|employer id|tax.?id/, confidence: 0.8 },
   {
     semanticType: 'username',
     re: /user.?name|\bhandle\b|nickname|screen.?name|display.?name|\balias\b/,

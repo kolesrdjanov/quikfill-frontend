@@ -114,7 +114,6 @@ const SEMANTIC_ALIASES: Record<string, SemanticType> = {
   description: 'notes',
   ein: 'taxId',
   fein: 'taxId',
-  taxid: 'taxId',
   employeridentificationnumber: 'taxId',
   socialsecurity: 'ssn',
   socialsecuritynumber: 'ssn',
