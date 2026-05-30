@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ExternalLink, LogOut, ShieldCheck, Trash2 } from 'lucide-vue-next'
 import {
   Badge,
@@ -131,6 +131,12 @@ async function clearData() {
     <!-- AI -->
     <Card>
       <CardHeader><CardTitle>AI assistance</CardTitle></CardHeader>
+      <OptionRow stacked :title="planName" :subtitle="planUsage">
+        <Button variant="outline" size="sm" @click="openBilling">
+          <ExternalLink class="size-4" />
+          Manage plan
+        </Button>
+      </OptionRow>
       <OptionRow
         stacked
         title="QuikFill AI"

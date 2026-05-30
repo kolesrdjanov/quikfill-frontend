@@ -18,13 +18,24 @@ import AuthStatusBadge from '../../components/auth/AuthStatusBadge.vue'
 import { useSettings } from '../../lib/useSettings'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
+import { useEntitlements } from '../../lib/useEntitlements'
 
 const HELP_URL = 'http://localhost:5173/'
 
 const { load: loadSettings } = useSettings()
 const { init: initTheme } = useExtensionTheme()
 const gate = useAuthGate()
+const entitlements = useEntitlements()
 const store = createProfileStore(createChromeStorageAdapter())
+
+/** At-a-glance plan + AI budget line for the signed-in launcher. */
+const planLine = computed(() => {
+  if (!gate.isAppReady.value || !entitlements.known.value) return null
+  const name = entitlements.planName.value ?? 'Plan'
+  if (entitlements.isUnlimited.value) return `${name} · Unlimited AI`
+  if (entitlements.isOverQuota.value) return `${name} · AI limit reached`
+  return `${name} · ≈ ${entitlements.fillsRemaining.value.toLocaleString()} AI fills left`
+})
 
 const profileCount = ref(0)
 const domainCount = ref(0)
@@ -163,6 +174,8 @@ function openHelp() {
           <span class="text-muted-foreground block text-[11px]">{{ dataSummary() }}</span>
         </span>
       </button>
+
+      <p v-if="planLine" class="text-muted-foreground px-1 text-[11px]">{{ planLine }}</p>
 
       <button
         type="button"
