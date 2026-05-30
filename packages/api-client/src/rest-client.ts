@@ -19,6 +19,9 @@ import {
   generatorPresetSchema,
   magicLinkRequestedSchema,
   userAccountSchema,
+  entitlementsResponseSchema,
+  createCheckoutSessionInputSchema,
+  sessionUrlResponseSchema,
 } from '@quikfill/schemas'
 import type {
   AuthTokens,
@@ -48,6 +51,9 @@ import type {
   UpdateGeneratorPresetInput,
   UpdateProfileInput,
   UserAccount,
+  Entitlements,
+  CreateCheckoutSessionInput,
+  SessionUrlResponse,
 } from '@quikfill/schemas'
 import { createRestClient } from './http'
 import type { RestClient, RestClientConfig } from './http'
@@ -122,6 +128,17 @@ export interface ApiClient {
     get(id: string, signal?: AbortSignal): Promise<FillRun>
     create(input: CreateFillRunInput, signal?: AbortSignal): Promise<FillRun>
     update(id: string, input: UpdateFillRunInput, signal?: AbortSignal): Promise<FillRun>
+  }
+  subscriptions: {
+    /** Current plan, token usage and limits for the signed-in user. */
+    entitlements(signal?: AbortSignal): Promise<Entitlements>
+    /** Start a Stripe Checkout for a paid plan; returns the hosted URL. */
+    createCheckoutSession(
+      input: CreateCheckoutSessionInput,
+      signal?: AbortSignal,
+    ): Promise<SessionUrlResponse>
+    /** Open the Stripe Customer Portal (cards, invoices, cancel); returns the URL. */
+    createPortalSession(signal?: AbortSignal): Promise<SessionUrlResponse>
   }
 }
 
@@ -276,6 +293,25 @@ export function createApiClient(config: RestClientConfig): ApiClient {
       update: (id, input, signal) =>
         rest.patch(`/fill-runs/${id}`, updateFillRunInputSchema.parse(input), {
           schema: fillRunSchema,
+          signal,
+        }),
+    },
+
+    subscriptions: {
+      entitlements: (signal) =>
+        rest.get('/entitlements', { schema: entitlementsResponseSchema, signal }),
+      createCheckoutSession: (input, signal) =>
+        rest.post(
+          '/subscriptions/checkout-session',
+          createCheckoutSessionInputSchema.parse(input),
+          {
+            schema: sessionUrlResponseSchema,
+            signal,
+          },
+        ),
+      createPortalSession: (signal) =>
+        rest.post('/subscriptions/portal-session', undefined, {
+          schema: sessionUrlResponseSchema,
           signal,
         }),
     },
