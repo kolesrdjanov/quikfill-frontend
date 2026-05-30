@@ -1,10 +1,4 @@
-export {
-  createAiClient,
-  ApiClientError,
-  type AiClient,
-  type AiClientConfig,
-  type SuggestContext,
-} from './ai-client'
+export { createAiClient, ApiClientError, type AiClient, type SuggestContext } from './ai-client'
 
 export {
   createRestClient,

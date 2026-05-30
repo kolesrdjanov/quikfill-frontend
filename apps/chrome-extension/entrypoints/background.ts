@@ -50,8 +50,10 @@ export default defineBackground(() => {
   })
   const auth = createBackgroundAuth({ api, store })
 
-  // The AI client shares the same session, so classify calls now carry the token.
-  const ai = createAiClient({ baseUrl: API_BASE_URL, getAuthToken: () => store.getAccess() })
+  // The AI client runs over the REST client's authenticated transport, so
+  // classify calls carry the token AND share its 401 → refresh → retry (with a
+  // single coalesced refresh — vital since refresh tokens are single-use).
+  const ai = createAiClient(api.rest)
 
   onAuthRequest(auth.handlers)
   onAiClassifyRequest((summaries) => ai.classifyFields(summaries))

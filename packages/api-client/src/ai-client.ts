@@ -1,18 +1,10 @@
 import { aiSuggestionSchema, type AiSuggestion, type FieldSummary } from '@quikfill/schemas'
+import type { RestClient } from './http'
 
 /** Context the backend may use to suggest concrete fill sources. */
 export interface SuggestContext {
   entityTypes?: { id: string; name: string; fieldKeys: string[] }[]
   generatorPresetKinds?: string[]
-}
-
-export interface AiClientConfig {
-  /** API root, e.g. `http://localhost:4010/api/v1` (trailing slash optional). */
-  baseUrl: string
-  /** Injectable transport — defaults to the global `fetch`. */
-  fetch?: typeof fetch
-  /** Returns the current access token, if any. */
-  getAuthToken?: () => string | undefined | Promise<string | undefined>
 }
 
 export interface AiClient {
@@ -30,10 +22,6 @@ export class ApiClientError extends Error {
   }
 }
 
-function join(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
-}
-
 /** Keep only schema-valid suggestions; AI output is always untrusted. */
 function parseSuggestions(body: unknown): AiSuggestion[] {
   if (!Array.isArray(body)) {
@@ -47,24 +35,16 @@ function parseSuggestions(body: unknown): AiSuggestion[] {
   return suggestions
 }
 
-export function createAiClient(config: AiClientConfig): AiClient {
-  const transport = config.fetch ?? globalThis.fetch
-
+/**
+ * AI endpoints run over the shared authenticated {@link RestClient}, so classify
+ * / suggest calls carry the bearer token AND inherit its 401 → refresh → retry
+ * with coalesced concurrent refresh. This sharing is required, not just tidy:
+ * giving the AI client its own refresh would race the REST client against the
+ * backend's single-use refresh-token rotation and could sign the user out.
+ */
+export function createAiClient(rest: RestClient): AiClient {
   async function post(path: string, payload: unknown): Promise<AiSuggestion[]> {
-    const headers: Record<string, string> = { 'content-type': 'application/json' }
-    const token = await config.getAuthToken?.()
-    if (token) headers.Authorization = `Bearer ${token}`
-
-    const response = await transport(join(config.baseUrl, path), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    })
-
-    if (!response.ok) {
-      throw new ApiClientError(`AI request failed (${response.status}).`, response.status)
-    }
-    return parseSuggestions(await response.json())
+    return parseSuggestions(await rest.post<unknown>(path, payload))
   }
 
   return {
