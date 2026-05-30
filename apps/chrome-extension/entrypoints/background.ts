@@ -2,12 +2,15 @@ import { createAiClient, createApiClient } from '@quikfill/api-client'
 import {
   AUTH_STATE_KEY,
   createBackgroundAuth,
+  createBackgroundEntitlements,
   createBackgroundSync,
   createChromeAuthStore,
+  createChromeEntitlementsStore,
   createChromeStorageAdapter,
   createProfileStore,
   onAiClassifyRequest,
   onAuthRequest,
+  onEntitlementsRequest,
   onEntityDataRequest,
   onFillRunRecordRequest,
   onProfileSyncRequest,
@@ -56,6 +59,13 @@ export default defineBackground(() => {
   })
   const auth = createBackgroundAuth({ api, store })
 
+  // Background-owned entitlements: cached in chrome.storage.local for the panel
+  // to read, refreshed via the authenticated api-client (background-only).
+  const entitlements = createBackgroundEntitlements({
+    api,
+    store: createChromeEntitlementsStore(),
+  })
+
   // The AI client runs over the REST client's authenticated transport, so
   // classify calls carry the token AND share its 401 → refresh → retry (with a
   // single coalesced refresh — vital since refresh tokens are single-use).
@@ -93,6 +103,7 @@ export default defineBackground(() => {
   })
 
   onAuthRequest(auth.handlers)
+  onEntitlementsRequest(entitlements.handlers)
   onAiClassifyRequest(async (summaries) =>
     ai.suggestMappings(summaries, await buildSuggestContext()),
   )
@@ -109,6 +120,10 @@ export default defineBackground(() => {
     const [types, records] = await Promise.all([api.entityTypes.list(), api.entityRecords.list()])
     return { types, records }
   })
+
+  // Warm the entitlements cache so the panel can show plan + usage immediately
+  // (best-effort: a signed-out / offline worker just keeps an empty snapshot).
+  void entitlements.refresh()
 
   // Keep the toolbar badge in sync with the session snapshot every surface reads.
   void Promise.resolve(auth.handlers.getState()).then(reflectBadge)
