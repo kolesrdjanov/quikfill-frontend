@@ -50,7 +50,10 @@ export function resolveFillSource(source: FillSource, ctx: ResolveContext = {}):
       return needsInput(`Needs input: ${source.promptLabel}`)
 
     case 'aiGenerated':
-      return needsInput("AI couldn't determine a value for this field.")
+      // The AI recognized the field (its `hint` is the semantic type) but only
+      // classifies — it never produces a value. With no matching generator or
+      // saved value, there is nothing to fill, so ask the user for one.
+      return needsInput('AI recognized this field but has no value to fill it — enter one.')
 
     case 'composed': {
       const parts = source.parts.map((p) => resolveFillSource(p, ctx))

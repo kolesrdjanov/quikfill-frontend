@@ -48,7 +48,7 @@ describe('resolveFillSource', () => {
   it('uses user-facing copy for unresolved AI sources (no internal roadmap leak)', () => {
     const r = resolveFillSource({ sourceType: 'aiGenerated', hint: 'x' })
     expect(r.requiresConfirmation).toBe(true)
-    expect(r.warnings[0]).toMatch(/couldn't determine a value/i)
+    expect(r.warnings[0]).toMatch(/no value to fill/i)
     expect(r.warnings.join(' ')).not.toMatch(/iteration/i)
   })
 
