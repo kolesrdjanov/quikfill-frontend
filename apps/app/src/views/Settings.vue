@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import { BadgeCheck, ShieldAlert } from 'lucide-vue-next'
 import {
   Badge,
@@ -12,18 +13,30 @@ import {
   Label,
   toast,
 } from '@quikfill/ui'
+import { isUnlimited, usagePercent } from '@quikfill/schemas'
 import { useAuthStore } from '@/stores/auth'
+import { useSubscriptionStore } from '@/stores/subscription'
 import { useApiError } from '@/composables/useApiError'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { profileFormSchema } from '@/schemas/forms'
 import { formatDateTime } from '@/lib/format'
 
 const auth = useAuthStore()
+const subscription = useSubscriptionStore()
 const { handleError } = useApiError()
 
 const { handleSubmit, defineField, isSubmitting, resetForm } = useFormValidation(profileFormSchema)
 const [firstName, firstNameAttrs] = defineField('firstName')
 const [lastName, lastNameAttrs] = defineField('lastName')
+
+const planUnlimited = computed(
+  () => !!subscription.entitlements && isUnlimited(subscription.entitlements.tokenLimit),
+)
+const planPercent = computed(() =>
+  subscription.entitlements
+    ? usagePercent(subscription.entitlements.tokensUsed, subscription.entitlements.tokenLimit)
+    : 0,
+)
 
 /** Seed the form from the currently signed-in user. */
 function seed(): void {
@@ -36,6 +49,14 @@ function seed(): void {
 }
 
 onMounted(seed)
+
+onMounted(async () => {
+  try {
+    await subscription.fetch()
+  } catch (error) {
+    handleError(error)
+  }
+})
 
 const verified = computed(() => !!auth.user?.emailVerifiedAt)
 
@@ -110,6 +131,26 @@ const onSubmit = handleSubmit(async (values) => {
             <dd class="font-medium">{{ formatDateTime(auth.user?.createdAt) }}</dd>
           </div>
         </dl>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader class="flex flex-row items-center justify-between">
+        <CardTitle>Subscription</CardTitle>
+        <RouterLink to="/billing" class="text-primary text-sm font-medium hover:underline">
+          Manage billing
+        </RouterLink>
+      </CardHeader>
+      <CardContent>
+        <div v-if="subscription.entitlements" class="flex flex-wrap items-center gap-2 text-sm">
+          <span class="font-medium">{{ subscription.entitlements.displayName }}</span>
+          <Badge :variant="subscription.entitlements.status === 'active' ? 'success' : 'warning'">
+            {{ subscription.entitlements.status }}
+          </Badge>
+          <span v-if="planUnlimited" class="text-muted-foreground">· Unlimited AI</span>
+          <span v-else class="text-muted-foreground">· {{ planPercent }}% of AI used</span>
+        </div>
+        <p v-else class="text-muted-foreground text-sm">Loading plan…</p>
       </CardContent>
     </Card>
   </div>

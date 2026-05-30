@@ -51,6 +51,24 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Settings.vue'),
   },
   {
+    path: '/billing',
+    name: 'billing',
+    meta: { layout: 'app', requiresAuth: true, title: 'Billing' },
+    component: () => import('@/views/Billing.vue'),
+  },
+  {
+    path: '/billing/success',
+    name: 'billing-success',
+    meta: { layout: 'app', requiresAuth: true, title: 'Billing' },
+    component: () => import('@/views/BillingSuccess.vue'),
+  },
+  {
+    path: '/billing/cancel',
+    name: 'billing-cancel',
+    meta: { layout: 'app', requiresAuth: true, title: 'Billing' },
+    component: () => import('@/views/BillingCancel.vue'),
+  },
+  {
     path: '/sign-in',
     name: 'sign-in',
     meta: { layout: 'auth', title: 'Sign in' },
@@ -84,7 +102,7 @@ router.beforeEach(async (to) => {
 
 router.afterEach((to) => {
   const title = to.meta.title as string | undefined
-  document.title = title ? `${title} · Quikfill` : 'Quikfill'
+  document.title = title ? `${title} · QuikFill` : 'QuikFill'
 })
 
 export default router

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
+  CreditCard,
   Database,
   Dices,
   FileText,
@@ -30,6 +31,7 @@ const nav = [
   { label: 'Apps', to: '/apps', icon: Globe },
   { label: 'Form Profiles', to: '/form-profiles', icon: FileText },
   { label: 'Fill History', to: '/fill-history', icon: History },
+  { label: 'Billing', to: '/billing', icon: CreditCard },
 ]
 
 function isActive(to: string): boolean {
@@ -37,7 +39,7 @@ function isActive(to: string): boolean {
   return route.path === to || route.path.startsWith(`${to}/`)
 }
 
-const title = computed(() => (route.meta.title as string | undefined) ?? 'Quikfill')
+const title = computed(() => (route.meta.title as string | undefined) ?? 'QuikFill')
 
 const displayName = computed(() => {
   const user = auth.user
