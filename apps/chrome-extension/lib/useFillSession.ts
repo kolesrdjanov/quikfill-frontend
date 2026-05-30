@@ -718,7 +718,13 @@ export function useFillSession() {
     try {
       const result = await requestProfileReconcile()
       if (result.ok) {
-        syncMessage.value = `Synced — ${result.pushed} up, ${result.pulled} down.`
+        const moved = `${result.pushed} up, ${result.pulled} down`
+        // A skipped record is a malformed/legacy local one the backend rejected;
+        // call it out so it's not mistaken for a silent data loss.
+        syncMessage.value =
+          result.failed > 0
+            ? `Synced — ${moved}, ${result.failed} skipped (could not be synced).`
+            : `Synced — ${moved}.`
       } else {
         // Surface the real reason instead of a blanket "check your connection":
         // `unreachable` means the background worker/network is down, anything else

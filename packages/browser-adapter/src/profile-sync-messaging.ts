@@ -16,9 +16,13 @@ export type ProfileSyncMessage =
 
 /** Background → surface reply for a single write-through push. */
 export type PushResult = { ok: true } | { ok: false; error: string }
-/** Background → surface reply for a full reconcile, with how much moved each way. */
+/**
+ * Background → surface reply for a full reconcile, with how much moved each way.
+ * `failed` counts records skipped because they couldn't be pushed (e.g. a
+ * malformed/legacy local record the backend rejects) — the rest still sync.
+ */
 export type ReconcileResult =
-  | { ok: true; pushed: number; pulled: number }
+  | { ok: true; pushed: number; pulled: number; failed: number }
   | { ok: false; error: string }
 
 /** The background-side implementations the registrar dispatches to. */

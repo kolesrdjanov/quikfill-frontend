@@ -72,31 +72,40 @@ export function createBackgroundSync({
     local: T[],
     saveLocal: (record: T) => Promise<void>,
     push: (record: T) => Promise<T>,
-  ): Promise<{ pushed: number; pulled: number }> {
+  ): Promise<{ pushed: number; pulled: number; failed: number }> {
     const remoteById = new Map(remote.map((r) => [r.id, r]))
     const localById = new Map(local.map((l) => [l.id, l]))
     let pushed = 0
     let pulled = 0
+    let failed = 0
     for (const id of new Set([...remoteById.keys(), ...localById.keys()])) {
-      const r = remoteById.get(id)
-      const l = localById.get(id)
-      if (r && l) {
-        if (isNewer(r, l)) {
+      // Isolate each record: a single un-pushable one (e.g. a malformed/legacy
+      // local mapping the backend or input validation rejects) must not abort the
+      // whole reconcile — skip and count it so every other record still syncs.
+      try {
+        const r = remoteById.get(id)
+        const l = localById.get(id)
+        if (r && l) {
+          if (isNewer(r, l)) {
+            await saveLocal(r)
+            pulled++
+          } else if (isNewer(l, r)) {
+            await saveLocal(await push(l))
+            pushed++
+          }
+        } else if (r) {
           await saveLocal(r)
           pulled++
-        } else if (isNewer(l, r)) {
+        } else if (l) {
           await saveLocal(await push(l))
           pushed++
         }
-      } else if (r) {
-        await saveLocal(r)
-        pulled++
-      } else if (l) {
-        await saveLocal(await push(l))
-        pushed++
+      } catch (error) {
+        failed++
+        console.warn(`[quikfill] sync: skipped record ${id}`, errorMessage(error))
       }
     }
-    return { pushed, pulled }
+    return { pushed, pulled, failed }
   }
 
   /** Write one saved bundle through to the backend (domain → profile → mappings). */
@@ -121,6 +130,7 @@ export function createBackgroundSync({
     try {
       let pushed = 0
       let pulled = 0
+      let failed = 0
 
       const [remoteDomains, localDomains] = await Promise.all([
         api.domains.list(),
@@ -134,6 +144,7 @@ export function createBackgroundSync({
       )
       pushed += d.pushed
       pulled += d.pulled
+      failed += d.failed
 
       const [remoteProfiles, localProfiles] = await Promise.all([
         api.formProfiles.list(),
@@ -147,6 +158,7 @@ export function createBackgroundSync({
       )
       pushed += p.pushed
       pulled += p.pulled
+      failed += p.failed
 
       // Re-list so every profile present after the merge (local-kept + pulled)
       // gets its mappings reconciled.
@@ -163,9 +175,10 @@ export function createBackgroundSync({
         )
         pushed += m.pushed
         pulled += m.pulled
+        failed += m.failed
       }
 
-      return { ok: true, pushed, pulled }
+      return { ok: true, pushed, pulled, failed }
     } catch (error) {
       return { ok: false, error: errorMessage(error) }
     }

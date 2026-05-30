@@ -139,7 +139,7 @@ describe('createBackgroundSync — reconcile', () => {
 
     const result = await createBackgroundSync({ api, store }).handlers.reconcile()
 
-    expect(result).toEqual({ ok: true, pushed: 3, pulled: 0 })
+    expect(result).toEqual({ ok: true, pushed: 3, pulled: 0, failed: 0 })
     expect(domains.has('d1')).toBe(true)
     expect(profiles.has('p1')).toBe(true)
     expect(mappings.has('m1')).toBe(true)
@@ -154,7 +154,7 @@ describe('createBackgroundSync — reconcile', () => {
 
     const result = await createBackgroundSync({ api, store }).handlers.reconcile()
 
-    expect(result).toEqual({ ok: true, pushed: 0, pulled: 3 })
+    expect(result).toEqual({ ok: true, pushed: 0, pulled: 3, failed: 0 })
     expect((await store.getDomain('d1'))?.name).toBe('acme')
     expect((await store.listMappings('p1')).map((m) => m.id)).toEqual(['m1'])
   })
@@ -192,7 +192,7 @@ describe('createBackgroundSync — reconcile', () => {
     const sync = createBackgroundSync({ api, store })
 
     await sync.handlers.reconcile()
-    expect(await sync.handlers.reconcile()).toEqual({ ok: true, pushed: 0, pulled: 0 })
+    expect(await sync.handlers.reconcile()).toEqual({ ok: true, pushed: 0, pulled: 0, failed: 0 })
   })
 
   it('reports a failure without throwing when a list call rejects', async () => {
@@ -205,5 +205,29 @@ describe('createBackgroundSync — reconcile', () => {
       ok: false,
       error: 'offline',
     })
+  })
+
+  it('skips a single un-pushable record instead of aborting the whole sync', async () => {
+    // A malformed/legacy local mapping the backend (or input validation) rejects
+    // must not brick sync for every other record — it is skipped and counted.
+    const { api, mappings } = fakeBackend()
+    const create = api.formProfiles.createMapping
+    api.formProfiles.createMapping = async (fp, input) => {
+      if (input.id === 'bad') throw new Error('invalid mapping shape')
+      return create(fp, input)
+    }
+    const store = createProfileStore(memoryAdapter())
+    await store.saveBundle({
+      domain: domain('d1', 'acme', OLD),
+      profile: profile('p1', 'signup', OLD),
+      mappings: [mapping('good', OLD), mapping('bad', OLD)],
+    })
+
+    const result = await createBackgroundSync({ api, store }).handlers.reconcile()
+
+    // domain + profile + the good mapping push; the bad mapping is skipped.
+    expect(result).toEqual({ ok: true, pushed: 3, pulled: 0, failed: 1 })
+    expect(mappings.has('good')).toBe(true)
+    expect(mappings.has('bad')).toBe(false)
   })
 })
