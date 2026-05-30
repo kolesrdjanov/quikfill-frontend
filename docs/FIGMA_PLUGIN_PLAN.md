@@ -302,18 +302,24 @@ build risk #3). The 16% forms false-fill is the weakest axis (e.g. `Card Number`
 
 ## Proposed structure (for the implementer)
 
+> **Full file-by-file scope** — realms, exports/signatures, dependencies, the lean
+> schema additions, and the adversarial-review corrections — lives in
+> [`FIGMA_ADAPTER_SCOPE.md`](./FIGMA_ADAPTER_SCOPE.md). Summary:
+
 ```txt
 packages/
-  figma-adapter/        # NEW — Figma-API-aware, NOT Vue-aware (mirrors form-scanner)
+  figma-adapter/        # NEW — Figma-API-aware, NOT Vue-aware, sandbox-pure (mirrors form-scanner)
     src/scan-figma.ts    # nodes → DetectedField (synthesize id/tagName/inputType/domFingerprint, route name→labelText)
-    src/fill-figma.ts    # plan → loadFontAsync (all fonts) → characters/insertCharacters + undo
-    src/bridge.ts        # postMessage transport (+ optional network relay)
-    src/storage-figma.ts # figma.clientStorage behind StorageAdapter (JSON-serialized)
+    src/fill-figma.ts    # FillInstruction[] → loadFontAsync (all fonts) → node.characters + undo; never throws per field
+    src/fonts.ts         # figma.mixed + missing-font handling (the one piece with no form-scanner analog)
+    src/fingerprint-figma.ts # stable domFingerprint (the persona moat) — best-effort under benign edits
+    src/storage-figma.ts # figma.clientStorage behind StorageAdapter (sandbox-only; objects, NOT JSON-serialized)
+    src/bridge.ts        # sandbox-side postMessage envelope + shared constants/guards (id-correlated)
 apps/
   figma-plugin/         # NEW
-    manifest.json        # name, id, api, editorType:["figma"], main, ui, networkAccess.allowedDomains
-    src/code.ts          # sandbox entry — traverse + write + undo (bundled IIFE)
-    src/ui/              # Vue iframe — reuse @quikfill/ui, mirror side-panel UX (single-file)
+    manifest.json        # name, id, api, editorType:["figma"], main, ui, networkAccess.{allowedDomains,reasoning}
+    src/code.ts          # sandbox entry — registers scan/fill/undo/storage handlers (bundled IIFE)
+    src/ui/              # Vue iframe — engine + ALL network + iframe-side transport; reuse @quikfill/ui (single-file)
 ```
 
 ## Conventions this must follow (same as the rest of the repo)
