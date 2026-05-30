@@ -80,8 +80,8 @@ const KEYWORD_RULES: KeywordRule[] = [
   { semanticType: 'address.line1', re: /address|street/, confidence: 0.75 },
   { semanticType: 'url', re: /website|\burl\b|homepage/, confidence: 0.8 },
   { semanticType: 'currency', re: /price|salary|cost|currency|amount/, confidence: 0.7 },
-  { semanticType: 'date', re: /date|\bdob\b|birth/, confidence: 0.75 },
-  { semanticType: 'number', re: /number|\bqty\b|quantity|count/, confidence: 0.65 },
+  { semanticType: 'date', re: /\bdate\b|\bdob\b|birth/, confidence: 0.75 },
+  { semanticType: 'number', re: /number|\bqty\b|quantity|\bcounts?\b/, confidence: 0.65 },
   { semanticType: 'notes', re: /message|comment|\bnote|\bbio\b|description/, confidence: 0.7 },
 ]
 

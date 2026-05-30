@@ -158,17 +158,17 @@ describe('Figma layer-name classification spike (R2 gate)', () => {
     expect(falsePositives).toEqual([])
   })
 
-  // These pin known precision bugs in classify.ts so a future fix is noticed.
-  // When the regexes are tightened (word boundaries / 'created' handling), flip
-  // these expectations — that is the signal the bug was fixed, not a regression.
-  describe('known precision bugs — flip these assertions when classify.ts is fixed', () => {
-    it('"Discount" and "County" wrongly classify as number (substring "count")', () => {
-      expect(semanticOf('Discount')).toBe('number')
-      expect(semanticOf('County')).toBe('number')
+  // classify.ts was tightened to use word-boundary keywords, so these substring
+  // false-positives are now fixed (see classify-precision.test.ts for the
+  // canonical regression tests + the legitimate count/date fields still matching).
+  describe('classifier precision (fixed with word-boundary keywords)', () => {
+    it('"Discount" and "County" are no longer mis-classified as number', () => {
+      expect(semanticOf('Discount')).not.toBe('number')
+      expect(semanticOf('County')).not.toBe('number')
     })
 
-    it('"Updated" matches date by substring while "Created" is missed', () => {
-      expect(semanticOf('Updated')).toBe('date')
+    it('"Updated" and "Created" are now treated consistently (no date-by-substring)', () => {
+      expect(semanticOf('Updated')).toBe('unknown')
       expect(semanticOf('Created')).toBe('unknown')
     })
   })
