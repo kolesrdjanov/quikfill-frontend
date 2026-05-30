@@ -16,7 +16,15 @@ const props = defineProps<{
   suggestion?: AiSuggestion
   aiStatus?: AiFieldStatus
 }>()
-defineEmits<{ toggle: []; cycle: []; accept: []; reject: []; retry: []; remove: [] }>()
+defineEmits<{
+  toggle: []
+  cycle: []
+  accept: []
+  reject: []
+  retry: []
+  remove: []
+  openSettings: []
+}>()
 
 const meta = computed(() => SOURCE_META[props.item.fillSource.sourceType])
 // Custom selects always fill with the first available option (the actual option
@@ -27,6 +35,7 @@ const proposed = computed(() =>
     ? 'First available option'
     : mask(props.item.proposedValue, !!props.hideValues) || '—',
 )
+const needsValue = computed(() => props.item.fillSource.sourceType === 'aiGenerated')
 </script>
 
 <template>
@@ -95,6 +104,19 @@ const proposed = computed(() =>
         <ShieldAlert class="size-3.5" />
         Needs your confirmation before submit
       </p>
+      <div v-if="needsValue && !excluded" class="mt-2 flex flex-wrap items-center gap-2">
+        <span class="text-muted-foreground text-[11px]">
+          Switch the source above to <strong>Saved</strong> or <strong>Sample</strong>, or
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-6 px-2 text-[11px]"
+          @click="$emit('openSettings')"
+        >
+          Turn on sample data
+        </Button>
+      </div>
     </template>
 
     <AiSuggestionInset

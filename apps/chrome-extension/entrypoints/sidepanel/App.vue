@@ -105,7 +105,7 @@ const canAskAi = computed(() => s.hasAmbiguous.value && aiAvailable.value)
 const aiUnavailableMessage = computed(() =>
   s.aiError.value
     ? AI_REASON_MESSAGE[s.aiError.value.reason]
-    : 'Quikfill AI is unavailable — it’s optional, you can still preview and fill.',
+    : 'QuikFill AI is unavailable — it’s optional, you can still preview and fill.',
 )
 
 const siteInitial = computed(
@@ -332,6 +332,7 @@ const fieldContext = computed(() => {
           @reject="s.rejectSuggestion(item.detectedFieldId)"
           @retry="s.classifyField(item.detectedFieldId)"
           @remove="s.remove(item.detectedFieldId)"
+          @open-settings="view = 'settings'"
         />
 
         <LimitationsDisclosure :limitations="s.limitations.value" />
@@ -424,7 +425,7 @@ const fieldContext = computed(() => {
           @click="s.askAi()"
         >
           <WandSparkles class="size-4" />
-          {{ s.aiState.value === 'loading' ? 'Asking AI…' : 'Ask Quikfill AI' }}
+          {{ s.aiState.value === 'loading' ? 'Asking AI…' : 'Ask QuikFill AI' }}
         </Button>
       </template>
 
