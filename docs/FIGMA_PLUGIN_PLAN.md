@@ -243,7 +243,8 @@ collapses to the keyword regex over `labelText` (capped ~0.85).
 
 **Prototype result (2026-05-30):** bimodal — **~92%** useful on form mockups (0
 decoration false-positives), **~47%** on dashboard/table vocabulary, **~60–70%**
-blended. The fixture also pins two known precision bugs (below).
+blended. The fixture also guards two classifier precision bugs it surfaced —
+now **fixed** in `classify.ts` with word-boundary keywords (see build risk #3).
 
 **Gate (two-tier, because one threshold can't express a bimodal result):**
 
@@ -262,10 +263,12 @@ blended. The fixture also pins two known precision bugs (below).
 2. **Network shim** — the sandbox has no standards `fetch`; pick `figma.fetch` + a
    `Response`-shape shim, or an iframe `postMessage` transport with backend CORS
    `Access-Control-Allow-Origin: *` (see realm split). Declare `networkAccess.allowedDomains`.
-3. **Classifier precision** — the recall-only framing misses wrong-fills:
-   `classify.ts:84` `/…|count/` matches `county`/`discount` → `number`; `classify.ts:83`
-   matches `updated` → `date` but `created` → `unknown`. Fix with word boundaries and
-   have the gate score precision (the spike fixture witnesses both).
+3. **Classifier precision** — the recall-only framing can hide wrong-fills. Two such
+   substring bugs the spike surfaced are now **fixed**: `count` matched
+   `county`/`discount` → `number`, and `date` matched `updated`/`validate` → `date`
+   (while `created` fell through, an inconsistency). Both now use word boundaries
+   (`classify-precision.test.ts` is the regression guard). The lesson stands: have the
+   gate score **precision**, not just recall.
 4. **Font loading** — mixed fonts in one node (`figma.mixed`) and fonts not installed
    locally (`loadFontAsync` rejects). Load **all** fonts in a node before writing;
    decide skip-vs-fallback and surface skips in results.
