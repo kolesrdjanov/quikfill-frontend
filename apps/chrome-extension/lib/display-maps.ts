@@ -32,7 +32,12 @@ export const SOURCE_META: Record<FillSourceType, SourceMeta> = {
   // Synthetic, generated values — labeled "Sample" everywhere so they are never
   // mistaken for the user's real information.
   generatorRule: { label: 'Sample data', short: 'Sample', badge: 'info', icon: Dices },
-  aiGenerated: { label: 'Needs a value', short: 'Add value', badge: 'warning', icon: WandSparkles },
+  aiGenerated: {
+    label: 'Needs a value',
+    short: 'No value yet',
+    badge: 'warning',
+    icon: WandSparkles,
+  },
   staticValue: { label: 'Static value', short: 'Static', badge: 'gray', icon: Pin },
   runtimeValue: { label: 'Ask me', short: 'Ask me', badge: 'gray', icon: MessageSquareText },
   composed: { label: 'Composed', short: 'Composed', badge: 'primary', icon: Blocks },
