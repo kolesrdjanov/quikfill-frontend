@@ -16,8 +16,8 @@ flow revamp. It supersedes the side-panel scan → preview → AI-suggestion →
 ## 1. Target flow
 
 1. The user signs in through the extension surface (popup / side panel) — the
-   existing email-OTP auth gate. The surface keeps **auth + subscription settings
-   + a single-action scan form** and nothing else.
+   existing email-OTP auth gate. The surface keeps only **auth**, **subscription
+   settings**, and **a single-action scan form**, and nothing else.
 2. On **every page**, the content script automatically detects each form, finds
    that form's submit button, and injects **our own floating button** anchored
    near it. The button lives in an **isolated Shadow DOM** so host CSS can't bleed
@@ -30,7 +30,7 @@ flow revamp. It supersedes the side-panel scan → preview → AI-suggestion →
 
 ### Intentional invariant departure
 
-The repo golden rule is *"AI is review-first; AI never fills the page."* This flow
+The repo golden rule is _"AI is review-first; AI never fills the page."_ This flow
 **fills directly** from the AI response with no per-field review — a deliberate
 change for this surface. The **privacy half is preserved**: we send only redacted
 field metadata (label / aria / name / type / placeholder / validation attrs),
@@ -132,9 +132,13 @@ the frontend, the backend DTOs, and the dev mock.
 
 ```ts
 {
-  page: { lang: string; title: string; description: string }
+  page: {
+    lang: string
+    title: string
+    description: string
+  }
   fields: Array<{
-    fieldId: string        // = data-qf-id
+    fieldId: string // = data-qf-id
     label?: string
     inputType: string
     name?: string
@@ -151,7 +155,9 @@ the frontend, the backend DTOs, and the dev mock.
 **Response — `AiFillResponse`** (keyed by the same `fieldId`):
 
 ```ts
-{ values: Array<{ fieldId: string; value: string }> }
+{
+  values: Array<{ fieldId: string; value: string }>
+}
 ```
 
 The backend runs the request through the existing `privacy-guard` (rejects raw
@@ -166,15 +172,15 @@ fill spends AI budget like a classify call.
 For **each** `/ai/fill` call the backend persists an audit row in addition to the
 `aiUsage` quota row:
 
-| field | meaning |
-| --- | --- |
-| `id` | row id |
-| `userId` | owner (every record is user-scoped) |
-| `prompt` (`@db.Text`) | the **exact** prompt string sent to Gemini (system instruction + serialized request). Redacted metadata only — no HTML, no field values — so safe to store under the privacy rule. |
-| `latencyMs` | how long Gemini took to respond (measured around `generateContent`) |
-| `tokensIn` / `tokensOut` | from Gemini `usageMetadata` |
-| `model` | the Gemini model used |
-| `createdAt` | timestamp |
+| field                    | meaning                                                                                                                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                     | row id                                                                                                                                                                             |
+| `userId`                 | owner (every record is user-scoped)                                                                                                                                                |
+| `prompt` (`@db.Text`)    | the **exact** prompt string sent to Gemini (system instruction + serialized request). Redacted metadata only — no HTML, no field values — so safe to store under the privacy rule. |
+| `latencyMs`              | how long Gemini took to respond (measured around `generateContent`)                                                                                                                |
+| `tokensIn` / `tokensOut` | from Gemini `usageMetadata`                                                                                                                                                        |
+| `model`                  | the Gemini model used                                                                                                                                                              |
+| `createdAt`              | timestamp                                                                                                                                                                          |
 
 This is the richer reviewable audit; the existing `aiUsage` row is still written
 for quota accounting.
@@ -183,14 +189,14 @@ for quota accounting.
 
 ## 5. Reused building blocks
 
-| Concern | Where |
-| --- | --- |
-| DOM scan, visibility + framework-id filtering, `data-qf-id` stamping | `@quikfill/form-scanner` `scanForms` / `scanFormsGrouped` |
-| Prefill (resolve by `data-qf-id`, mask-aware, verify-after-write) | `@quikfill/form-scanner` `applyFill` |
-| Shared Zod contracts | `@quikfill/schemas` (`detected-field.ts`, `forms.ts`, `ai-fill.ts`) |
-| Typed messaging content ↔ background | `@quikfill/browser-adapter` (`ai-messaging.ts`) |
-| Backend call + auth/token-refresh | `@quikfill/api-client` (`ai-client.ts`) + `background.ts` |
-| Gemini + privacy guard + token accounting | `services/src/modules/ai` |
+| Concern                                                              | Where                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| DOM scan, visibility + framework-id filtering, `data-qf-id` stamping | `@quikfill/form-scanner` `scanForms` / `scanFormsGrouped`           |
+| Prefill (resolve by `data-qf-id`, mask-aware, verify-after-write)    | `@quikfill/form-scanner` `applyFill`                                |
+| Shared Zod contracts                                                 | `@quikfill/schemas` (`detected-field.ts`, `forms.ts`, `ai-fill.ts`) |
+| Typed messaging content ↔ background                                 | `@quikfill/browser-adapter` (`ai-messaging.ts`)                     |
+| Backend call + auth/token-refresh                                    | `@quikfill/api-client` (`ai-client.ts`) + `background.ts`           |
+| Gemini + privacy guard + token accounting                            | `services/src/modules/ai`                                           |
 
 ---
 

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  aiFillFieldSchema,
-  aiFillRequestSchema,
-  aiFillResponseSchema,
-} from './ai-fill'
+import { aiFillFieldSchema, aiFillRequestSchema, aiFillResponseSchema } from './ai-fill'
 
 describe('aiFillFieldSchema', () => {
   it('parses redacted field metadata and defaults required', () => {
@@ -55,9 +51,7 @@ describe('aiFillRequestSchema', () => {
   })
 
   it('rejects an empty fields array', () => {
-    expect(
-      aiFillRequestSchema.safeParse({ page: {}, fields: [] }).success,
-    ).toBe(false)
+    expect(aiFillRequestSchema.safeParse({ page: {}, fields: [] }).success).toBe(false)
   })
 })
 
