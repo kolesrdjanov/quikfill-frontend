@@ -55,20 +55,6 @@ export interface OverlayHandle {
 const HOST_ID = 'quikfill-overlay-host'
 const RESCAN_DEBOUNCE_MS = 300
 
-// TEMPORARY fill diagnostics. Logged in two places so they're visible regardless
-// of which DevTools you have open: the filled tab's PAGE console (direct), and the
-// background service-worker console (mirrored — that's where the /ai/fill POST
-// shows). Remove once the drawer-close culprit is pinned.
-const qfDebug = (...args: unknown[]): void => {
-  const g = globalThis as unknown as { console?: Record<string, (...a: unknown[]) => void> }
-  g.console?.['log']?.('[QuikFill]', ...args)
-  try {
-    void chrome.runtime?.sendMessage?.({ type: 'QF_DEBUG', args })?.catch?.(() => {})
-  } catch {
-    /* extension context torn down — ignore */
-  }
-}
-
 /**
  * False once THIS content script's extension context has been invalidated — i.e.
  * the tab predates an extension update/reload, so every `chrome.runtime` message
@@ -282,39 +268,13 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       setStatus(button, 'error')
       return
     }
-    // TEMPORARY diagnostics (unconditional console.log — content bundles strip
-    // import.meta.env.DEV, and console.debug is hidden by default). Shows the
-    // per-field plan + outcome in the page console so we can see fill ordering and
-    // which field's fill coincides with the host modal dismissing. Remove once the
-    // close culprit is found.
-    qfDebug(
-      'applying fill →',
-      instructions.map((i) => ({ id: i.detectedFieldId, strategy: i.fillStrategy })),
-    )
     try {
       const outcome = await applyFill(instructions, doc)
-      qfDebug(
-        'fill results →',
-        outcome.results.map((r) => ({
-          id: r.detectedFieldId,
-          status: r.status,
-          reason: r.reason,
-        })),
-      )
-      // TEMPORARY: pinpoint WHEN the host modal closes — is the form already
-      // detached the instant the fill finishes (closed during the fill), or does it
-      // vanish a moment later (closed by the left-open dropdown / an async dismiss)?
-      qfDebug('drawer connected right after fill?', button.groupRoot.isConnected)
-      setTimeout(
-        () => qfDebug('drawer connected 300ms after fill?', button.groupRoot.isConnected),
-        300,
-      )
       const anyFilled = outcome.results.some(
         (r) => r.status === 'success' || r.status === 'assisted',
       )
       setStatus(button, anyFilled ? 'success' : 'error')
-    } catch (err) {
-      qfDebug('fill threw →', err)
+    } catch {
       setStatus(button, 'error')
     }
   }

@@ -160,13 +160,4 @@ export default defineBackground(() => {
   // until the tab is reloaded. Re-inject so a freshly (re)installed extension is
   // usable on already-open tabs without a manual page reload.
   browser.runtime.onInstalled.addListener(() => void reinjectContentScripts(chromeReinjectDeps()))
-
-  // TEMPORARY: mirror the content overlay's fill diagnostics into THIS (service
-  // worker) console — the same place the /ai/fill POST shows — so they're visible
-  // without opening the filled tab's page console. Remove with the qfDebug calls.
-  browser.runtime.onMessage.addListener((message) => {
-    const m = message as { type?: string; args?: unknown[] }
-    if (m?.type === 'QF_DEBUG') console.log('[QuikFill][page]', ...(m.args ?? []))
-    return undefined
-  })
 })
