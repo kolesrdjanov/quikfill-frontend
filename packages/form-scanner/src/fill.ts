@@ -75,14 +75,11 @@ export async function applyFill(
 
   for (const ins of ordered) {
     // No value to write (unknown field, AI-draft stub, missing generator) — skip
-    // rather than write "" and falsely report success. Toggles and custom selects
-    // are exempt: an empty value on a toggle is a meaningful "unchecked", and a
-    // custom select fills by clicking its first option, so it has nothing to type.
-    if (
-      ins.fillStrategy !== 'clickToggle' &&
-      ins.fillStrategy !== 'customSelect' &&
-      ins.proposedValue.trim() === ''
-    ) {
+    // rather than write "" and falsely report success. Toggles are exempt: an empty
+    // value on a toggle is a meaningful "unchecked". A custom select with no proposed
+    // value is left untouched too — we never auto-pick its first option (that silently
+    // selected garbage, e.g. "United States" on a country list).
+    if (ins.fillStrategy !== 'clickToggle' && ins.proposedValue.trim() === '') {
       results.push(skip(ins.detectedFieldId, 'Nothing to fill — no value was proposed.'))
       continue
     }
@@ -435,23 +432,13 @@ async function fillCustomSelect(
   }
 
   // --- Single select ---
-  const want = norm(ins.proposedValue)
-  const option =
-    want === ''
-      ? (openOptionNodes(widget, widgetEl, trigger, doc)[0] ?? null) // nothing to match → first
-      : await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
+  const option = await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
 
   if (!option) {
-    // No selection to make. Close the list before bailing — see closeOpenList: an
-    // open custom select left behind is an outside-dismiss layer that takes the
-    // surrounding modal down with it as the rest of the fill moves focus.
+    // No match. Close the list before bailing — see closeOpenList: an open custom
+    // select left behind is an outside-dismiss layer that takes the surrounding
+    // modal down with it as the rest of the fill moves focus.
     await closeOpenList(widget, widgetEl, trigger, doc)
-    if (want === '') {
-      return {
-        result: fail(ins.detectedFieldId, 'Opened the dropdown but found no option to select.'),
-        entry,
-      }
-    }
     return {
       result: assisted(
         ins.detectedFieldId,

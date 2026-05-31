@@ -402,23 +402,24 @@ describe('applyFill — custom select (value-matching)', () => {
     expect(order).toEqual(['name', 'select']) // …but the plain field fills first
   })
 
-  it('falls back to the first option only when no value was proposed', async () => {
+  it('skips and leaves the widget untouched when no value was proposed', async () => {
+    // Empty proposed value must NOT auto-pick: picking the first option silently
+    // selected garbage (e.g. "United States" on a country list). Leave it alone.
     mountCustomSelect('Parking')
     const { results } = await applyFill([customInstruction('')])
-    expect(document.querySelector('.val')!.textContent).toBe('Locker')
-    expect(results[0].status).toBe('success')
+    expect(document.querySelector('.val')!.textContent).toBe('Parking') // unchanged
+    expect(results[0].status).toBe('skipped')
   })
 
-  it('fails cleanly when the opened dropdown exposes no options', async () => {
+  it('reports assisted when opened with a real value but the list has no options', async () => {
     document.body.innerHTML = `
       <div id="cat" data-test-id="cat" name="cat">
         <div role="button" data-trigger="select" id="trigger">
           <div class="val">—</div>
         </div>
       </div>`
-    const { results } = await applyFill([customInstruction('')])
-    expect(results[0].status).toBe('failed')
-    expect(results[0].reason).toMatch(/no option/i)
+    const { results } = await applyFill([customInstruction('Office')])
+    expect(results[0].status).toBe('assisted')
   })
 })
 
@@ -848,7 +849,7 @@ describe('applyFill — scoped to a root element', () => {
             selectorCandidates: ['#country'],
             fillStrategy: 'customSelect',
             customWidget: widget,
-            proposedValue: '',
+            proposedValue: 'United States',
           }),
         ],
         drawer,
