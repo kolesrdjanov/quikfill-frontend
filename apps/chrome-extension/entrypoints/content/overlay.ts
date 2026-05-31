@@ -108,7 +108,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     el.setAttribute('aria-label', 'Fill this form with QuikFill')
     const mark = ownerDoc.createElement('span')
     mark.className = 'qf-mark'
-    mark.textContent = 'Q'
+    // Inline the brand SVG (decorative — the button itself carries the aria-label).
+    // Lives in the isolated shadow root, so the gradient id can't clash with the page.
+    mark.innerHTML = QUIKFILL_ICON_SVG
     const label = ownerDoc.createElement('span')
     label.className = 'qf-label'
     label.textContent = 'Fill'
@@ -331,7 +333,7 @@ const OVERLAY_CSS = `
   font: 600 12px/1 system-ui, -apple-system, Segoe UI, sans-serif;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(48, 86, 211, 0.35);
-  max-width: 28px;
+  max-width: 34px;
   overflow: hidden;
   transition: max-width 0.18s ease, background 0.15s ease;
   white-space: nowrap;
@@ -345,12 +347,32 @@ const OVERLAY_CSS = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
-  font-weight: 800;
 }
+.qf-mark svg { width: 18px; height: 18px; display: block; }
 .qf-label { padding-right: 4px; }
 .qf-fill-btn.is-success { background: #13c296; }
 .qf-fill-btn.is-error { background: #e11d48; }
 .qf-fill-btn.is-loading { opacity: 0.85; cursor: default; }
 `
+
+/**
+ * The QuikFill brand mark (mirror of packages/assets/logos/quikfill-icon.svg).
+ * Inlined so it ships with the content script and renders inside the shadow root;
+ * the `qfTile` gradient id is scoped to that shadow root, so it can't collide with
+ * the host page.
+ */
+const QUIKFILL_ICON_SVG = `
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="qfTile" x1="6" y1="2" x2="42" y2="46" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3F66E0"/>
+      <stop offset="1" stop-color="#2544C0"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="13" fill="url(#qfTile)"/>
+  <path d="M25.25 11.5 12.75 26.5H24l-1.25 10 12.5-15H24l1.25-9.5Z" fill="#fff" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
+  <circle cx="35.4" cy="12.6" r="3.4" fill="#13C296"/>
+</svg>`
