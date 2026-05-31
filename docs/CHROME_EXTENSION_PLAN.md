@@ -22,6 +22,7 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 | 6   | Local form profiles (save/match/reuse mappings)            | ✅ Done |
 | 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ✅ Done |
 | —   | UI design-system pass (popup / side panel / options)       | ✅ Done |
+| —   | In-page fill flow (floating "Fill" buttons + `/ai/fill`)   | ✅ Done |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)
@@ -33,6 +34,19 @@ prerequisites for everything below.)
 > existing package calls. Added shared primitives: a `Switch` in `@quikfill/ui` and
 > an `ExtensionSettings` schema (`@quikfill/schemas`) backing a local-first settings
 > store. Still local-first — backend wiring stays in Iteration 10.
+
+> **In-page fill flow (flow revamp):** filling moved **onto the page**. The content
+> script auto-detects every form (grouped scan + submit detection in
+> `@quikfill/form-scanner`), injects an isolated Shadow-DOM floating **Fill** button
+> near each form's submit (debounced `MutationObserver`, SPA-ready), and on click
+> sends redacted page + field metadata to the new backend `POST /ai/fill` (via
+> `requestAiFill` → background → `api-client`), then prefills with the existing
+> `applyFill`. The side-panel **wizard is disabled** (preserved as
+> `entrypoints/sidepanel/App.legacy.vue`, unreferenced); the panel keeps **auth +
+> subscription settings + a single-action scan form**. Full reference:
+> [`CHROME_EXTENSION_FLOW.md`](./CHROME_EXTENSION_FLOW.md). This surface fills
+> directly from AI (no per-field review) — an intentional departure — while keeping
+> the privacy half (redacted metadata only; never values or HTML).
 
 ---
 
