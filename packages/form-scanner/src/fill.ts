@@ -13,6 +13,29 @@ export interface FillOutcome {
 }
 
 type Fillable = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLElement
+/**
+ * Where a fill resolves elements. The scan resolves a container (a drawer/dialog
+ * Element, or the whole Document) and the fill is confined to it — so a fuzzy
+ * selector can never reach an element outside the drawer and trip its
+ * click-outside dismiss. Shadow roots appear during deep traversal.
+ */
+type FillRoot = Document | ShadowRoot | Element
+
+/** The Document a node belongs to (itself, when the node already is a Document). */
+function ownerDocOf(node: Node): Document {
+  return node.ownerDocument ?? (node as Document)
+}
+
+/**
+ * Whether a node lives within the scoped root. A Document/ShadowRoot root keeps the
+ * old whole-page behavior; an Element root scopes to its subtree. Uses nodeType +
+ * `contains` (not `instanceof`) because the page and the content script are
+ * different realms, so the page's Element fails the script's `instanceof Element`.
+ */
+function withinRoot(root: FillRoot, node: Node): boolean {
+  if (root.nodeType !== 1) return true
+  return (root as Element).contains(node)
+}
 
 const TRUTHY = new Set(['true', 'on', 'yes', '1', 'checked'])
 
@@ -25,7 +48,7 @@ const TRUTHY = new Set(['true', 'on', 'yes', '1', 'checked'])
  */
 export async function applyFill(
   instructions: FillInstruction[],
-  root: Document = document,
+  root: FillRoot = document,
 ): Promise<FillOutcome> {
   const results: FillResult[] = []
   const entries: UndoEntry[] = []
@@ -108,7 +131,7 @@ export async function applyFill(
 /** Restore the values captured in a snapshot (undo the most recent fill). */
 export async function applyUndo(
   snapshot: UndoSnapshot,
-  root: Document = document,
+  root: FillRoot = document,
 ): Promise<FillResult[]> {
   const results: FillResult[] = []
   for (const entry of snapshot.entries) {
@@ -241,7 +264,7 @@ function capture(ins: FillInstruction, el: Fillable): UndoEntry {
  */
 function fillRadioGroup(
   ins: FillInstruction,
-  root: Document,
+  root: FillRoot,
   claimed: Set<Element>,
 ): { result: FillResult; entry?: UndoEntry } {
   const radios = collectRadios(root, ins.selectorCandidates).filter((r) => !claimed.has(r))
@@ -273,7 +296,7 @@ function fillRadioGroup(
     : { result: fail(ins.detectedFieldId, 'Radio option did not accept the selection.'), entry }
 }
 
-function undoRadioGroup(entry: UndoEntry, root: Document): FillResult {
+function undoRadioGroup(entry: UndoEntry, root: FillRoot): FillResult {
   const radios = collectRadios(root, entry.selectorCandidates)
   if (radios.length === 0) return skip(entry.detectedFieldId, 'Element not found on the page.')
   const prev = entry.previousValue ?? ''
@@ -311,7 +334,7 @@ function radioLabel(radio: HTMLInputElement): string {
 }
 
 /** Every radio matching any selector, across open shadow roots and same-origin iframes. */
-function collectRadios(root: Document | ShadowRoot, selectors: string[]): HTMLInputElement[] {
+function collectRadios(root: FillRoot, selectors: string[]): HTMLInputElement[] {
   const out: HTMLInputElement[] = []
   const seen = new Set<Element>()
   for (const selector of selectors) collectRadiosInto(root, selector, out, seen)
@@ -319,7 +342,7 @@ function collectRadios(root: Document | ShadowRoot, selectors: string[]): HTMLIn
 }
 
 function collectRadiosInto(
-  root: Document | ShadowRoot,
+  root: FillRoot,
   selector: string,
   out: HTMLInputElement[],
   seen: Set<Element>,
@@ -360,7 +383,7 @@ function collectRadiosInto(
 async function fillCustomSelect(
   ins: FillInstruction,
   widget: CustomWidget,
-  root: Document,
+  root: FillRoot,
   claimed: Set<Element>,
 ): Promise<{ result: FillResult; entry?: UndoEntry }> {
   const widgetEl = findElement(
@@ -371,8 +394,12 @@ async function fillCustomSelect(
   if (!widgetEl) return { result: skip(ins.detectedFieldId, 'Element not found on the page.') }
   claimed.add(widgetEl)
 
+  // The widget is resolved within the scoped root, but its option list is often
+  // portaled to <body> — OUTSIDE the drawer — so the open-list lookups search the
+  // whole owning document, not the scoped root.
+  const doc = ownerDocOf(widgetEl)
   const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
-  const previousDisplayText = readDisplay(widgetEl, widget, root)
+  const previousDisplayText = readDisplay(widgetEl, widget, doc)
 
   clickElement(trigger)
   await settle()
@@ -381,7 +408,7 @@ async function fillCustomSelect(
   // the document for libraries that portal the dropdown outside the widget root.
   const option =
     firstOption(widgetEl, widget.optionItemSelector, trigger) ??
-    firstOption(root, widget.optionItemSelector, trigger)
+    firstOption(doc, widget.optionItemSelector, trigger)
   if (!option) {
     return {
       result: fail(ins.detectedFieldId, 'Opened the dropdown but found no option to select.'),
@@ -399,10 +426,14 @@ async function fillCustomSelect(
     customWidget: widget,
   }
 
-  clickElement(option)
+  // If the option is portaled OUTSIDE the scoped drawer (Reka/Radix/MUI render the
+  // listbox to <body>), press it with the in-drawer trigger's coordinates: the
+  // option still receives the event, but a coordinate-based outside-dismiss layer
+  // reads the press as inside the panel and leaves the drawer open.
+  clickElement(option, withinRoot(root, option) ? option : trigger)
   await settle()
 
-  const got = readDisplay(widgetEl, widget, root)
+  const got = readDisplay(widgetEl, widget, doc)
   // Accept if the displayed selection changed, now matches the option we clicked,
   // or the option reports itself selected — any one confirms the pick landed.
   const landed =
@@ -424,7 +455,7 @@ async function fillCustomSelect(
 async function undoCustomSelect(
   entry: UndoEntry,
   widget: CustomWidget,
-  root: Document,
+  root: FillRoot,
 ): Promise<FillResult> {
   const prev = entry.previousDisplayText
   if (!prev) {
@@ -436,16 +467,17 @@ async function undoCustomSelect(
   )
   if (!widgetEl) return skip(entry.detectedFieldId, 'Element not found on the page.')
 
+  const doc = ownerDocOf(widgetEl)
   const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
   clickElement(trigger)
   await settle()
   const option =
     findOption(widgetEl, widget.optionItemSelector, prev) ??
-    findOption(root, widget.optionItemSelector, prev)
+    findOption(doc, widget.optionItemSelector, prev)
   if (!option) {
     return skip(entry.detectedFieldId, `Couldn't restore previous selection "${prev}".`)
   }
-  clickElement(option)
+  clickElement(option, withinRoot(root, option) ? option : trigger)
   await settle()
   return success(entry.detectedFieldId, prev)
 }
@@ -476,12 +508,12 @@ function firstOption(scope: ParentNode, selector: string, exclude: Element | nul
   return null
 }
 
-function readDisplay(widgetEl: Element, widget: CustomWidget, root: Document): string {
+function readDisplay(widgetEl: Element, widget: CustomWidget, doc: Document): string {
   for (const sel of widget.valueDisplaySelectorCandidates) {
-    const m = queryIn(widgetEl, sel) ?? queryIn(root, sel)
+    const m = queryIn(widgetEl, sel) ?? queryIn(doc, sel)
     if (m) return displayValue(m)
   }
-  const trigger = findElement(root, widget.triggerSelectorCandidates)
+  const trigger = findElement(doc, widget.triggerSelectorCandidates)
   return displayValue(trigger ?? widgetEl)
 }
 
@@ -534,8 +566,11 @@ function norm(s: string): string {
  * mid-fill, even on the in-drawer trigger click that opens the dropdown. Sending
  * a real PointerEvent at the element's center makes the press read as inside.
  */
-function clickElement(el: Element): void {
-  const { x, y } = pointerCenter(el)
+function clickElement(el: Element, anchor: Element = el): void {
+  // Events fire on `el`; the press COORDINATES come from `anchor`. They differ only
+  // when `el` is portaled outside the drawer — then `anchor` is an in-drawer node so
+  // the geometry reads as inside (see fillCustomSelect). Same element by default.
+  const { x, y } = pointerCenter(anchor)
   el.dispatchEvent(pointerEvent('pointerdown', x, y, 1))
   el.dispatchEvent(mouseEvent('mousedown', x, y, 1))
   el.dispatchEvent(pointerEvent('pointerup', x, y, 0))
@@ -690,11 +725,7 @@ function markedSelectors(detectedFieldId: string, candidates: string[]): string[
  * in the same batch, so a non-unique fuzzy selector can never double-target one
  * element.
  */
-function findElement(
-  root: Document | ShadowRoot,
-  selectors: string[],
-  claimed?: Set<Element>,
-): Fillable | null {
+function findElement(root: FillRoot, selectors: string[], claimed?: Set<Element>): Fillable | null {
   for (const selector of selectors) {
     const found = deepQuery(root, selector, claimed)
     if (found) return found
@@ -712,11 +743,7 @@ function frameDocument(el: Element): Document | null {
   }
 }
 
-function deepQuery(
-  root: Document | ShadowRoot,
-  selector: string,
-  claimed?: Set<Element>,
-): Fillable | null {
+function deepQuery(root: FillRoot, selector: string, claimed?: Set<Element>): Fillable | null {
   let matches: Element[]
   try {
     matches = Array.from(root.querySelectorAll(selector))

@@ -645,3 +645,153 @@ describe('applyUndo', () => {
     expect(document.querySelector('.val')!.textContent).toBe('Office')
   })
 })
+
+// Scoping the fill to the drawer the scan resolved to is what stops a fill from
+// reaching out and writing an element OUTSIDE the drawer (e.g. a focused navbar
+// search), which trips a click-outside drawer's dismiss and tears it down. The
+// scoped root must still find a custom-select option list that the widget portals
+// to <body> (outside the drawer), or country/state selects would stop filling.
+describe('applyFill — scoped to a root element', () => {
+  it('confines a fuzzy-selector fill to the scoped root, never an outside twin', async () => {
+    document.body.innerHTML = `
+      <input name="city" value="OUTSIDE" />
+      <section id="drawer"><input name="city" value="" /></section>`
+    const drawer = document.getElementById('drawer')!
+    await applyFill(
+      [
+        instruction({
+          detectedFieldId: 'qf-0',
+          selectorCandidates: ['input[name="city"]'], // fuzzy, no data-qf-id marker
+          proposedValue: 'Los Angeles',
+        }),
+      ],
+      drawer,
+    )
+    const all = Array.from(document.querySelectorAll('input[name="city"]')) as HTMLInputElement[]
+    expect(all[0].value).toBe('OUTSIDE') // the element outside the drawer is untouched
+    expect(drawer.querySelector('input')!.value).toBe('Los Angeles')
+  })
+
+  it('finds a custom-select option list portaled outside the scoped root', async () => {
+    document.body.innerHTML = `
+      <section id="drawer">
+        <div id="country" data-test-id="country" name="country">
+          <label for="ci">Country</label>
+          <div role="button" data-trigger="select" id="trigger">
+            <div class="select-value-container"><p class="ph">i.e. United States</p></div>
+          </div>
+        </div>
+      </section>
+      <div class="portal"></div>`
+    const drawer = document.getElementById('drawer')!
+    const portal = document.querySelector('.portal') as HTMLElement
+    const trigger = document.getElementById('trigger') as HTMLElement
+    // Opening the select renders its option list into a body-level portal, OUTSIDE
+    // the drawer — the layout pattern Reka/Radix/MUI selects use.
+    trigger.addEventListener('mousedown', () => {
+      portal.innerHTML = `<div role="option">United States</div><div role="option">Canada</div>`
+    })
+    portal.addEventListener('mousedown', (e) => {
+      const t = e.target as HTMLElement
+      if (t.getAttribute('role') === 'option') {
+        ;(drawer.querySelector('.ph') as HTMLElement).textContent = t.textContent
+      }
+    })
+    const widget: CustomWidget = {
+      kind: 'select',
+      triggerSelectorCandidates: ['#trigger'],
+      valueDisplaySelectorCandidates: ['.select-value-container'],
+      optionItemSelector: '[role="option"]',
+      optionsOpenOnDemand: true,
+    }
+    const { results } = await applyFill(
+      [
+        instruction({
+          detectedFieldId: 'country',
+          selectorCandidates: ['#country'],
+          fillStrategy: 'customSelect',
+          customWidget: widget,
+          proposedValue: '',
+        }),
+      ],
+      drawer,
+    )
+    expect(results[0].status).toBe('success')
+    expect((drawer.querySelector('.ph') as HTMLElement).textContent).toBe('United States')
+  })
+
+  it('keeps the drawer open when clicking an option portaled outside its bounds', async () => {
+    const rect = (left: number, top: number, width: number, height: number): DOMRect => {
+      const r = {
+        left,
+        top,
+        width,
+        height,
+        right: left + width,
+        bottom: top + height,
+        x: left,
+        y: top,
+      }
+      return { ...r, toJSON: () => r } as DOMRect
+    }
+    document.body.innerHTML = `
+      <section id="drawer">
+        <div id="country" data-test-id="country" name="country">
+          <div role="button" data-trigger="select" id="trigger">
+            <div class="select-value-container"><p class="ph">i.e. United States</p></div>
+          </div>
+        </div>
+      </section>
+      <div class="portal"></div>`
+    const drawer = document.getElementById('drawer') as HTMLElement
+    const portal = document.querySelector('.portal') as HTMLElement
+    const trigger = document.getElementById('trigger') as HTMLElement
+    // Drawer occupies the left; its trigger sits inside it.
+    drawer.getBoundingClientRect = () => rect(0, 0, 300, 600)
+    trigger.getBoundingClientRect = () => rect(20, 100, 200, 40)
+    // Opening portals the option to the FAR RIGHT — geometrically outside the drawer.
+    trigger.addEventListener('mousedown', () => {
+      portal.innerHTML = `<div role="option">United States</div>`
+      const opt = portal.querySelector('[role="option"]') as HTMLElement
+      opt.getBoundingClientRect = () => rect(600, 300, 160, 30)
+      opt.addEventListener('mousedown', () => {
+        ;(drawer.querySelector('.ph') as HTMLElement).textContent = 'United States'
+      })
+    })
+    // A naive drawer that dismisses on any document press outside its panel rect.
+    let drawerOpen = true
+    const dismiss = (e: Event): void => {
+      const p = e as PointerEvent
+      const r = drawer.getBoundingClientRect()
+      const inside =
+        p.clientX >= r.left && p.clientX <= r.right && p.clientY >= r.top && p.clientY <= r.bottom
+      if (!inside) drawerOpen = false
+    }
+    document.addEventListener('pointerdown', dismiss, true)
+    try {
+      const widget: CustomWidget = {
+        kind: 'select',
+        triggerSelectorCandidates: ['#trigger'],
+        valueDisplaySelectorCandidates: ['.select-value-container'],
+        optionItemSelector: '[role="option"]',
+        optionsOpenOnDemand: true,
+      }
+      const { results } = await applyFill(
+        [
+          instruction({
+            detectedFieldId: 'country',
+            selectorCandidates: ['#country'],
+            fillStrategy: 'customSelect',
+            customWidget: widget,
+            proposedValue: '',
+          }),
+        ],
+        drawer,
+      )
+      expect(results[0].status).toBe('success')
+      expect(drawerOpen).toBe(true) // the portaled option press read as INSIDE the drawer
+    } finally {
+      document.removeEventListener('pointerdown', dismiss, true)
+    }
+  })
+})

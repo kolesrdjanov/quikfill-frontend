@@ -184,6 +184,14 @@ export function useFillSession() {
     return 'prescan'
   })
 
+  // Back-navigation: the panel's phases form a forward wizard
+  // (prescan → detected → preview → results), but there was no way back short of
+  // toggling the extension off/on. `stepBack` walks one phase back; from `detected`
+  // it resets to the start screen. A transient phase (scanning/filling) has no back.
+  const canGoBack = computed(
+    () => phase.value === 'detected' || phase.value === 'preview' || phase.value === 'results',
+  )
+
   async function withActiveTab<T>(fn: (tabId: number) => Promise<T>): Promise<T> {
     const tabId = await getActiveTabId()
     if (tabId == null) throw new Error('No active tab.')
@@ -203,6 +211,45 @@ export function useFillSession() {
     aiProposals.value = new Map()
     aiFieldStatus.value = new Map()
     aiError.value = null
+  }
+
+  /** Clear the whole session back to the start screen (the `prescan` phase). */
+  function reset() {
+    scanned.value = false
+    fields.value = []
+    limitations.value = []
+    structureHash.value = ''
+    scannedScope.value = null
+    scope.value = 'auto'
+    planItems.value = null
+    excluded.value = new Set()
+    results.value = null
+    undoSnapshot.value = null
+    saveMessage.value = null
+    profileSaved.value = false
+    error.value = null
+    resetAi()
+    resetMatch()
+  }
+
+  /**
+   * Walk one phase back: results → preview → detected → (reset to) prescan. Clears
+   * exactly the state that phase introduced, so the previous screen is restored
+   * intact rather than re-derived from a fresh scan.
+   */
+  function stepBack() {
+    if (results.value) {
+      results.value = null
+      undoSnapshot.value = null
+      return
+    }
+    if (planItems.value) {
+      planItems.value = null
+      excluded.value = new Set()
+      saveMessage.value = null
+      return
+    }
+    if (scanned.value) reset()
   }
 
   /** Set or clear a single field's on-demand AI status (immutable map swap for reactivity). */
@@ -859,6 +906,7 @@ export function useFillSession() {
     hideValues,
     // derived
     phase,
+    canGoBack,
     classificationById,
     ambiguousFields,
     hasAmbiguous,
@@ -870,6 +918,8 @@ export function useFillSession() {
     // actions
     initSite,
     scan,
+    reset,
+    stepBack,
     rescanWithScope,
     preview,
     regenerate,

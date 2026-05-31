@@ -196,7 +196,11 @@ export function getOptions(el: FormControl): FieldOption[] | undefined {
 
 /**
  * Visibility without relying on layout (jsdom-safe): hidden attr, type=hidden,
- * display:none, visibility:hidden, or zero-size when layout is available.
+ * display:none, visibility:hidden, or — when real layout is available — zero
+ * rendered boxes (the element sits inside a display:none ancestor / an inactive
+ * tab panel, so the page never shows it). The geometry pass is what excludes the
+ * framework-generated, never-rendered inputs that otherwise surface as `_r_*`
+ * noise; it is gated on `hasLayout` so jsdom (no layout) keeps the style-only path.
  */
 export function isVisible(el: Element): boolean {
   if (el.hasAttribute('hidden')) return false
@@ -209,7 +213,39 @@ export function isVisible(el: Element): boolean {
     if (style.visibility === 'hidden' || style.visibility === 'collapse') return false
     if (style.opacity === '0') return false
   }
+  // Computed `display` is reported per-element, so it is NOT `none` for a child of
+  // a display:none ancestor — only the rendered-box count reveals that. An sr-only
+  // control is clipped to ~1×1 but still laid out, so it keeps a client rect and
+  // survives; a never-rendered input has none.
+  if (hasLayout(el.ownerDocument) && !isRendered(el)) return false
   return true
+}
+
+/** True when the element produces at least one rendered box (i.e. is laid out). */
+function isRendered(el: Element): boolean {
+  try {
+    if (typeof el.getClientRects === 'function' && el.getClientRects().length > 0) return true
+    const r = el.getBoundingClientRect()
+    return r.width > 0 || r.height > 0
+  } catch {
+    return true // can't measure → don't hide it on a measurement failure
+  }
+}
+
+/**
+ * Feature-detect a real layout engine by measuring `<body>`: a browser gives it a
+ * non-zero box, jsdom reports 0×0. Gating the geometry pass on this keeps every
+ * jsdom unit test on the style-only path while real pages get the stricter check.
+ */
+function hasLayout(doc: Document | null | undefined): boolean {
+  const body = doc?.body
+  if (!body) return false
+  try {
+    const r = body.getBoundingClientRect()
+    return r.width > 0 || r.height > 0
+  } catch {
+    return false
+  }
 }
 
 function safeComputedStyle(el: Element): CSSStyleDeclaration | undefined {

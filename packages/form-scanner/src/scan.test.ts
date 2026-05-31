@@ -310,6 +310,24 @@ describe('scanForms', () => {
     expect(fields.find((f) => f.name === 'y')!.labelText).toBeUndefined()
   })
 
+  it('drops fields whose only identity is a generated token name', () => {
+    setBody(`
+      <input name="_r_42_" type="text" />
+      <input name=":r3a:" type="text" />
+      <input name="«r9»" type="text" />
+      <label for="ok">Email</label>
+      <input id="ok" name="_r_77_" type="text" />
+      <input name="_r_88_" placeholder="Search the catalog" type="text" />
+    `)
+    const { fields } = scanForms(document)
+    const names = fields.map((f) => f.name)
+    expect(names).not.toContain('_r_42_') // generated-token name only → junk
+    expect(names).not.toContain(':r3a:')
+    expect(names).not.toContain('«r9»')
+    expect(names).toContain('_r_77_') // generated name but real label → kept
+    expect(names).toContain('_r_88_') // generated name but real placeholder → kept
+  })
+
   it('flags a Google Places autocomplete input', () => {
     setBody(`
       <div class="col-span-6">

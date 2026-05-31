@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resolveScopeRoot } from './scope'
+import { scanForms } from './scan'
 
 function setBody(html: string) {
   document.body.innerHTML = html
@@ -81,6 +82,67 @@ describe('resolveScopeRoot', () => {
     `)
     const scope = resolveScopeRoot(document, 'auto')
     expect(scope.kind).toBe('form')
+  })
+
+  it('auto-scopes to a class-based drawer even when a search outside it is focused', () => {
+    // The real-world failure: a drawer with no role/aria-modal (just `.drawer*`
+    // classes), the top nav still visible with its search input focused. Without
+    // class-based drawer detection, scope fell through to the focused search's
+    // form, so the fill reached outside the drawer and dismissed it.
+    setBody(`
+      <nav><form role="search"><input id="navsearch" name="q" type="search" /></form></nav>
+      <div class="drawer drawer-open">
+        <div class="drawer-body">
+          <form>
+            <label for="fn">Facility Name</label><input id="fn" name="name" />
+            <label for="fc">Facility Code</label><input id="fc" name="code" />
+          </form>
+        </div>
+      </div>
+    `)
+    document.getElementById('navsearch')!.focus()
+    const scope = resolveScopeRoot(document, 'auto')
+    expect(scope.kind).toBe('drawer')
+    const scoped = scanForms(scope.root)
+    expect(scoped.fields.map((f) => f.name).sort()).toEqual(['code', 'name'])
+  })
+
+  it('auto-scopes to a bare `.drawer-body` container holding the form', () => {
+    setBody(`
+      <nav><input id="s" name="q" type="search" /></nav>
+      <div class="drawer-body">
+        <form><label for="n">Name</label><input id="n" name="name" /></form>
+      </div>
+    `)
+    document.getElementById('s')!.focus()
+    const scope = resolveScopeRoot(document, 'auto')
+    expect(scope.kind).toBe('drawer')
+    expect(scanForms(scope.root).fields.map((f) => f.name)).toEqual(['name'])
+  })
+
+  it('ignores a focused search/nav form and falls back to the content form', () => {
+    // The focused element is the top-nav search — navigation chrome, not the form
+    // the user means to fill. Its form must not win scope by virtue of focus.
+    setBody(`
+      <header><form role="search"><input id="q" name="q" type="search" /></form></header>
+      <form id="content"><input name="a" /><input name="b" /></form>
+    `)
+    document.getElementById('q')!.focus()
+    const scope = resolveScopeRoot(document, 'auto')
+    expect(scope.kind).toBe('form')
+    expect((scope.root as Element).id).toBe('content')
+  })
+
+  it('does not treat a nav sidebar as a drawer scope', () => {
+    // A persistent left-nav `.sidebar` with a search box is page chrome, not a
+    // drawer — the class-based drawer detection must not scope to it.
+    setBody(`
+      <nav class="app-sidebar"><input name="q" type="search" /></nav>
+      <form id="content"><input name="a" /><input name="b" /></form>
+    `)
+    const scope = resolveScopeRoot(document, 'auto')
+    expect(scope.kind).toBe('form')
+    expect((scope.root as Element).id).toBe('content')
   })
 
   it("honors an explicit 'page' scope", () => {

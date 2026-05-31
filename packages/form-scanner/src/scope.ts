@@ -13,6 +13,14 @@ const DIALOG_SELECTOR = '[aria-modal="true"], [role="dialog"], [role="alertdialo
 const DRAWER_SELECTOR =
   '[data-radix-dialog-content], [data-headlessui-state~="open"], [data-drawer][aria-hidden="false"], .drawer.open, [data-state="open"][role]'
 
+// A class token that names a drawer/sheet/off-canvas surface. Matched as a whole
+// kebab/snake token, so `drawer`, `drawer-body`, `app_sidebar`, `slide-over` all
+// qualify but `slider`/`canvas`/`subdrawer` do not. Many real drawers ship NO
+// aria-modal/role/data-state — only these classes — and leave the top nav (with a
+// focused search) visible outside the overlay, which is exactly the case that used
+// to mis-scope to that outside search's form.
+const DRAWER_CLASS_RE = /(?:^|[\s_-])(?:drawer|sheet|sidebar|off-?canvas|slide-?over)(?:[\s_-]|$)/i
+
 /**
  * Pick the best container to scan. Priority for 'auto': an open dialog/drawer →
  * the focused-or-largest form → the whole document. Explicit scopes fall back to
@@ -33,6 +41,7 @@ function findDialog(doc: Document): ResolvedScope | null {
   const all = unique([
     ...Array.from(doc.querySelectorAll(DIALOG_SELECTOR)),
     ...Array.from(doc.querySelectorAll(DRAWER_SELECTOR)),
+    ...classDrawers(doc),
   ])
   const open = all.filter((el) => isVisible(el) && hasFillable(el))
   if (open.length === 0) return null
@@ -43,10 +52,12 @@ function findDialog(doc: Document): ResolvedScope | null {
 
 function findForm(doc: Document): ResolvedScope | null {
   // 1) The form wrapping the focused element — the strongest signal of intent.
+  //    But NOT a search/navigation form: a focused top-nav search is page chrome,
+  //    not the form to fill, and letting it win scope sent fills outside the drawer.
   const active = doc.activeElement
   if (active && active !== doc.body) {
     const f = active.closest('form')
-    if (f && isVisible(f) && hasFillable(f))
+    if (f && !isChromeForm(f) && isVisible(f) && hasFillable(f))
       return { root: f, kind: 'form', label: containerLabel(f, 'form') }
   }
   // 2) Otherwise the visible form with the most fillable fields.
@@ -61,6 +72,30 @@ function findForm(doc: Document): ResolvedScope | null {
 }
 
 // --- helpers ---------------------------------------------------------------
+
+/**
+ * Elements whose class names a drawer surface. A cheap substring prefilter narrows
+ * the scan, then `DRAWER_CLASS_RE` confirms a whole-token match (so `slider` and a
+ * lone `canvas` never qualify). The `hasFillable` + topmost filters in findDialog
+ * then keep only the real, frontmost open panel.
+ */
+function classDrawers(doc: Document): Element[] {
+  const prefilter =
+    '[class*="drawer" i], [class*="sheet" i], [class*="sidebar" i], [class*="canvas" i], [class*="slide" i]'
+  return Array.from(doc.querySelectorAll(prefilter)).filter(
+    (el) =>
+      DRAWER_CLASS_RE.test(el.getAttribute('class') ?? '') &&
+      // A modal drawer is never page chrome. This keeps a persistent nav `.sidebar`
+      // (which also matches the class regex) from hijacking scope as a "drawer".
+      !el.closest('nav, header, [role="navigation"], [role="banner"]'),
+  )
+}
+
+/** A search box or a form inside a nav/banner landmark — page chrome, not the target form. */
+function isChromeForm(f: Element): boolean {
+  if (f.getAttribute('role') === 'search') return true
+  return !!f.closest('nav, header, [role="navigation"], [role="banner"], [role="search"]')
+}
 
 function hasFillable(el: Element): boolean {
   for (const cand of Array.from(el.querySelectorAll('*'))) {
@@ -108,8 +143,8 @@ function safeStyle(el: Element): CSSStyleDeclaration | undefined {
 }
 
 function isDrawerLike(el: Element): boolean {
-  const cls = (el.getAttribute('class') ?? '').toLowerCase()
-  if (/\b(drawer|sheet|sidebar|off-?canvas|slide-?over)\b/.test(cls)) return true
+  const cls = el.getAttribute('class') ?? ''
+  if (DRAWER_CLASS_RE.test(cls)) return true
   if (el.hasAttribute('data-drawer')) return true
   // Not a real modal dialog but an open panel → call it a drawer.
   return !el.matches(DIALOG_SELECTOR) && el.matches(DRAWER_SELECTOR)

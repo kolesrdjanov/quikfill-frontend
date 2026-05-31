@@ -163,7 +163,19 @@ const fieldContext = computed(() => {
       <!-- MAIN HEADER -->
       <template v-else>
         <div class="flex items-center justify-between">
-          <BrandLockup />
+          <div class="flex items-center gap-1.5">
+            <Button
+              v-if="s.canGoBack.value"
+              variant="ghost"
+              size="icon"
+              class="size-[30px]"
+              aria-label="Back"
+              @click="s.stepBack()"
+            >
+              <ArrowLeft class="size-4" />
+            </Button>
+            <BrandLockup />
+          </div>
           <div class="flex items-center gap-1.5">
             <Badge v-if="usageChip" :variant="usageChip.variant">{{ usageChip.label }}</Badge>
             <Button
