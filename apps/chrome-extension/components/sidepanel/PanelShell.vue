@@ -6,12 +6,12 @@ withDefaults(defineProps<{ showFooter?: boolean }>(), { showFooter: true })
 </script>
 
 <template>
-  <div class="bg-background text-foreground flex h-full flex-col">
+  <div class="bg-background text-foreground flex flex-col">
     <header class="bg-card border-b px-[15px] py-[13px]">
       <slot name="header" />
     </header>
 
-    <div class="flex flex-1 flex-col gap-[11px] overflow-y-auto p-[14px]">
+    <div class="flex flex-col gap-[11px] p-[14px]">
       <slot />
     </div>
 

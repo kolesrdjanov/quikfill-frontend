@@ -56,12 +56,9 @@ function openDashboard() {
 <template>
   <div class="bg-card text-foreground w-[340px]">
     <!-- AUTH: log in / sign up → enter code → success (all handled by AuthPanel).
-         PanelShell fills its parent (h-full), so the popup gives the auth flow a
-         concrete height here — a popup has no real viewport height, so the shell's
-         old h-screen collapsed and clipped the content. -->
-    <div v-if="!gate.isAppReady.value" class="h-[560px]">
-      <AuthPanel />
-    </div>
+         PanelShell sizes to content (no forced viewport/full height) so the popup
+         grows to fit each screen — no clipping, no scrollbar. -->
+    <AuthPanel v-if="!gate.isAppReady.value" />
 
     <!-- MINI-DASHBOARD -->
     <div v-else class="flex flex-col gap-4 p-4">
