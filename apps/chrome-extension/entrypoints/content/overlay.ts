@@ -50,6 +50,14 @@ export interface OverlayHandle {
 const HOST_ID = 'quikfill-overlay-host'
 const RESCAN_DEBOUNCE_MS = 300
 
+// TEMPORARY fill diagnostics. The content-script bundle strips `console.*`, so we
+// reach the console indirectly (computed access) to survive the build. Logs to the
+// page console of the filled tab. Remove once the drawer-close culprit is pinned.
+const qfDebug = (...args: unknown[]): void => {
+  const g = globalThis as unknown as { console?: Record<string, (...a: unknown[]) => void> }
+  g.console?.['log']?.('[QuikFill]', ...args)
+}
+
 type ButtonStatus = 'idle' | 'loading' | 'success' | 'error'
 
 interface FormButton {
@@ -235,33 +243,31 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       setStatus(button, 'error')
       return
     }
-    // Dev-only diagnostics (stripped from prod builds): the per-field plan and
-    // outcome, so we can see ordering + which field's fill coincides with a host
-    // modal dismissing. Logged in the page console of the tab being filled.
-    if (import.meta.env.DEV) {
-      console.debug(
-        '[QuikFill] applying fill',
-        instructions.map((i) => ({ id: i.detectedFieldId, strategy: i.fillStrategy })),
-      )
-    }
+    // TEMPORARY diagnostics (unconditional console.log — content bundles strip
+    // import.meta.env.DEV, and console.debug is hidden by default). Shows the
+    // per-field plan + outcome in the page console so we can see fill ordering and
+    // which field's fill coincides with the host modal dismissing. Remove once the
+    // close culprit is found.
+    qfDebug(
+      'applying fill →',
+      instructions.map((i) => ({ id: i.detectedFieldId, strategy: i.fillStrategy })),
+    )
     try {
       const outcome = await applyFill(instructions, doc)
-      if (import.meta.env.DEV) {
-        console.debug(
-          '[QuikFill] fill results',
-          outcome.results.map((r) => ({
-            id: r.detectedFieldId,
-            status: r.status,
-            reason: r.reason,
-          })),
-        )
-      }
+      qfDebug(
+        'fill results →',
+        outcome.results.map((r) => ({
+          id: r.detectedFieldId,
+          status: r.status,
+          reason: r.reason,
+        })),
+      )
       const anyFilled = outcome.results.some(
         (r) => r.status === 'success' || r.status === 'assisted',
       )
       setStatus(button, anyFilled ? 'success' : 'error')
     } catch (err) {
-      if (import.meta.env.DEV) console.debug('[QuikFill] fill threw', err)
+      qfDebug('fill threw →', err)
       setStatus(button, 'error')
     }
   }
