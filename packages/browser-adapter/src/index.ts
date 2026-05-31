@@ -100,6 +100,7 @@ export {
   type SyncHandlers,
 } from './profile-sync-messaging'
 export { createBackgroundSync, type SyncApi, type BackgroundSync } from './background-sync'
+export * from './reinject-content-scripts'
 export {
   ENTITY_DATA_REQUEST,
   isEntityDataRequest,

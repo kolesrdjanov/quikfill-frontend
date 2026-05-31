@@ -8,6 +8,7 @@ import {
   createChromeEntitlementsStore,
   createChromeStorageAdapter,
   createProfileStore,
+  chromeReinjectDeps,
   onAiClassifyRequest,
   onAiFillRequest,
   onAuthRequest,
@@ -15,6 +16,7 @@ import {
   onEntityDataRequest,
   onFillRunRecordRequest,
   onProfileSyncRequest,
+  reinjectContentScripts,
 } from '@quikfill/browser-adapter'
 import { generatorKindSchema, type AuthState } from '@quikfill/schemas'
 
@@ -151,6 +153,13 @@ export default defineBackground(() => {
     const change = changes[AUTH_STATE_KEY]
     if (change?.newValue) onAuthState(change.newValue as AuthState)
   })
+
+  // Heal orphaned content scripts after an install / update / reload. Chrome leaves
+  // the OLD content script running in already-open tabs, so its messages to this
+  // (new) worker throw and the in-page Fill button shows a misleading "Offline"
+  // until the tab is reloaded. Re-inject so a freshly (re)installed extension is
+  // usable on already-open tabs without a manual page reload.
+  browser.runtime.onInstalled.addListener(() => void reinjectContentScripts(chromeReinjectDeps()))
 
   // TEMPORARY: mirror the content overlay's fill diagnostics into THIS (service
   // worker) console — the same place the /ai/fill POST shows — so they're visible

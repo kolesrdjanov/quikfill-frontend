@@ -69,6 +69,20 @@ const qfDebug = (...args: unknown[]): void => {
   }
 }
 
+/**
+ * False once THIS content script's extension context has been invalidated — i.e.
+ * the tab predates an extension update/reload, so every `chrome.runtime` message
+ * throws. Used to tell a dead-context failure (reload the page) apart from a real
+ * connectivity failure (offline).
+ */
+const isExtensionAlive = (): boolean => {
+  try {
+    return !!chrome.runtime?.id
+  } catch {
+    return false
+  }
+}
+
 type ButtonStatus = 'idle' | 'loading' | 'success' | 'error'
 
 interface FormButton {
@@ -88,6 +102,10 @@ interface FormButton {
  * backend call is delegated to the background worker via requestAiFill.
  */
 export function mountOverlay(doc: Document = document): OverlayHandle {
+  // A re-injected content script (background `onInstalled` heals orphaned tabs)
+  // runs alongside the dead script's leftover DOM — drop any stale host first so
+  // we never stack two overlays / two sets of buttons on the page.
+  doc.getElementById(HOST_ID)?.remove()
   const host = doc.createElement('div')
   host.id = HOST_ID
   // Append to <html>, not <body>: keeps our host out of the body-subtree the
@@ -235,9 +253,19 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     const request = buildAiFillRequest(pageGlobals(doc), fields)
     const reply = await requestAiFill(request)
     if (!reply.ok) {
-      // Surface the mapped cause (quota / rate-limit / auth / …) instead of a flat
-      // "Try again", so a 429 QUOTA_EXCEEDED reads as "AI limit reached".
-      setStatus(button, 'error', ERROR_COPY[reply.reason])
+      // A dead extension context (the tab predates an update/reload) makes every
+      // message throw, which `requestAiFill` reports as `offline` — but that's not a
+      // connectivity problem, so point the user at the real fix rather than a
+      // misleading "Offline". Otherwise surface the mapped cause (quota / rate-limit
+      // / auth / …) so a 429 QUOTA_EXCEEDED reads as "AI limit reached".
+      const copy =
+        reply.reason === 'offline' && !isExtensionAlive()
+          ? {
+              label: 'Reload page',
+              title: 'QuikFill was updated — reload this page to keep filling.',
+            }
+          : ERROR_COPY[reply.reason]
+      setStatus(button, 'error', copy)
       // A fill that tipped the user over budget: refresh the snapshot so the
       // buttons disappear (the side panel shows the depleted budget).
       if (reply.reason === 'quota') {
