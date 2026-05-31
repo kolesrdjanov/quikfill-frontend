@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { ArrowUpRight, LogOut } from 'lucide-vue-next'
 import { Badge, Button } from '@quikfill/ui'
 import BrandLockup from '../../components/BrandLockup.vue'
@@ -45,7 +45,19 @@ onMounted(async () => {
   initTheme('auto')
   await gate.init()
   await entitlements.init()
+  // init() only reads the background's cached snapshot, which is warmed once at
+  // service-worker startup — usually while still signed out, so it's empty. Fetch
+  // live numbers whenever the gate is ready (on open) and again right after an
+  // in-popup sign-in, otherwise the mini-dashboard shows "Loading…" forever.
+  if (gate.isAppReady.value) void entitlements.refresh()
 })
+
+watch(
+  () => gate.isAppReady.value,
+  (ready) => {
+    if (ready) void entitlements.refresh()
+  },
+)
 
 function openDashboard() {
   void browser.tabs?.create({ url: DASHBOARD_URL })
