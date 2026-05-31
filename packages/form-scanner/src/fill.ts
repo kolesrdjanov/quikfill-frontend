@@ -1187,9 +1187,13 @@ function clickElement(el: Element, anchor: Element = el): void {
   el.dispatchEvent(mouseEvent('mousedown', x, y, 1))
   el.dispatchEvent(pointerEvent('pointerup', x, y, 0))
   el.dispatchEvent(mouseEvent('mouseup', x, y, 0))
+  // Dispatch the click WITH the press coordinates — NOT HTMLElement.click(), which
+  // is coordinate-less (clientX/clientY = 0 → the viewport's top-left corner,
+  // OUTSIDE a right-anchored drawer). A modal that decides "inside vs outside" from
+  // the CLICK event's geometry (not just pointerdown) would otherwise read our
+  // in-drawer trigger press as an outside click and dismiss the drawer ~mid-fill.
+  el.dispatchEvent(mouseEvent('click', x, y, 0))
   const node = el as HTMLElement
-  if (typeof node.click === 'function') node.click()
-  else el.dispatchEvent(mouseEvent('click', x, y, 0))
   if (typeof node.focus === 'function') {
     try {
       node.focus()
