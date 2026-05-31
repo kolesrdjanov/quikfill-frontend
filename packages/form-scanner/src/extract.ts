@@ -40,6 +40,42 @@ export function getInputType(el: FormControl): string {
   return tag
 }
 
+/** HTML5 constraint-validation attributes a model can use to produce a valid value. */
+export interface ValidationAttrs {
+  pattern?: string
+  minLength?: number
+  maxLength?: number
+  min?: string
+  max?: string
+}
+
+/**
+ * Read the constraint-validation attributes off a control. `minLength`/`maxLength`
+ * are parsed to non-negative integers; `min`/`max` stay raw strings because their
+ * meaning depends on `inputType` (a number, a date, or a time). Absent/blank attrs
+ * are omitted so they round-trip as `undefined` through the schema.
+ */
+export function getValidationAttrs(el: FormControl): ValidationAttrs {
+  const out: ValidationAttrs = {}
+  const pattern = el.getAttribute('pattern')
+  if (pattern) out.pattern = pattern
+  const minLength = parseNonNegativeInt(el.getAttribute('minlength'))
+  if (minLength !== undefined) out.minLength = minLength
+  const maxLength = parseNonNegativeInt(el.getAttribute('maxlength'))
+  if (maxLength !== undefined) out.maxLength = maxLength
+  const min = el.getAttribute('min')
+  if (min) out.min = min
+  const max = el.getAttribute('max')
+  if (max) out.max = max
+  return out
+}
+
+function parseNonNegativeInt(raw: string | null): number | undefined {
+  if (raw === null || raw.trim() === '') return undefined
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 0 ? n : undefined
+}
+
 export function getCurrentValue(el: FormControl): string | null {
   const tag = el.tagName.toLowerCase()
   if (tag === 'input' || tag === 'textarea') return (el as HTMLInputElement).value ?? null

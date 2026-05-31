@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { isVisible } from './extract'
+import { getValidationAttrs, isVisible, type FormControl } from './extract'
 
 /**
  * Simulate a real browser's layout for one element: a non-empty box means
@@ -69,5 +69,35 @@ describe('isVisible — geometry hardening', () => {
     // so an element with no client rects is still treated as visible.
     document.body.innerHTML = `<input id="x" />`
     expect(isVisible(document.getElementById('x')!)).toBe(true)
+  })
+})
+
+describe('getValidationAttrs', () => {
+  function input(html: string): FormControl {
+    document.body.innerHTML = html
+    return document.body.firstElementChild as FormControl
+  }
+
+  it('extracts pattern, min/maxLength (as ints) and raw min/max', () => {
+    const el = input(
+      `<input type="number" pattern="\\d+" minlength="2" maxlength="8" min="0" max="100" />`,
+    )
+    expect(getValidationAttrs(el)).toEqual({
+      pattern: '\\d+',
+      minLength: 2,
+      maxLength: 8,
+      min: '0',
+      max: '100',
+    })
+  })
+
+  it('keeps min/max raw for date inputs', () => {
+    const el = input(`<input type="date" min="2020-01-01" max="2020-12-31" />`)
+    expect(getValidationAttrs(el)).toEqual({ min: '2020-01-01', max: '2020-12-31' })
+  })
+
+  it('omits absent / blank / non-integer attributes', () => {
+    const el = input(`<input type="text" minlength="" maxlength="abc" />`)
+    expect(getValidationAttrs(el)).toEqual({})
   })
 })
