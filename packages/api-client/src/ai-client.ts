@@ -1,4 +1,11 @@
-import { aiSuggestionSchema, type AiSuggestion, type FieldSummary } from '@quikfill/schemas'
+import {
+  aiFillValueSchema,
+  aiSuggestionSchema,
+  type AiFillRequest,
+  type AiFillResponse,
+  type AiSuggestion,
+  type FieldSummary,
+} from '@quikfill/schemas'
 import type { RestClient } from './http'
 
 /** Context the backend may use to suggest concrete fill sources. */
@@ -10,6 +17,8 @@ export interface SuggestContext {
 export interface AiClient {
   classifyFields(fields: FieldSummary[]): Promise<AiSuggestion[]>
   suggestMappings(fields: FieldSummary[], context?: SuggestContext): Promise<AiSuggestion[]>
+  /** POST /ai/fill — concrete fill values keyed by the `fieldId`s sent. */
+  fill(request: AiFillRequest): Promise<AiFillResponse>
 }
 
 /**
@@ -42,6 +51,24 @@ function parseSuggestions(body: unknown): AiSuggestion[] {
 }
 
 /**
+ * Keep only schema-valid fill values; the model output is untrusted even after
+ * the backend's own re-validation (defence in depth). A non-object/array body is
+ * a contract breach and throws.
+ */
+function parseFillResponse(body: unknown): AiFillResponse {
+  const values = (body as { values?: unknown } | null)?.values
+  if (!Array.isArray(values)) {
+    throw new ApiClientError('Expected an /ai/fill response with a values array.')
+  }
+  const out: AiFillResponse['values'] = []
+  for (const entry of values) {
+    const parsed = aiFillValueSchema.safeParse(entry)
+    if (parsed.success) out.push(parsed.data)
+  }
+  return { values: out }
+}
+
+/**
  * AI endpoints run over the shared authenticated {@link RestClient}, so classify
  * / suggest calls carry the bearer token AND inherit its 401 → refresh → retry
  * with coalesced concurrent refresh. This sharing is required, not just tidy:
@@ -56,5 +83,6 @@ export function createAiClient(rest: RestClient): AiClient {
   return {
     classifyFields: (fields) => post('/ai/classify-fields', { fields }),
     suggestMappings: (fields, context) => post('/ai/suggest-mappings', { fields, context }),
+    fill: async (request) => parseFillResponse(await rest.post<unknown>('/ai/fill', request)),
   }
 }

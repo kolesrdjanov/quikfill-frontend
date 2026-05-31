@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { FieldSummary } from '@quikfill/schemas'
+import type { AiFillRequest, FieldSummary } from '@quikfill/schemas'
 import { ApiClientError, createAiClient } from './ai-client'
 import { createRestClient } from './http'
 
 const summaries: FieldSummary[] = [{ fieldId: 'f1', inputType: 'text', label: 'First name' }]
+const fillRequest: AiFillRequest = {
+  page: { lang: 'en', title: 'Sign up', description: '' },
+  fields: [{ fieldId: 'qf-0', inputType: 'email', label: 'Email', required: true }],
+}
 
 function jsonResponse(body: unknown, init: { status?: number } = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -128,5 +132,49 @@ describe('createAiClient.suggestMappings', () => {
     const [url, init] = fetch.mock.calls[0]
     expect(url).toBe('http://localhost:4010/api/v1/ai/suggest-mappings')
     expect(JSON.parse(init.body)).toEqual({ fields: summaries, context })
+  })
+})
+
+describe('createAiClient.fill', () => {
+  it('posts the request to /ai/fill and returns parsed values', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ values: [{ fieldId: 'qf-0', value: 'a@b.com' }] }))
+    const client = aiClient({ fetch })
+
+    const result = await client.fill(fillRequest)
+
+    const [url, init] = fetch.mock.calls[0]
+    expect(url).toBe('http://localhost:4010/api/v1/ai/fill')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual(fillRequest)
+    expect(result).toEqual({ values: [{ fieldId: 'qf-0', value: 'a@b.com' }] })
+  })
+
+  it('drops malformed value entries (untrusted model output)', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        values: [
+          { fieldId: 'qf-0', value: 'ok' },
+          { fieldId: 'qf-1', value: 5 },
+          { value: 'no-id' },
+        ],
+      }),
+    )
+    const client = aiClient({ fetch })
+    const result = await client.fill(fillRequest)
+    expect(result.values).toEqual([{ fieldId: 'qf-0', value: 'ok' }])
+  })
+
+  it('throws when the body has no values array', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ nope: true }))
+    const client = aiClient({ fetch })
+    await expect(client.fill(fillRequest)).rejects.toBeInstanceOf(ApiClientError)
+  })
+
+  it('throws ApiClientError carrying the status on a non-2xx response', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ message: 'quota' }, { status: 429 }))
+    const client = aiClient({ fetch })
+    await expect(client.fill(fillRequest)).rejects.toMatchObject({ status: 429 })
   })
 })

@@ -1,4 +1,5 @@
 export { createAiClient, ApiClientError, type AiClient, type SuggestContext } from './ai-client'
+export { mockAiFill } from './ai-fill-mock'
 
 export {
   createRestClient,
