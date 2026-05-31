@@ -983,6 +983,63 @@ describe('applyFill — custom select across framework patterns', () => {
     expect(results[0].status).toBe('success')
   })
 
+  it('value-matches an ARIA-less <li>+checkbox multiselect, detecting multi from the open list', async () => {
+    // The user's "User Group(s)" widget: a bare button opens an inline panel whose
+    // options are <li> rows — each a <label> (the value) + a hidden readonly checkbox
+    // toggled by a click handler on the row. No role=option, no aria, no chips.
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="userGroups">
+        <label>Select User Group(s)</label>
+        <div class="relative flex items-center">
+          <div class="group">
+            <button type="button" id="t"><p>Select User Groups</p>
+              <span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></span>
+            </button>
+          </div>
+          <div class="panel" hidden><ul data-test-id="list"></ul></div>
+        </div>
+      </div>`
+    const panel = document.querySelector('.panel') as HTMLElement
+    const ul = document.querySelector('ul')!
+    const GROUPS = ['asd', 'District Manipulator', 'Impulse Storage Users', 'Create Group']
+    const renderList = (): void => {
+      ul.innerHTML = ''
+      for (const g of GROUPS) {
+        const li = document.createElement('li')
+        const row = document.createElement('div')
+        row.className = 'p-2 cursor-pointer'
+        const label = document.createElement('label')
+        label.textContent = g
+        const cb = document.createElement('input')
+        cb.type = 'checkbox'
+        cb.readOnly = true
+        row.append(label, cb)
+        li.appendChild(row)
+        row.addEventListener('click', () => {
+          cb.checked = !cb.checked // app handler; readonly box driven by JS
+        })
+        ul.appendChild(li)
+      }
+    }
+    document.getElementById('t')!.addEventListener('click', () => {
+      panel.removeAttribute('hidden')
+      renderList()
+    })
+    const widget = widgetOf({ optionItemSelector: '[role="option"]' }) // closed scan saw no options
+    const { results } = await applyFill([
+      ins('District Manipulator, Impulse Storage Users', widget),
+    ])
+    const checked = (name: string): boolean =>
+      Array.from(document.querySelectorAll('li')).some(
+        (li) =>
+          li.querySelector('label')!.textContent === name && li.querySelector('input')!.checked,
+      )
+    expect(checked('District Manipulator')).toBe(true)
+    expect(checked('Impulse Storage Users')).toBe(true)
+    expect(checked('asd')).toBe(false)
+    expect(results[0].status).toBe('success')
+  })
+
   it('navigates a calendar to the target month and clicks the day cell (datepicker)', async () => {
     document.body.innerHTML = `
       <div id="w" data-test-id="w" name="bday">

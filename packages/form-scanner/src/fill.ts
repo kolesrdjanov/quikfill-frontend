@@ -419,7 +419,9 @@ async function fillCustomSelect(
   clickElement(trigger)
   await settle()
 
-  if (widget.kind === 'multiselect') {
+  // Multi-select is detected from the OPEN list too (checkbox rows / aria-multiselectable),
+  // not just the scan-time kind — a closed ARIA-less widget can't reveal it earlier.
+  if (isMultiSelect(widget, widgetEl, trigger, doc)) {
     return { result: await selectMultiple(ins, widget, widgetEl, trigger, root, doc), entry }
   }
 
@@ -427,9 +429,7 @@ async function fillCustomSelect(
   const want = norm(ins.proposedValue)
   const option =
     want === ''
-      ? // Nothing to match — keep the legacy first-option fill.
-        (firstOption(widgetEl, widget.optionItemSelector, trigger) ??
-        firstOption(doc, widget.optionItemSelector, trigger))
+      ? (openOptionNodes(widget, widgetEl, trigger, doc)[0] ?? null) // nothing to match → first
       : await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
 
   if (!option) {
@@ -449,7 +449,7 @@ async function fillCustomSelect(
       entry,
     }
   }
-  const chosenLabel = textOf(option)
+  const chosenLabel = optionLabelText(option)
 
   clickOption(option, trigger, root)
   await settle()
@@ -503,9 +503,11 @@ async function selectMultiple(
       missed.push(token)
       continue
     }
-    landed.push(textOf(option))
+    const label = optionLabelText(option)
     clickOption(option, trigger, root)
     await settle()
+    if (optionIsSelected(option)) landed.push(label)
+    else missed.push(token)
     // Some multiselects collapse the list on each pick — reopen for the next token.
     if (openOptionNodes(widget, widgetEl, trigger, doc).length === 0) {
       clickElement(trigger)
@@ -543,28 +545,46 @@ async function resolveOption(
   let hit = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
   if (hit) return hit
 
-  if (widget.isSearchable && widget.searchInputSelector) {
-    const input = (queryIn(widgetEl, widget.searchInputSelector) ??
-      queryIn(doc, widget.searchInputSelector)) as Fillable | null
-    if (input) {
-      focusEl(input)
-      setNativeValue(input, value)
-      dispatchKey(input, 'keydown')
-      dispatch(input, 'input')
-      dispatchKey(input, 'keyup')
-      // Bounded poll: JS filtering (and any async fetch) may resolve over a few ticks.
-      for (let i = 0; i < 3 && !hit; i++) {
-        await settle()
-        hit = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
-      }
-      if (hit) return hit
+  // Type into the widget's filter input — resolved even when the scan didn't capture
+  // it, since a search box often only exists once the list is open. This surfaces
+  // JS-filtered, typeahead-only, and async-fetched options.
+  const input = resolveSearchInput(widget, widgetEl, doc)
+  if (input) {
+    focusEl(input)
+    setNativeValue(input, value)
+    dispatchKey(input, 'keydown')
+    dispatch(input, 'input')
+    dispatchKey(input, 'keyup')
+    // Bounded poll: JS filtering (and any async fetch) may resolve over a few ticks.
+    for (let i = 0; i < 3 && !hit; i++) {
+      await settle()
+      hit = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
     }
+    if (hit) return hit
   }
 
   if (widget.isVirtualized) {
     hit = await scrollAndMatch(widget, widgetEl, trigger, doc, value)
   }
   return hit
+}
+
+/** The widget's filter input: the scan-time selector if it resolves, else a text/search input in the open panel. */
+function resolveSearchInput(
+  widget: CustomWidget,
+  widgetEl: Element,
+  doc: Document,
+): Fillable | null {
+  if (widget.searchInputSelector) {
+    const byScan =
+      queryIn(widgetEl, widget.searchInputSelector) ?? queryIn(doc, widget.searchInputSelector)
+    if (byScan) return byScan as Fillable
+  }
+  const linked = widget.listboxId ? doc.getElementById(widget.listboxId) : null
+  const found =
+    (linked && queryIn(linked, 'input[type="search"], input[type="text"], input:not([type])')) ??
+    queryIn(widgetEl, 'input[type="search"], input[type="text"], input:not([type])')
+  return (found as Fillable | null) ?? null
 }
 
 /** Known virtual-scroller markers, used to find the scrollable list container. */
@@ -601,11 +621,20 @@ async function scrollAndMatch(
   return matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
 }
 
+/** ARIA option roles, safe to resolve document-wide (open lists are often portaled). */
+const ARIA_OPTION_SELECTORS = [
+  '[role="option"]',
+  '[role="menuitemcheckbox"], [role="menuitemradio"]',
+  '[role="button"][aria-label*="option" i]',
+]
+
 /**
- * Option nodes in the now-open list. Searches, in order: the listbox linked by the
- * trigger's aria-controls (resolved against the whole document, so portaled lists
- * are found), the widget subtree, then the whole document. The trigger itself can
- * match the option selector (role=button), so it is always excluded.
+ * Option nodes in the now-open list. Tries the widget's stored selector and the ARIA
+ * option roles first (in the aria-controls listbox / widget / whole document, since
+ * lists are often portaled to <body>); then falls back to STRUCTURAL options scoped
+ * to the widget only — list items, or rows wrapping a single checkbox/radio — because
+ * many real dropdowns expose no ARIA at all, just `<li>`/checkbox rows whose text is
+ * the value. The trigger and empty rows are always excluded.
  */
 function openOptionNodes(
   widget: CustomWidget,
@@ -613,15 +642,19 @@ function openOptionNodes(
   trigger: Element,
   doc: Document,
 ): Element[] {
-  const scopes: ParentNode[] = []
-  if (widget.listboxId) {
-    const lb = doc.getElementById(widget.listboxId)
-    if (lb) scopes.push(lb)
+  const linked = widget.listboxId ? doc.getElementById(widget.listboxId) : null
+  const ariaScopes = [linked, widgetEl, doc].filter((s) => s !== null) as ParentNode[]
+  for (const selector of [widget.optionItemSelector, ...ARIA_OPTION_SELECTORS]) {
+    for (const scope of ariaScopes) {
+      const nodes = queryOptions(scope, selector, trigger)
+      if (nodes.length) return nodes
+    }
   }
-  scopes.push(widgetEl, doc)
-  for (const scope of scopes) {
-    const nodes = queryOptions(scope, widget.optionItemSelector, trigger)
-    if (nodes.length) return nodes
+  // Structural fallback — scope to the widget / linked panel ONLY (never document-wide,
+  // or unrelated page lists would match).
+  for (const scope of [linked, widgetEl].filter((s) => s !== null) as ParentNode[]) {
+    const rows = structuralOptions(scope, trigger)
+    if (rows.length) return rows
   }
   return []
 }
@@ -633,7 +666,84 @@ function queryOptions(scope: ParentNode, selector: string, trigger: Element): El
   } catch {
     return []
   }
-  return nodes.filter((n) => n !== trigger && !trigger.contains(n) && !n.contains(trigger))
+  return nodes.filter(
+    (n) => n !== trigger && !trigger.contains(n) && !n.contains(trigger) && textOf(n) !== '',
+  )
+}
+
+/**
+ * ARIA-less options: list items in a list, or rows that each wrap a single
+ * checkbox/radio (a multi-select / radio list). The row's text is its value.
+ */
+function structuralOptions(scope: ParentNode, trigger: Element): Element[] {
+  const listItems = queryOptions(
+    scope,
+    'ul > li, ol > li, [role="listbox"] > li, [role="list"] > li',
+    trigger,
+  )
+  if (listItems.length) return listItems
+  let inputs: Element[]
+  try {
+    inputs = Array.from(scope.querySelectorAll('input[type="checkbox"], input[type="radio"]'))
+  } catch {
+    return []
+  }
+  const rows = new Set<Element>()
+  for (const input of inputs) {
+    const row = optionRowFor(input)
+    if (row && row !== trigger && !trigger.contains(row) && textOf(row) !== '') rows.add(row)
+  }
+  return Array.from(rows)
+}
+
+/** The selectable row wrapping a checkbox/radio: its list item, else a labelled ancestor. */
+function optionRowFor(input: Element): Element | null {
+  const li = input.closest('li')
+  if (li) return li
+  let node = input.parentElement
+  for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+    if (node.querySelector('label') || textOf(node) !== '') return node
+  }
+  return input.parentElement
+}
+
+/** Whether this widget lets several options be chosen at once (so we fill a token list). */
+function isMultiSelect(
+  widget: CustomWidget,
+  widgetEl: Element,
+  trigger: Element,
+  doc: Document,
+): boolean {
+  if (widget.kind === 'multiselect') return true
+  const linked = widget.listboxId ? doc.getElementById(widget.listboxId) : null
+  if (
+    widgetEl.querySelector('[aria-multiselectable="true"]') !== null ||
+    linked?.getAttribute('aria-multiselectable') === 'true'
+  ) {
+    return true
+  }
+  // Options that each carry a checkbox are inherently multi-select.
+  return openOptionNodes(widget, widgetEl, trigger, doc).some(
+    (n) => n.querySelector('input[type="checkbox"]') !== null,
+  )
+}
+
+/** The display label of an option: its inner `<label>`, else its text, else aria-label. */
+function optionLabelText(option: Element): string {
+  const label = option.querySelector('label')
+  const labelText = label ? textOf(label) : ''
+  return labelText || textOf(option) || option.getAttribute('aria-label')?.trim() || ''
+}
+
+/** Whether an option currently reads as selected: a checked inner box, aria, or class. */
+function optionIsSelected(option: Element): boolean {
+  const box = option.querySelector('input[type="checkbox"], input[type="radio"]')
+  if (box && (box as HTMLInputElement).checked) return true
+  return (
+    option.getAttribute('aria-selected') === 'true' ||
+    option.getAttribute('aria-checked') === 'true' ||
+    /(^|[\s_-])(selected|checked|active)([\s_-]|$)/i.test(option.getAttribute('class') ?? '')
+  )
 }
 
 /**
@@ -664,8 +774,11 @@ function matchOption(nodes: Element[], widget: CustomWidget, value: string): Ele
 
 /** Match strength of one option against a normalized target (lower = stronger; 0 = no match). */
 function optionTier(node: Element, widget: CustomWidget, want: string, ariaLabel: string): number {
+  // An inner <label> is the value text for checkbox/li-style options.
+  const label = node.querySelector('label')
   const names = [
     norm(textOf(node)),
+    norm(label ? textOf(label) : ''),
     norm(ariaLabel),
     norm(node.getAttribute('title') ?? ''),
   ].filter(Boolean)
@@ -685,7 +798,24 @@ function optionTier(node: Element, widget: CustomWidget, want: string, ariaLabel
  * reads the press as inside the panel and leaves the drawer open.
  */
 function clickOption(option: Element, trigger: Element, root: FillRoot): void {
-  clickElement(option, withinRoot(root, option) ? option : trigger)
+  const target = optionClickTarget(option)
+  clickElement(target, withinRoot(root, target) ? target : trigger)
+}
+
+/**
+ * The element to actually press for an option. Prefers an inner interactive node so a
+ * click handler bound to a child fires (events still bubble to ancestor handlers
+ * either way), falling back to the option row itself.
+ */
+function optionClickTarget(option: Element): Element {
+  return (
+    option.querySelector(
+      '[role="option"], [role="button"], [role="menuitemcheckbox"], [role="menuitemradio"]',
+    ) ??
+    option.querySelector('label') ??
+    option.querySelector('[class*="cursor-pointer" i]') ??
+    option
+  )
 }
 
 /** Whether a pick committed: the display changed, now matches the option, or it reports selected. */
@@ -698,12 +828,8 @@ function selectionLanded(
   option: Element,
 ): boolean {
   const got = readDisplay(widgetEl, widget, doc)
-  return (
-    norm(got) !== norm(previous) ||
-    norm(got) === norm(chosenLabel) ||
-    option.getAttribute('aria-selected') === 'true' ||
-    option.getAttribute('aria-checked') === 'true'
-  )
+  if (norm(got) !== norm(previous) || norm(got) === norm(chosenLabel)) return true
+  return optionIsSelected(option)
 }
 
 /**
@@ -957,21 +1083,6 @@ async function undoCustomSelect(
   clickOption(option, trigger, root)
   await settle()
   return success(entry.detectedFieldId, prev)
-}
-
-/** The first option node matching the selector, never the trigger itself. */
-function firstOption(scope: ParentNode, selector: string, exclude: Element | null): Element | null {
-  let nodes: Element[]
-  try {
-    nodes = Array.from(scope.querySelectorAll(selector))
-  } catch {
-    return null
-  }
-  for (const n of nodes) {
-    if (exclude && (n === exclude || exclude.contains(n) || n.contains(exclude))) continue
-    return n
-  }
-  return null
 }
 
 function readDisplay(widgetEl: Element, widget: CustomWidget, doc: Document): string {
