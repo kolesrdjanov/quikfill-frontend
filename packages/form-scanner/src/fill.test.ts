@@ -493,6 +493,49 @@ describe('applyFill — custom select emits faithful, in-bounds pointer input', 
   })
 })
 
+// Coordinate-based dismiss is guarded above; these cover the OTHER ways real
+// drawers close — a document listener that checks event target/composedPath
+// containment, and a focus-out handler. The country widget renders its options
+// INSIDE the drawer, so a faithful fill must never trip either.
+describe('applyFill — custom select does not trip non-coordinate drawer dismissals', () => {
+  it('keeps a drawer open whose dismiss checks event target containment', async () => {
+    mountCustomSelect('Parking')
+    const drawer = document.getElementById('cat')! // options live INSIDE it
+    let drawerOpen = true
+    const dismiss = (e: Event): void => {
+      const path = (e.composedPath?.() ?? [e.target]) as EventTarget[]
+      if (!path.includes(drawer) && !drawer.contains(e.target as Node)) drawerOpen = false
+    }
+    const types = ['pointerdown', 'mousedown', 'click']
+    for (const type of types) document.addEventListener(type, dismiss, true)
+    try {
+      const { results } = await applyFill([customInstruction('Office')])
+      expect(drawerOpen).toBe(true)
+      expect(results[0].status).toBe('success')
+    } finally {
+      for (const type of types) document.removeEventListener(type, dismiss, true)
+    }
+  })
+
+  it('keeps a drawer open whose dismiss closes on focus leaving it', async () => {
+    mountCustomSelect('Parking')
+    const drawer = document.getElementById('cat')!
+    let drawerOpen = true
+    const onFocusOut = (e: FocusEvent): void => {
+      const next = e.relatedTarget as Node | null
+      if (next && !drawer.contains(next)) drawerOpen = false
+    }
+    document.addEventListener('focusout', onFocusOut as EventListener, true)
+    try {
+      const { results } = await applyFill([customInstruction('Office')])
+      expect(drawerOpen).toBe(true)
+      expect(results[0].status).toBe('success')
+    } finally {
+      document.removeEventListener('focusout', onFocusOut as EventListener, true)
+    }
+  })
+})
+
 // A searchable combobox (e.g. a React country picker): the value lives in a
 // typeahead <input>, not a text node, and a placeholder <p> is shown until a
 // pick is made. Selecting an option sets input.value and drops the placeholder.
