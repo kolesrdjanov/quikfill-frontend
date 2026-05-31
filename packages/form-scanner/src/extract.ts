@@ -385,17 +385,26 @@ const OPTION_VALUE_ATTRS = ['data-value', 'data-option-value', 'data-key', 'valu
 /** A calendar popup matches this; such a widget is a datepicker, not a value list. */
 const CALENDAR_SELECTOR = '[role="grid"], [role="gridcell"]'
 
+/** A trigger's text/label that reads as a "nothing chosen yet" prompt. */
+const PLACEHOLDER_TEXT_RE = /^(select|choose|please\s+choose|pick)\b/i
+
+/** Class hints that an element is (or contains) a dropdown chevron/caret affordance. */
+const CHEVRON_HINT_RE = /chevron|caret|arrow|expand|dropdown|angle/i
+
 /**
  * How strongly an element signals "custom select".
  * - `strong`: an unambiguous select/listbox opener (role=combobox,
  *   aria-haspopup=listbox, data-trigger=select). These own an option list even
  *   before it is rendered, so we can detect them with the list still closed.
+ * - `heuristic`: an ARIA-less dropdown trigger inferred structurally (placeholder
+ *   text + chevron + labelled field). Treated like `strong` (detected closed); the
+ *   filler confirms by opening it and backs off if no option list appears.
  * - `weak`: could be a select but could equally be an accordion/menu/disclosure
  *   (a plain expandable or aria-controls button). We treat it as a select only
  *   once its options are actually present in the DOM.
  * - `null`: not a trigger.
  */
-function customSelectStrength(el: Element): 'strong' | 'weak' | null {
+function customSelectStrength(el: Element): 'strong' | 'heuristic' | 'weak' | null {
   const role = el.getAttribute('role')
   // A menu button opens *actions* (role=menu/menuitem), not a value list — never a
   // fillable select. Bail before the weaker role=button+aria-expanded check below
@@ -416,6 +425,39 @@ function customSelectStrength(el: Element): 'strong' | 'weak' | null {
   }
   if (role === 'button' && el.hasAttribute('aria-expanded')) return 'weak'
   if (el.hasAttribute('aria-controls') && (role === 'button' || role === 'combobox')) return 'weak'
+  if (looksLikeHeuristicSelect(el)) return 'heuristic'
+  return null
+}
+
+/**
+ * Spot a dropdown trigger that exposes NO ARIA at all — a clickable button/role=button
+ * that shows a placeholder prompt ("Select…", "Choose…"), carries a chevron, and lives
+ * in a labelled field that holds no native input. The labelled-field-with-no-input guard
+ * is load-bearing: it rejects an adjunct control like a phone country-code button sitting
+ * beside the real <input> (treating that as the field would swallow the input). The
+ * filler re-confirms by opening it, so a false positive degrades to a harmless no-op.
+ */
+function looksLikeHeuristicSelect(el: Element): boolean {
+  const clickable = el.tagName.toLowerCase() === 'button' || el.getAttribute('role') === 'button'
+  if (!clickable || (el as HTMLButtonElement).type === 'submit') return false
+  const hasChevron =
+    CHEVRON_HINT_RE.test(el.getAttribute('class') ?? '') ||
+    el.querySelector('[class*="chevron" i], [class*="caret" i], [class*="arrow" i]') !== null ||
+    el.querySelector('svg') !== null
+  if (!hasChevron) return false
+  const prompts = PLACEHOLDER_TEXT_RE.test(normalizeWidgetText(el))
+  const labelPrompt = PLACEHOLDER_TEXT_RE.test(el.getAttribute('aria-label') ?? '')
+  if (!prompts && !labelPrompt) return false
+  const field = labelledFieldContainer(el)
+  return field !== null && countFormControls(field) === 0
+}
+
+/** The nearest ancestor (≤5 up) that contains a `<label>` — the trigger's field wrapper. */
+function labelledFieldContainer(el: Element): Element | null {
+  let node = el.parentElement
+  for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+    if (node.querySelector('label')) return node
+  }
   return null
 }
 
@@ -462,12 +504,13 @@ export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
   }
 
   // 3) No option nodes in the DOM yet. A strong signal (combobox / haspopup=listbox
-  //    / data-trigger=select) reliably owns an on-demand list, so detect it now with
-  //    empty options — the filler opens the trigger and reads the list at fill time.
-  //    A weak signal could be an accordion/menu/disclosure, so without visible
-  //    options we decline (the guard that keeps plain buttons from becoming selects).
+  //    / data-trigger=select) or a heuristic ARIA-less trigger reliably owns an
+  //    on-demand list, so detect it now with empty options — the filler opens the
+  //    trigger and reads the list at fill time. A weak signal could be an
+  //    accordion/menu/disclosure, so without visible options we decline (the guard
+  //    that keeps plain buttons from becoming selects).
   if (options.length === 0) {
-    if (strength !== 'strong') return null
+    if (strength === 'weak') return null
     return { ...base, widgetRoot: resolveWidgetRoot(trigger, null), optionLabels: [] }
   }
 

@@ -315,6 +315,63 @@ describe('scanForms', () => {
     expect(fields).toHaveLength(0)
   })
 
+  it('heuristically detects an ARIA-less dropdown (placeholder + chevron + labelled field)', () => {
+    // The "User Group(s)" multiselect from the user's app: a bare <button> with NO
+    // role/aria/data-trigger — only placeholder text and a chevron in a labelled field.
+    setBody(`
+      <div class="flex flex-col" data-test-id="user-groups">
+        <label>Select User Group(s)</label>
+        <div class="relative flex items-center">
+          <div class="group relative flex items-center">
+            <button type="button">
+              <p>Select User Groups</p>
+              <span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields).toHaveLength(1)
+    expect(fields[0].inputType).toBe('customSelect')
+    expect(fields[0].labelText).toBe('Select User Group(s)')
+    expect(fields[0].customWidget?.kind).toBe('select')
+  })
+
+  it('does not heuristically swallow an adjunct picker beside a native input', () => {
+    // A phone country-code <button> sits in the SAME labelled field as the phone
+    // <input>. Treating the button as the field would suppress the input — so the
+    // heuristic must decline (its field container holds a native control), leaving
+    // only the phone input as a field.
+    setBody(`
+      <div data-test-id="phone-numbers-0" name="phoneNumbers.0">
+        <label for="phone">Phone Number</label>
+        <div class="group relative flex">
+          <div class="w-[100px]">
+            <button aria-label="Select country code" type="button">
+              <span>+1</span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
+            </button>
+          </div>
+          <div class="flex-1"><input id="phone" type="tel" placeholder="(000) 000-0000" /></div>
+        </div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields).toHaveLength(1)
+    expect(fields[0].inputType).toBe('tel')
+    expect(fields[0].domId).toBe('phone')
+  })
+
+  it('does not heuristically detect an action button (no placeholder prompt)', () => {
+    setBody(`
+      <div class="field"><label>Name</label>
+        <button type="button">Add New User <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields).toHaveLength(0)
+  })
+
   it('drops junk framework-id-only fields but keeps labeled ones', () => {
     setBody(`
       <input id="_r_f4_" type="text" />
