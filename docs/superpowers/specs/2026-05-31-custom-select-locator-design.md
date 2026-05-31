@@ -126,20 +126,18 @@ Rejected alternatives:
 
 ### Component changes
 
-**`packages/schemas` — `CustomWidget`**
+**`packages/schemas` — `CustomWidget` (no change)**
 
-- Add `optionAutomationAttrs: string[]` (the automation-attribute family the
-  matcher should consult on options) and `automationNamespace: string | null`
-  (the container/trigger `data-test-id`-style prefix used to recognise
-  id-encoded options). Both nullable/defaulted; response uses `nullableOptional()`
-  per the schema-null convention.
+- Refined during planning: option attributes don't exist at scan time, and the
+  widget's id-namespace (its container `data-test-id`) is already re-resolvable at
+  fill time from `widgetEl`. So the matcher reads automation attributes **live**
+  from the open option nodes using a module-constant attribute list — **no schema
+  field, no serialization/redaction change** is needed. Simpler and lower-risk.
 
 **`packages/form-scanner/src/extract.ts` — scan**
 
-- Record the widget's automation-attribute namespace from the container/trigger
-  (`data-test-id` etc.). Options are still closed, so we capture the _convention_,
-  not the option attributes.
-- Broaden the option selector set so automation-attribute-bearing option nodes are
+- No scan-time change required for matching (handled live at fill time).
+- Optionally broaden the option selector set so automation-attribute-bearing nodes are
   recognised as options even without ARIA roles.
 
 **`packages/form-scanner/src/fill.ts` — match & interact**
