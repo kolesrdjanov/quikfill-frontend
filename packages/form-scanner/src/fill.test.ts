@@ -292,6 +292,8 @@ const customWidget: CustomWidget = {
   valueDisplaySelectorCandidates: ['.val'],
   optionItemSelector: '[role="option"], [role="button"][aria-label*="option" i]',
   optionsOpenOnDemand: false,
+  isSearchable: false,
+  isVirtualized: false,
 }
 
 function mountCustomSelect(selected = 'Locker') {
@@ -331,17 +333,35 @@ function customInstruction(proposedValue: string): FillInstruction {
   }
 }
 
-describe('applyFill — custom select (always first option)', () => {
-  it('clicks the first option regardless of the proposed value', async () => {
+describe('applyFill — custom select (value-matching)', () => {
+  it('clicks the option whose visible text matches the proposed value', async () => {
+    // Options carry an identical generic aria-label="Select option" (the user's app
+    // pattern) — the real value is the text, so matching must key off textContent.
     mountCustomSelect('Parking')
     const { results, undoSnapshot } = await applyFill([customInstruction('Office')])
-    expect(document.querySelector('.val')!.textContent).toBe('Locker')
+    expect(document.querySelector('.val')!.textContent).toBe('Office')
     expect(results[0].status).toBe('success')
-    expect(results[0].acceptedValue).toBe('Locker')
+    expect(results[0].acceptedValue).toBe('Office')
     expect(undoSnapshot.entries[0].previousDisplayText).toBe('Parking')
   })
 
-  it('fills the first option even when no value was proposed', async () => {
+  it('matches case-insensitively and ignores surrounding whitespace', async () => {
+    mountCustomSelect('Parking')
+    const { results } = await applyFill([customInstruction('  parking ')])
+    expect(document.querySelector('.val')!.textContent).toBe('Parking')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('leaves the list open and reports assisted when no option matches', async () => {
+    mountCustomSelect('Parking')
+    const { results } = await applyFill([customInstruction('Penthouse')])
+    // Nothing was clicked — the display still shows the prior selection.
+    expect(document.querySelector('.val')!.textContent).toBe('Parking')
+    expect(results[0].status).toBe('assisted')
+    expect(results[0].reason).toMatch(/couldn't find "Penthouse"/i)
+  })
+
+  it('falls back to the first option only when no value was proposed', async () => {
     mountCustomSelect('Parking')
     const { results } = await applyFill([customInstruction('')])
     expect(document.querySelector('.val')!.textContent).toBe('Locker')
@@ -355,7 +375,7 @@ describe('applyFill — custom select (always first option)', () => {
           <div class="val">—</div>
         </div>
       </div>`
-    const { results } = await applyFill([customInstruction('whatever')])
+    const { results } = await applyFill([customInstruction('')])
     expect(results[0].status).toBe('failed')
     expect(results[0].reason).toMatch(/no option/i)
   })
@@ -392,7 +412,7 @@ describe('applyFill — custom select emits faithful, in-bounds pointer input', 
       seen = e as PointerEvent
     })
 
-    await applyFill([customInstruction('Office')])
+    await applyFill([customInstruction('Locker')])
 
     expect(seen).toBeDefined()
     expect(seen).toBeInstanceOf(PointerEvent)
@@ -422,7 +442,7 @@ describe('applyFill — custom select emits faithful, in-bounds pointer input', 
     }
     document.addEventListener('pointerdown', dismiss, true)
     try {
-      const { results } = await applyFill([customInstruction('Office')])
+      const { results } = await applyFill([customInstruction('Locker')])
       expect(drawerOpen).toBe(true)
       expect(results[0].status).toBe('success')
     } finally {
@@ -440,6 +460,8 @@ const comboboxWidget: CustomWidget = {
   valueDisplaySelectorCandidates: ['.select-value-container'],
   optionItemSelector: '[role="option"], [role="button"][aria-label*="option" i]',
   optionsOpenOnDemand: true,
+  isSearchable: false,
+  isVirtualized: false,
 }
 
 function mountSearchableCombobox() {
@@ -496,12 +518,10 @@ describe('applyFill — searchable custom select (value in a typeahead input)', 
     expect(results[0].status).toBe('success')
   })
 
-  it('ignores the proposed value and picks the first option', async () => {
+  it('selects the matching option, not the first, when the value lands in the input', async () => {
     mountSearchableCombobox()
     const { results } = await applyFill([comboboxInstruction('Mexico')])
-    expect((document.getElementById('countryInput') as HTMLInputElement).value).toBe(
-      'United States',
-    )
+    expect((document.getElementById('countryInput') as HTMLInputElement).value).toBe('Mexico')
     expect(results[0].status).toBe('success')
   })
 })
@@ -638,7 +658,7 @@ describe('applyUndo', () => {
   it('restores a custom select to its previous selection', async () => {
     mountCustomSelect('Office')
     const { undoSnapshot } = await applyFill([customInstruction('Parking')])
-    expect(document.querySelector('.val')!.textContent).toBe('Locker') // always first
+    expect(document.querySelector('.val')!.textContent).toBe('Parking') // matched the value
 
     const results = await applyUndo(undoSnapshot)
     expect(results[0].status).toBe('success')
@@ -703,6 +723,8 @@ describe('applyFill — scoped to a root element', () => {
       valueDisplaySelectorCandidates: ['.select-value-container'],
       optionItemSelector: '[role="option"]',
       optionsOpenOnDemand: true,
+      isSearchable: false,
+      isVirtualized: false,
     }
     const { results } = await applyFill(
       [
@@ -711,13 +733,13 @@ describe('applyFill — scoped to a root element', () => {
           selectorCandidates: ['#country'],
           fillStrategy: 'customSelect',
           customWidget: widget,
-          proposedValue: '',
+          proposedValue: 'Canada',
         }),
       ],
       drawer,
     )
     expect(results[0].status).toBe('success')
-    expect((drawer.querySelector('.ph') as HTMLElement).textContent).toBe('United States')
+    expect((drawer.querySelector('.ph') as HTMLElement).textContent).toBe('Canada')
   })
 
   it('keeps the drawer open when clicking an option portaled outside its bounds', async () => {
@@ -775,6 +797,8 @@ describe('applyFill — scoped to a root element', () => {
         valueDisplaySelectorCandidates: ['.select-value-container'],
         optionItemSelector: '[role="option"]',
         optionsOpenOnDemand: true,
+        isSearchable: false,
+        isVirtualized: false,
       }
       const { results } = await applyFill(
         [
@@ -793,5 +817,233 @@ describe('applyFill — scoped to a root element', () => {
     } finally {
       document.removeEventListener('pointerdown', dismiss, true)
     }
+  })
+})
+
+// Universal value-matching across the ARIA/library patterns the engine must handle
+// without per-framework code: portaled listboxes, label-vs-value, typeahead filter,
+// keyboard-only commit, multi-select, and calendar navigation.
+describe('applyFill — custom select across framework patterns', () => {
+  function widgetOf(extra: Partial<CustomWidget>): CustomWidget {
+    return {
+      kind: 'select',
+      triggerSelectorCandidates: ['#t'],
+      valueDisplaySelectorCandidates: ['.d'],
+      optionItemSelector: '[role="option"]',
+      optionsOpenOnDemand: true,
+      isSearchable: false,
+      isVirtualized: false,
+      ...extra,
+    }
+  }
+  function ins(value: string, widget: CustomWidget): FillInstruction {
+    return {
+      detectedFieldId: 'w',
+      selectorCandidates: ['#w'],
+      frame: 'main',
+      shadow: false,
+      tagName: 'div',
+      inputType: 'customSelect',
+      fillStrategy: 'customSelect',
+      proposedValue: value,
+      customWidget: widget,
+    }
+  }
+  /** Wire each [role=option] so a click sets the display and marks it selected. */
+  function wireOptions(display: Element, scope: ParentNode = document): void {
+    for (const opt of Array.from(scope.querySelectorAll('[role="option"]'))) {
+      opt.addEventListener('mousedown', () => {
+        display.textContent = opt.textContent
+        opt.setAttribute('aria-selected', 'true')
+      })
+    }
+  }
+
+  it('resolves a portaled listbox via aria-controls and selects the matching option (MUI/Radix)', async () => {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="fruit">
+        <div role="combobox" id="t" aria-controls="lb" aria-expanded="false"><span class="d">Pick</span></div>
+      </div>
+      <div id="lb" role="listbox" hidden>
+        <div role="option" id="o1">Alpha</div>
+        <div role="option" id="o2">Beta</div>
+        <div role="option" id="o3">Gamma</div>
+      </div>`
+    const lb = document.getElementById('lb')!
+    document.getElementById('t')!.addEventListener('mousedown', () => lb.removeAttribute('hidden'))
+    wireOptions(document.querySelector('.d')!)
+    const { results } = await applyFill([ins('Beta', widgetOf({ listboxId: 'lb' }))])
+    expect(document.querySelector('.d')!.textContent).toBe('Beta')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('matches by visible label and by the option value attribute (label-vs-value)', async () => {
+    function mount(): void {
+      document.body.innerHTML = `
+        <div id="w" data-test-id="w" name="country">
+          <div role="combobox" id="t"><span class="d">—</span></div>
+          <div role="listbox">
+            <div role="option" data-value="us">United States</div>
+            <div role="option" data-value="ca">Canada</div>
+          </div>
+        </div>`
+      wireOptions(document.querySelector('.d')!)
+    }
+    const widget = widgetOf({
+      optionItemSelector: '[role="option"]',
+      optionValueAttr: 'data-value',
+    })
+    mount()
+    await applyFill([ins('united states', widget)]) // normalized label
+    expect(document.querySelector('.d')!.textContent).toBe('United States')
+    mount()
+    await applyFill([ins('ca', widget)]) // stored code via data-value
+    expect(document.querySelector('.d')!.textContent).toBe('Canada')
+  })
+
+  it('types into the search input to surface a filtered option, then selects it', async () => {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="city">
+        <div role="combobox" id="t"><span class="d">—</span><input id="q" type="text" /></div>
+        <div class="list" role="listbox"></div>
+      </div>`
+    const list = document.querySelector('.list')!
+    const display = document.querySelector('.d')!
+    const q = document.getElementById('q') as HTMLInputElement
+    const DATA = ['Paris', 'Berlin', 'Madrid']
+    q.addEventListener('input', () => {
+      const term = q.value.toLowerCase()
+      list.innerHTML = ''
+      for (const city of DATA.filter((c) => c.toLowerCase().includes(term))) {
+        const o = document.createElement('div')
+        o.setAttribute('role', 'option')
+        o.textContent = city
+        o.addEventListener('mousedown', () => {
+          display.textContent = city
+        })
+        list.appendChild(o)
+      }
+    })
+    const widget = widgetOf({ searchInputSelector: '#q', isSearchable: true })
+    const { results } = await applyFill([ins('Madrid', widget)])
+    expect(display.textContent).toBe('Madrid')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('falls back to keyboard navigation when clicking the option does not commit', async () => {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="opt">
+        <div role="combobox" id="t" aria-activedescendant=""><span class="d">—</span></div>
+        <div role="listbox">
+          <div role="option" id="k1">One</div>
+          <div role="option" id="k2">Two</div>
+          <div role="option" id="k3">Three</div>
+        </div>
+      </div>`
+    const t = document.getElementById('t')!
+    const display = document.querySelector('.d')!
+    const opts = Array.from(document.querySelectorAll('[role="option"]')) as HTMLElement[]
+    // Clicks are inert here — only the keyboard path commits (roving/activedescendant widget).
+    let active = -1
+    t.addEventListener('keydown', (e) => {
+      const key = (e as KeyboardEvent).key
+      if (key === 'ArrowDown') {
+        active = Math.min(active + 1, opts.length - 1)
+        t.setAttribute('aria-activedescendant', opts[active].id)
+      } else if (key === 'Enter' && active >= 0) {
+        display.textContent = opts[active].textContent
+      }
+    })
+    const { results } = await applyFill([ins('Three', widgetOf({ optionsOpenOnDemand: false }))])
+    expect(display.textContent).toBe('Three')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('selects multiple values in a multi-select, one click each', async () => {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="tags">
+        <div role="combobox" id="t" aria-multiselectable="true"><span class="d"></span></div>
+        <div role="listbox" aria-multiselectable="true">
+          <div role="option" id="m1">Red</div>
+          <div role="option" id="m2">Green</div>
+          <div role="option" id="m3">Blue</div>
+        </div>
+      </div>`
+    const display = document.querySelector('.d')!
+    for (const opt of Array.from(document.querySelectorAll('[role="option"]'))) {
+      opt.addEventListener('mousedown', () => {
+        opt.setAttribute('aria-selected', 'true')
+        display.textContent = display.textContent
+          ? `${display.textContent}, ${opt.textContent}`
+          : opt.textContent
+      })
+    }
+    const { results } = await applyFill([ins('Red, Blue', widgetOf({ kind: 'multiselect' }))])
+    expect(display.textContent).toBe('Red, Blue')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('navigates a calendar to the target month and clicks the day cell (datepicker)', async () => {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="bday">
+        <div role="button" id="t" aria-haspopup="dialog"><span class="d">—</span></div>
+      </div>
+      <div class="cal" hidden>
+        <div class="cal-header"><span class="cal-title"></span>
+          <button class="prev" aria-label="Previous month"></button>
+          <button class="next" aria-label="Next month"></button>
+        </div>
+        <div role="grid" class="grid"></div>
+      </div>`
+    const MONTHS = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ]
+    const cal = document.querySelector('.cal') as HTMLElement
+    const title = document.querySelector('.cal-title')!
+    const grid = document.querySelector('.grid')!
+    const display = document.querySelector('.d')!
+    const cur = { y: 2026, m: 4 } // May 2026
+    const render = (): void => {
+      title.textContent = `${MONTHS[cur.m]} ${cur.y}`
+      grid.innerHTML = ''
+      for (let day = 1; day <= 28; day++) {
+        const cell = document.createElement('div')
+        cell.setAttribute('role', 'gridcell')
+        cell.setAttribute('aria-label', `${MONTHS[cur.m]} ${day}, ${cur.y}`)
+        cell.textContent = String(day)
+        cell.addEventListener('mousedown', () => {
+          display.textContent = cell.getAttribute('aria-label')
+        })
+        grid.appendChild(cell)
+      }
+    }
+    document.getElementById('t')!.addEventListener('mousedown', () => {
+      cal.removeAttribute('hidden')
+      render()
+    })
+    document.querySelector('.next')!.addEventListener('mousedown', () => {
+      cur.m = (cur.m + 1) % 12
+      if (cur.m === 0) cur.y++
+      render()
+    })
+    document.querySelector('.prev')!.addEventListener('mousedown', () => {
+      cur.m = (cur.m + 11) % 12
+      if (cur.m === 11) cur.y--
+      render()
+    })
+    const { results } = await applyFill([ins('2026-07-15', widgetOf({ kind: 'datepicker' }))])
+    expect(display.textContent).toBe('July 15, 2026')
+    expect(results[0].status).toBe('success')
   })
 })

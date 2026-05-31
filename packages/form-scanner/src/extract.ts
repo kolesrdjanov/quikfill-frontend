@@ -349,6 +349,8 @@ export const CUSTOM_OPTION_SELECTOR = '[role="option"], [role="button"][aria-lab
 
 /** Information needed to detect, classify, and later fill a custom select. */
 export interface CustomSelectInfo {
+  /** How the filler must drive the widget: single select, multi-select, or a calendar. */
+  kind: 'select' | 'multiselect' | 'datepicker'
   /** Stable field-level container (used for label, selectors, option scoping). */
   widgetRoot: Element
   /** Element to click to open the option list. */
@@ -361,7 +363,27 @@ export interface CustomSelectInfo {
   optionLabels: string[]
   /** Currently displayed selection text, if any. */
   selectedLabel: string | null
+  /** The open list's element id (trigger's aria-controls/aria-owns), for portal resolution. */
+  listboxId: string | null
+  /** The widget's typeahead/filter input, when it has one. */
+  searchInput: Element | null
+  /** Attribute on option nodes carrying a stable value/code (e.g. `data-value`). */
+  optionValueAttr: string | null
+  /** Whether the widget filters options as the user types. */
+  isSearchable: boolean
+  /** Whether the option list is virtualized (only visible rows rendered). */
+  isVirtualized: boolean
 }
+
+/** Known virtual-scroller markers — a hint that only visible options are in the DOM. */
+const VIRTUAL_SCROLLER_SELECTOR =
+  '.rc-virtual-list-holder, .cdk-virtual-scroll-viewport, [class*="virtual" i]'
+
+/** Attributes an option may carry a stable value/code in, in preference order. */
+const OPTION_VALUE_ATTRS = ['data-value', 'data-option-value', 'data-key', 'value']
+
+/** A calendar popup matches this; such a widget is a datepicker, not a value list. */
+const CALENDAR_SELECTOR = '[role="grid"], [role="gridcell"]'
 
 /**
  * How strongly an element signals "custom select".
@@ -375,8 +397,18 @@ export interface CustomSelectInfo {
  */
 function customSelectStrength(el: Element): 'strong' | 'weak' | null {
   const role = el.getAttribute('role')
+  // A menu button opens *actions* (role=menu/menuitem), not a value list — never a
+  // fillable select. Bail before the weaker role=button+aria-expanded check below
+  // would otherwise pick it up.
+  if (el.getAttribute('aria-haspopup') === 'menu' || role === 'menu') return null
   if (role === 'combobox') return 'strong'
   if (el.getAttribute('aria-haspopup') === 'listbox') return 'strong'
+  if (
+    el.getAttribute('aria-haspopup') === 'dialog' ||
+    el.getAttribute('aria-haspopup') === 'grid'
+  ) {
+    return 'strong' // a datepicker/dialog opener — classified to kind in detectCustomSelect
+  }
   // A data-trigger is a deliberate opt-in: honor it only for "select" and, as
   // before, treat data-trigger="<other>" as explicitly NOT a select trigger.
   if (el.hasAttribute('data-trigger')) {
@@ -413,11 +445,20 @@ export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
 
   // 2) Current selection display: a value-ish child of the trigger, else trigger text.
   const valueDisplay = trigger.querySelector('[class*="value" i], [class*="selected" i]') ?? trigger
+  // A typeahead/filter input inside the widget (the user's `input#_r_ag_` case, or a
+  // role=combobox input). Drives the type-to-filter fill tier.
+  const searchInput = findSearchInput(trigger, optionsScope)
   const base = {
+    kind: classifyWidgetKind(trigger, optionsScope),
     trigger,
     valueDisplay: valueDisplay === trigger ? null : valueDisplay,
     optionItemSelector: CUSTOM_OPTION_SELECTOR,
     selectedLabel: normalizeWidgetText(valueDisplay) || null,
+    listboxId: trigger.getAttribute('aria-controls') ?? trigger.getAttribute('aria-owns') ?? null,
+    searchInput,
+    optionValueAttr: detectOptionValueAttr(options[0] ?? null),
+    isSearchable: searchInput !== null,
+    isVirtualized: isListVirtualized(optionsScope),
   }
 
   // 3) No option nodes in the DOM yet. A strong signal (combobox / haspopup=listbox
@@ -435,6 +476,55 @@ export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
     widgetRoot: resolveWidgetRoot(trigger, optionsScope),
     optionLabels: options.map((o) => normalizeWidgetText(o)).filter(Boolean),
   }
+}
+
+/**
+ * Classify a custom widget by what its trigger opens: a calendar grid (datepicker),
+ * a multi-choice list (multiselect), or a plain single-choice list (select). The
+ * grid/multiselectable signals are read from the trigger's own attributes and any
+ * already-open scope, so a closed on-demand widget still classifies from the trigger.
+ */
+function classifyWidgetKind(
+  trigger: Element,
+  optionsScope: Element | null,
+): 'select' | 'multiselect' | 'datepicker' {
+  const haspopup = trigger.getAttribute('aria-haspopup')
+  if (haspopup === 'dialog' || haspopup === 'grid') return 'datepicker'
+  if (optionsScope?.matches(CALENDAR_SELECTOR) || optionsScope?.querySelector(CALENDAR_SELECTOR)) {
+    return 'datepicker'
+  }
+  const multi =
+    trigger.getAttribute('aria-multiselectable') === 'true' ||
+    optionsScope?.getAttribute('aria-multiselectable') === 'true' ||
+    optionsScope?.querySelector('[aria-multiselectable="true"]') != null
+  return multi ? 'multiselect' : 'select'
+}
+
+/** The widget's typeahead/filter input (a text/search input or role=combobox), if any. */
+function findSearchInput(trigger: Element, optionsScope: Element | null): Element | null {
+  for (const scope of [trigger, optionsScope]) {
+    const input = scope?.querySelector(
+      'input[type="text"], input[type="search"], input:not([type]), [role="combobox"] input, input[role="combobox"]',
+    )
+    if (input) return input
+  }
+  return null
+}
+
+/** The first attribute the option carries a stable value in, or null. */
+function detectOptionValueAttr(option: Element | null): string | null {
+  if (!option) return null
+  return OPTION_VALUE_ATTRS.find((attr) => option.hasAttribute(attr)) ?? null
+}
+
+/** Whether the option list lives inside a known virtual scroller. */
+function isListVirtualized(optionsScope: Element | null): boolean {
+  if (!optionsScope) return false
+  return (
+    optionsScope.matches(VIRTUAL_SCROLLER_SELECTOR) ||
+    optionsScope.querySelector(VIRTUAL_SCROLLER_SELECTOR) != null ||
+    optionsScope.closest(VIRTUAL_SCROLLER_SELECTOR) != null
+  )
 }
 
 function findOptionsScope(trigger: Element): Element | null {

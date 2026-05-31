@@ -254,6 +254,67 @@ describe('scanForms', () => {
     expect(fields).toHaveLength(0)
   })
 
+  it('captures search, portal, value-attr, and virtualization intel on a combobox', () => {
+    setBody(`
+      <div data-test-id="city" name="city" class="relative">
+        <label>City</label>
+        <div role="combobox" aria-controls="city-list" aria-expanded="true">
+          <input id="q" type="text" />
+        </div>
+        <div id="city-list" role="listbox" class="rc-virtual-list-holder">
+          <div role="option" data-value="par">Paris</div>
+          <div role="option" data-value="ber">Berlin</div>
+        </div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    const w = fields[0].customWidget
+    expect(w?.kind).toBe('select')
+    expect(w?.isSearchable).toBe(true)
+    expect(w?.searchInputSelector).toBe('#q')
+    expect(w?.listboxId).toBe('city-list')
+    expect(w?.optionValueAttr).toBe('data-value')
+    expect(w?.isVirtualized).toBe(true)
+  })
+
+  it('classifies an aria-multiselectable widget as a multiselect', () => {
+    setBody(`
+      <div data-test-id="tags" name="tags">
+        <label>Tags</label>
+        <div role="combobox" aria-haspopup="listbox" aria-multiselectable="true" aria-expanded="true">
+          <span>Choose</span>
+        </div>
+        <div role="listbox" aria-multiselectable="true">
+          <div role="option">Red</div><div role="option">Green</div>
+        </div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields[0].customWidget?.kind).toBe('multiselect')
+  })
+
+  it('classifies a dialog/calendar opener as a datepicker', () => {
+    setBody(`
+      <div data-test-id="bday" name="bday">
+        <label>Birthday</label>
+        <div role="combobox" aria-haspopup="dialog" aria-expanded="false"><span>—</span></div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields[0].customWidget?.kind).toBe('datepicker')
+  })
+
+  it('does not treat a menu button (actions, not values) as a custom select', () => {
+    setBody(`
+      <div>
+        <button aria-haspopup="menu" aria-expanded="false">Actions</button>
+        <div role="menu"><div role="menuitem">Edit</div><div role="menuitem">Delete</div></div>
+      </div>
+    `)
+    const { fields } = scanForms(document)
+    expect(fields).toHaveLength(0)
+  })
+
   it('drops junk framework-id-only fields but keeps labeled ones', () => {
     setBody(`
       <input id="_r_f4_" type="text" />

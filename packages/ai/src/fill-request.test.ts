@@ -25,6 +25,8 @@ describe('isNativeFillable', () => {
             valueDisplaySelectorCandidates: [],
             optionItemSelector: '[role=option]',
             optionsOpenOnDemand: true,
+            isSearchable: false,
+            isVirtualized: false,
           },
         }),
       ),

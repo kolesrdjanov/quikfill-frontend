@@ -234,10 +234,10 @@ function focusEl(el: Fillable): void {
   }
 }
 
-function dispatchKey(el: Element, type: 'keydown' | 'keyup'): void {
+function dispatchKey(el: Element, type: 'keydown' | 'keyup', key = 'Unidentified'): void {
   let ev: Event
   try {
-    ev = new KeyboardEvent(type, { bubbles: true, key: 'Unidentified' })
+    ev = new KeyboardEvent(type, { bubbles: true, key })
   } catch {
     ev = new Event(type, { bubbles: true })
   }
@@ -374,11 +374,13 @@ function collectRadiosInto(
 // --- Custom (non-native) select -------------------------------------------
 
 /**
- * Fill a custom (non-native) select by opening it and clicking its FIRST option.
- * Per product choice, custom selects do not value-match — they always take the
- * first available option, so `proposedValue` is intentionally ignored here. (To
- * switch to "match the proposed value, else first" later, replace the firstOption
- * call with a value lookup that falls back to firstOption.)
+ * Fill a custom (non-native) widget by driving it the way a user would: open it,
+ * find the option whose accessible name matches the proposed value, and click it —
+ * never by setting a value or `aria-selected` (which the framework ignores).
+ * Branches by widget kind (single select, multi-select, datepicker). When no option
+ * matches a non-empty value, returns `assisted` with the list left open rather than
+ * silently picking the wrong (first) option. An empty proposed value keeps the
+ * legacy first-option fill (there is nothing to match against).
  */
 async function fillCustomSelect(
   ins: FillInstruction,
@@ -400,22 +402,6 @@ async function fillCustomSelect(
   const doc = ownerDocOf(widgetEl)
   const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
   const previousDisplayText = readDisplay(widgetEl, widget, doc)
-
-  clickElement(trigger)
-  await settle()
-
-  // First option in the now-open list. Prefer one inside the widget; fall back to
-  // the document for libraries that portal the dropdown outside the widget root.
-  const option =
-    firstOption(widgetEl, widget.optionItemSelector, trigger) ??
-    firstOption(doc, widget.optionItemSelector, trigger)
-  if (!option) {
-    return {
-      result: fail(ins.detectedFieldId, 'Opened the dropdown but found no option to select.'),
-    }
-  }
-  const chosenLabel = textOf(option)
-
   const entry: UndoEntry = {
     detectedFieldId: ins.detectedFieldId,
     selectorCandidates: ins.selectorCandidates,
@@ -426,30 +412,523 @@ async function fillCustomSelect(
     customWidget: widget,
   }
 
-  // If the option is portaled OUTSIDE the scoped drawer (Reka/Radix/MUI render the
-  // listbox to <body>), press it with the in-drawer trigger's coordinates: the
-  // option still receives the event, but a coordinate-based outside-dismiss layer
-  // reads the press as inside the panel and leaves the drawer open.
-  clickElement(option, withinRoot(root, option) ? option : trigger)
+  if (widget.kind === 'datepicker') {
+    return { result: await fillDatePicker(ins, widgetEl, trigger, root, doc), entry }
+  }
+
+  clickElement(trigger)
   await settle()
 
-  const got = readDisplay(widgetEl, widget, doc)
-  // Accept if the displayed selection changed, now matches the option we clicked,
-  // or the option reports itself selected — any one confirms the pick landed.
-  const landed =
-    norm(got) !== norm(previousDisplayText) ||
-    norm(got) === norm(chosenLabel) ||
-    option.getAttribute('aria-selected') === 'true'
-  if (landed) {
-    return { result: success(ins.detectedFieldId, chosenLabel || got || null), entry }
+  if (widget.kind === 'multiselect') {
+    return { result: await selectMultiple(ins, widget, widgetEl, trigger, root, doc), entry }
   }
+
+  // --- Single select ---
+  const want = norm(ins.proposedValue)
+  const option =
+    want === ''
+      ? // Nothing to match — keep the legacy first-option fill.
+        (firstOption(widgetEl, widget.optionItemSelector, trigger) ??
+        firstOption(doc, widget.optionItemSelector, trigger))
+      : await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
+
+  if (!option) {
+    if (want === '') {
+      return {
+        result: fail(ins.detectedFieldId, 'Opened the dropdown but found no option to select.'),
+        entry,
+      }
+    }
+    // Found the list but nothing matched it — leave it open for the user to finish.
+    return {
+      result: assisted(
+        ins.detectedFieldId,
+        ins.proposedValue,
+        `Couldn't find "${ins.proposedValue}" in the dropdown — pick it from the open list.`,
+      ),
+      entry,
+    }
+  }
+  const chosenLabel = textOf(option)
+
+  clickOption(option, trigger, root)
+  await settle()
+  if (selectionLanded(widgetEl, widget, doc, previousDisplayText, chosenLabel, option)) {
+    return { result: success(ins.detectedFieldId, chosenLabel || null), entry }
+  }
+
+  // The click didn't commit — try the keyboard path (covers roving-focus and
+  // aria-activedescendant widgets whose option element ignores synthetic clicks).
+  selectByKeyboard(trigger, option)
+  await settle()
+  if (selectionLanded(widgetEl, widget, doc, previousDisplayText, chosenLabel, option)) {
+    return { result: success(ins.detectedFieldId, chosenLabel || null), entry }
+  }
+
   return {
     result: fail(
       ins.detectedFieldId,
-      `Clicked the first option ("${chosenLabel}") but the dropdown still shows "${got}".`,
+      `Clicked "${chosenLabel}" but the dropdown still shows "${readDisplay(widgetEl, widget, doc)}".`,
     ),
     entry,
   }
+}
+
+/**
+ * Select several values in a multi-select. Splits the proposed value on commas /
+ * newlines, clicks the option matching each token, re-opening the list between
+ * picks for widgets that close on every selection. Reports `assisted` listing any
+ * tokens that couldn't be found.
+ */
+async function selectMultiple(
+  ins: FillInstruction,
+  widget: CustomWidget,
+  widgetEl: Element,
+  trigger: Element,
+  root: FillRoot,
+  doc: Document,
+): Promise<FillResult> {
+  const tokens = ins.proposedValue
+    .split(/[\n,]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+  if (tokens.length === 0) {
+    return assisted(ins.detectedFieldId, ins.proposedValue, 'No values to select.')
+  }
+  const landed: string[] = []
+  const missed: string[] = []
+  for (const token of tokens) {
+    const option = await resolveOption(widget, widgetEl, trigger, doc, token)
+    if (!option) {
+      missed.push(token)
+      continue
+    }
+    landed.push(textOf(option))
+    clickOption(option, trigger, root)
+    await settle()
+    // Some multiselects collapse the list on each pick — reopen for the next token.
+    if (openOptionNodes(widget, widgetEl, trigger, doc).length === 0) {
+      clickElement(trigger)
+      await settle()
+    }
+  }
+  const quoted = (xs: string[]): string => xs.map((x) => `"${x}"`).join(', ')
+  if (missed.length === 0) return success(ins.detectedFieldId, landed.join(', '))
+  if (landed.length === 0) {
+    return assisted(
+      ins.detectedFieldId,
+      ins.proposedValue,
+      `Couldn't find ${quoted(missed)} — pick them from the open list.`,
+    )
+  }
+  return assisted(
+    ins.detectedFieldId,
+    landed.join(', '),
+    `Selected ${quoted(landed)}; couldn't find ${quoted(missed)}.`,
+  )
+}
+
+/**
+ * Find the open-list option matching `value`, escalating through tiers: match the
+ * already-rendered list; if absent and the widget is searchable, type to filter and
+ * re-match; if still absent and the list is virtualized, scroll and re-match.
+ */
+async function resolveOption(
+  widget: CustomWidget,
+  widgetEl: Element,
+  trigger: Element,
+  doc: Document,
+  value: string,
+): Promise<Element | null> {
+  let hit = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
+  if (hit) return hit
+
+  if (widget.isSearchable && widget.searchInputSelector) {
+    const input = (queryIn(widgetEl, widget.searchInputSelector) ??
+      queryIn(doc, widget.searchInputSelector)) as Fillable | null
+    if (input) {
+      focusEl(input)
+      setNativeValue(input, value)
+      dispatchKey(input, 'keydown')
+      dispatch(input, 'input')
+      dispatchKey(input, 'keyup')
+      // Bounded poll: JS filtering (and any async fetch) may resolve over a few ticks.
+      for (let i = 0; i < 3 && !hit; i++) {
+        await settle()
+        hit = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
+      }
+      if (hit) return hit
+    }
+  }
+
+  if (widget.isVirtualized) {
+    hit = await scrollAndMatch(widget, widgetEl, trigger, doc, value)
+  }
+  return hit
+}
+
+/** Known virtual-scroller markers, used to find the scrollable list container. */
+const VIRTUAL_SCROLLER_SELECTOR =
+  '.rc-virtual-list-holder, .cdk-virtual-scroll-viewport, [class*="virtual" i]'
+
+/**
+ * Scroll a virtualized list a window at a time, re-matching after each step, so an
+ * option that only mounts when visible can still be found. Bounded, and a no-op
+ * without real layout (jsdom reports clientHeight 0) so unit tests skip it.
+ */
+async function scrollAndMatch(
+  widget: CustomWidget,
+  widgetEl: Element,
+  trigger: Element,
+  doc: Document,
+  value: string,
+): Promise<Element | null> {
+  const nodes = openOptionNodes(widget, widgetEl, trigger, doc)
+  const container = ((widget.listboxId ? doc.getElementById(widget.listboxId) : null) ??
+    nodes[0]?.closest(VIRTUAL_SCROLLER_SELECTOR) ??
+    nodes[0]?.parentElement ??
+    null) as HTMLElement | null
+  if (!container || container.clientHeight === 0) return null
+  let last = -1
+  for (let i = 0; i < 20; i++) {
+    const hit = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
+    if (hit) return hit
+    if (container.scrollTop === last) break
+    last = container.scrollTop
+    container.scrollTop += container.clientHeight
+    await settle()
+  }
+  return matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
+}
+
+/**
+ * Option nodes in the now-open list. Searches, in order: the listbox linked by the
+ * trigger's aria-controls (resolved against the whole document, so portaled lists
+ * are found), the widget subtree, then the whole document. The trigger itself can
+ * match the option selector (role=button), so it is always excluded.
+ */
+function openOptionNodes(
+  widget: CustomWidget,
+  widgetEl: Element,
+  trigger: Element,
+  doc: Document,
+): Element[] {
+  const scopes: ParentNode[] = []
+  if (widget.listboxId) {
+    const lb = doc.getElementById(widget.listboxId)
+    if (lb) scopes.push(lb)
+  }
+  scopes.push(widgetEl, doc)
+  for (const scope of scopes) {
+    const nodes = queryOptions(scope, widget.optionItemSelector, trigger)
+    if (nodes.length) return nodes
+  }
+  return []
+}
+
+function queryOptions(scope: ParentNode, selector: string, trigger: Element): Element[] {
+  let nodes: Element[]
+  try {
+    nodes = Array.from(scope.querySelectorAll(selector))
+  } catch {
+    return []
+  }
+  return nodes.filter((n) => n !== trigger && !trigger.contains(n) && !n.contains(trigger))
+}
+
+/**
+ * The option whose accessible name best matches `value`. Tries each option's
+ * visible text, `aria-label` (only when it discriminates between options — many
+ * widgets stamp every option with the SAME generic label like "Select option", so
+ * the real value is the text), `title`, and a configured value attribute. Tiers,
+ * best wins: exact name → exact value-attr → contains (either way) → prefix.
+ */
+function matchOption(nodes: Element[], widget: CustomWidget, value: string): Element | null {
+  const want = norm(value)
+  if (!want || nodes.length === 0) return null
+  const ariaLabels = nodes.map((n) => n.getAttribute('aria-label')?.trim() ?? '')
+  const ariaDiscriminates = new Set(ariaLabels.filter(Boolean)).size > 1
+  let bestNode: Element | null = null
+  let bestTier = Infinity
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    if (node.getAttribute('aria-disabled') === 'true') continue
+    const tier = optionTier(node, widget, want, ariaDiscriminates ? ariaLabels[i] : '')
+    if (tier > 0 && tier < bestTier) {
+      bestTier = tier
+      bestNode = node
+    }
+  }
+  return bestNode
+}
+
+/** Match strength of one option against a normalized target (lower = stronger; 0 = no match). */
+function optionTier(node: Element, widget: CustomWidget, want: string, ariaLabel: string): number {
+  const names = [
+    norm(textOf(node)),
+    norm(ariaLabel),
+    norm(node.getAttribute('title') ?? ''),
+  ].filter(Boolean)
+  const valueAttr = widget.optionValueAttr
+    ? norm(node.getAttribute(widget.optionValueAttr) ?? '')
+    : ''
+  if (names.some((n) => n === want)) return 1
+  if (valueAttr && valueAttr === want) return 2
+  if (names.some((n) => n.includes(want) || want.includes(n))) return 3
+  if (names.some((n) => n.startsWith(want) || want.startsWith(n))) return 4
+  return 0
+}
+
+/**
+ * Click an option, anchoring the press to the in-drawer trigger when the option is
+ * portaled OUTSIDE the scoped root — so a coordinate-based outside-dismiss layer
+ * reads the press as inside the panel and leaves the drawer open.
+ */
+function clickOption(option: Element, trigger: Element, root: FillRoot): void {
+  clickElement(option, withinRoot(root, option) ? option : trigger)
+}
+
+/** Whether a pick committed: the display changed, now matches the option, or it reports selected. */
+function selectionLanded(
+  widgetEl: Element,
+  widget: CustomWidget,
+  doc: Document,
+  previous: string,
+  chosenLabel: string,
+  option: Element,
+): boolean {
+  const got = readDisplay(widgetEl, widget, doc)
+  return (
+    norm(got) !== norm(previous) ||
+    norm(got) === norm(chosenLabel) ||
+    option.getAttribute('aria-selected') === 'true' ||
+    option.getAttribute('aria-checked') === 'true'
+  )
+}
+
+/**
+ * Drive selection from the keyboard when a click won't commit: step ArrowDown until
+ * the trigger's aria-activedescendant points at the target option (or it reports
+ * selected), then press Enter. Covers both ARIA focus models (roving tabindex and
+ * aria-activedescendant). Bounded; verification is left to the caller.
+ */
+function selectByKeyboard(trigger: Element, option: Element): void {
+  const id = option.getAttribute('id')
+  focusEl(trigger as Fillable)
+  const reached = (): boolean =>
+    (!!id && trigger.getAttribute('aria-activedescendant') === id) ||
+    option.getAttribute('aria-selected') === 'true'
+  for (let i = 0; i < 50 && !reached(); i++) {
+    dispatchKey(trigger, 'keydown', 'ArrowDown')
+    if (!id) break // no id to track — one step, then commit and let the caller verify
+  }
+  dispatchKey(trigger, 'keydown', 'Enter')
+}
+
+// --- Datepicker -----------------------------------------------------------
+
+interface TargetDate {
+  year: number
+  /** 0-based, to align with Date#getMonth. */
+  month: number
+  day: number
+}
+
+const MONTH_NAMES = [
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+]
+
+/**
+ * Fill a calendar widget. Prefers typing the date into an editable input; otherwise
+ * opens the calendar, navigates to the target month, and clicks the day cell. Falls
+ * back to `assisted` when the date can't be parsed or the month can't be reached.
+ */
+async function fillDatePicker(
+  ins: FillInstruction,
+  widgetEl: Element,
+  trigger: Element,
+  root: FillRoot,
+  doc: Document,
+): Promise<FillResult> {
+  const date = parseDate(ins.proposedValue)
+  if (!date) {
+    return assisted(
+      ins.detectedFieldId,
+      ins.proposedValue,
+      `Couldn't read "${ins.proposedValue}" as a date.`,
+    )
+  }
+
+  // Editable input → type the value (the simplest reliable path when allowed).
+  const input = queryIn(widgetEl, 'input') as HTMLInputElement | null
+  if (input && !isReadonly(input) && !isDisabled(input)) {
+    setValue(input, ins.proposedValue)
+    await settle()
+    const got = readValue(input)
+    if (norm(got) !== '') return success(ins.detectedFieldId, got)
+  }
+
+  clickElement(trigger)
+  await settle()
+  const cell = await navigateCalendar(widgetEl, doc, date, root, trigger)
+  if (!cell) {
+    return assisted(
+      ins.detectedFieldId,
+      ins.proposedValue,
+      `Open the calendar and pick ${ins.proposedValue}.`,
+    )
+  }
+  // Some pickers need an explicit Apply (e.g. @vuepic without auto-apply).
+  const apply = queryIn(doc, '.dp__action_select, [data-test="apply"], button[type="submit"]')
+  if (apply) {
+    clickElement(apply)
+    await settle()
+  }
+  return success(ins.detectedFieldId, ins.proposedValue)
+}
+
+/**
+ * Page the open calendar to the target month/year, then click its day cell. Returns
+ * the clicked cell, or null when the month can't be reached or the day isn't found.
+ */
+async function navigateCalendar(
+  widgetEl: Element,
+  doc: Document,
+  date: TargetDate,
+  root: FillRoot,
+  trigger: Element,
+): Promise<Element | null> {
+  for (let i = 0; i < 24; i++) {
+    const heading = calendarHeading(doc, widgetEl)
+    if (heading !== null && headingMatches(heading, date)) break
+    const nav = navButton(doc, widgetEl, heading, date)
+    if (!nav) break
+    clickOption(nav, trigger, root)
+    await settle()
+  }
+  const cell = dayCell(doc, widgetEl, date)
+  if (!cell) return null
+  clickOption(cell, trigger, root)
+  await settle()
+  return cell
+}
+
+/** Text of the calendar's month/year header, or null. */
+function calendarHeading(doc: Document, widgetEl: Element): string | null {
+  const sel =
+    '[class*="header" i] [class*="title" i], [class*="month" i][class*="year" i], ' +
+    '[aria-live], .dp__month_year_wrap, .mat-calendar-period-button, [role="grid"]'
+  const el = queryIn(widgetEl, sel) ?? queryIn(doc, sel)
+  if (!el) return null
+  return el.getAttribute('aria-label') || textOf(el) || null
+}
+
+/** Whether a header string names the target month and year. */
+function headingMatches(heading: string, date: TargetDate): boolean {
+  const h = norm(heading)
+  return h.includes(MONTH_NAMES[date.month]) && h.includes(String(date.year))
+}
+
+/**
+ * The previous/next-month button to step toward the target. Direction is chosen
+ * from the current heading when it can be read, else defaults to "next".
+ */
+function navButton(
+  doc: Document,
+  widgetEl: Element,
+  heading: string | null,
+  date: TargetDate,
+): Element | null {
+  const goBack = heading !== null && headingIsAfter(heading, date)
+  const forward =
+    '[aria-label*="next" i], [class*="next" i], .dp__inner_nav_next, button[class*="next" i]'
+  const backward =
+    '[aria-label*="prev" i], [aria-label*="previous" i], [class*="prev" i], .dp__inner_nav, button[class*="prev" i]'
+  const sel = goBack ? backward : forward
+  return queryIn(widgetEl, sel) ?? queryIn(doc, sel)
+}
+
+/** Whether the displayed month/year is later than the target (so we must page back). */
+function headingIsAfter(heading: string, date: TargetDate): boolean {
+  const h = norm(heading)
+  const year = Number((/\b(\d{4})\b/.exec(h) ?? [])[1])
+  const month = MONTH_NAMES.findIndex((m) => h.includes(m))
+  if (!Number.isFinite(year) || month < 0) return false
+  return year > date.year || (year === date.year && month > date.month)
+}
+
+/** The day cell for the target date: matched by full-date aria-label, else day-number text. */
+function dayCell(doc: Document, widgetEl: Element, date: TargetDate): Element | null {
+  const sel =
+    '[role="gridcell"], .dp__cell_inner, .mat-calendar-body-cell, td[role] button, [class*="day" i]'
+  const scope: ParentNode = (widgetEl.querySelector(sel) ? widgetEl : doc) as ParentNode
+  let cells: Element[]
+  try {
+    cells = Array.from(scope.querySelectorAll(sel))
+  } catch {
+    return null
+  }
+  const day = String(date.day)
+  const monthName = MONTH_NAMES[date.month]
+  // Prefer an unambiguous full-date aria-label.
+  const byLabel = cells.find((c) => {
+    if (isDayDisabled(c)) return false
+    const label = norm(c.getAttribute('aria-label') ?? '')
+    return (
+      label !== '' &&
+      label.includes(monthName) &&
+      label.includes(String(date.year)) &&
+      new RegExp(`\\b${day}\\b`).test(label)
+    )
+  })
+  if (byLabel) return byLabel
+  // Fall back to the day number, skipping disabled / adjacent-month cells.
+  return (
+    cells.find((c) => !isDayDisabled(c) && !isAdjacentMonth(c) && norm(textOf(c)) === day) ?? null
+  )
+}
+
+function isDayDisabled(cell: Element): boolean {
+  return (
+    cell.getAttribute('aria-disabled') === 'true' ||
+    (cell as HTMLButtonElement).disabled === true ||
+    /disabled/i.test(cell.getAttribute('class') ?? '')
+  )
+}
+
+function isAdjacentMonth(cell: Element): boolean {
+  return /(other|adjacent|outside|offset|sibling)[-_]?month|dp__cell_offset/i.test(
+    cell.getAttribute('class') ?? '',
+  )
+}
+
+/** Parse common date formats to a target Y/M/D, or null when unrecognized. */
+function parseDate(value: string): TargetDate | null {
+  const t = value.trim()
+  if (!t) return null
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t) // ISO 8601 YYYY-MM-DD
+  if (m) return { year: +m[1], month: +m[2] - 1, day: +m[3] }
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(t) // US M/D/Y
+  if (m) {
+    const year = +m[3] < 100 ? 2000 + +m[3] : +m[3]
+    return { year, month: +m[1] - 1, day: +m[2] }
+  }
+  const parsed = new Date(t) // free-text fallback (e.g. "May 15, 2026")
+  if (!Number.isNaN(parsed.getTime())) {
+    return { year: parsed.getFullYear(), month: parsed.getMonth(), day: parsed.getDate() }
+  }
+  return null
 }
 
 async function undoCustomSelect(
@@ -471,26 +950,13 @@ async function undoCustomSelect(
   const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
   clickElement(trigger)
   await settle()
-  const option =
-    findOption(widgetEl, widget.optionItemSelector, prev) ??
-    findOption(doc, widget.optionItemSelector, prev)
+  const option = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, prev)
   if (!option) {
     return skip(entry.detectedFieldId, `Couldn't restore previous selection "${prev}".`)
   }
-  clickElement(option, withinRoot(root, option) ? option : trigger)
+  clickOption(option, trigger, root)
   await settle()
   return success(entry.detectedFieldId, prev)
-}
-
-function findOption(scope: ParentNode, selector: string, value: string): Element | null {
-  let nodes: Element[]
-  try {
-    nodes = Array.from(scope.querySelectorAll(selector))
-  } catch {
-    return null
-  }
-  const target = norm(value)
-  return nodes.find((n) => norm(textOf(n)) === target) ?? null
 }
 
 /** The first option node matching the selector, never the trigger itself. */

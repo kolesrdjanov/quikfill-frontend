@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { nullableOptional } from './common'
 
 /** A selectable option on a select/radio/checkbox group. */
 export const fieldOptionSchema = z.object({
@@ -26,12 +27,14 @@ export type FieldFingerprint = z.infer<typeof fieldFingerprintSchema>
 
 /**
  * How to drive a custom (non-native) widget that the filler must operate by
- * clicking rather than by setting a value. Today only single-select dropdowns
- * (a trigger that opens an option list) are supported. Selectors are stored as
- * ranked candidates, mirroring DetectedField.selectorCandidates.
+ * clicking rather than by setting a value. Covers three kinds:
+ * - `select`     — a trigger that opens a single-choice option list.
+ * - `multiselect`— same, but several options can be chosen (chips/aria-multiselectable).
+ * - `datepicker` — a trigger that opens a calendar grid (navigate, don't list-match).
+ * Selectors are stored as ranked candidates, mirroring DetectedField.selectorCandidates.
  */
 export const customWidgetSchema = z.object({
-  kind: z.literal('select'),
+  kind: z.enum(['select', 'multiselect', 'datepicker']).default('select'),
   /** Element to click to open the options (e.g. the role=button trigger). */
   triggerSelectorCandidates: z.array(z.string()).default([]),
   /** Node whose text reflects the current selection, for verification. */
@@ -40,6 +43,16 @@ export const customWidgetSchema = z.object({
   optionItemSelector: z.string(),
   /** Whether options are only present/visible after the trigger is clicked. */
   optionsOpenOnDemand: z.boolean().default(true),
+  /** The open list's element id (from the trigger's aria-controls/aria-owns), for portal resolution. */
+  listboxId: nullableOptional(z.string()),
+  /** Selector for the widget's typeahead/filter input, when it has one. */
+  searchInputSelector: nullableOptional(z.string()),
+  /** Attribute on option nodes that carries a stable value/code (e.g. `data-value`). */
+  optionValueAttr: nullableOptional(z.string()),
+  /** Whether the widget filters its options as the user types into a search input. */
+  isSearchable: z.boolean().default(false),
+  /** Whether the option list is virtualized (only visible rows are rendered). */
+  isVirtualized: z.boolean().default(false),
 })
 export type CustomWidget = z.infer<typeof customWidgetSchema>
 
