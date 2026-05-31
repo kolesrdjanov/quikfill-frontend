@@ -56,11 +56,20 @@ export async function applyFill(
   // value must not overwrite an earlier field's element via a shared selector).
   const claimed = new Set<Element>()
 
-  // Assisted-autocomplete fields go last: typing focuses the input and opens its
-  // suggestion dropdown, and we want that dropdown left open — so no later field
-  // write steals focus away from it.
+  // Fill order: plain fields → custom selects → assisted-autocomplete.
+  // A custom select must OPEN its option list to pick, and an open list is an
+  // outside-dismiss layer: if a later field write moves focus while it's open, the
+  // list's dismiss fires and — inside a hand-rolled modal/drawer that closes on
+  // outside-interaction — cascades to tear down the whole modal mid-fill. Deferring
+  // every custom select until the plain fields are done guarantees no open list
+  // ever coexists with a pending write (and opening the next select closes the
+  // prior one as an inside click). Assisted-autocomplete stays dead last — it
+  // intentionally leaves its OWN suggestion list open for the user to pick from.
   const ordered = [
-    ...instructions.filter((i) => i.fillStrategy !== 'assistedAutocomplete'),
+    ...instructions.filter(
+      (i) => i.fillStrategy !== 'customSelect' && i.fillStrategy !== 'assistedAutocomplete',
+    ),
+    ...instructions.filter((i) => i.fillStrategy === 'customSelect'),
     ...instructions.filter((i) => i.fillStrategy === 'assistedAutocomplete'),
   ]
 

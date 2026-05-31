@@ -383,6 +383,25 @@ describe('applyFill — custom select (value-matching)', () => {
     expect(document.querySelector('.dropdown')).toBeNull() // opened to search, then closed
   })
 
+  it('opens custom-select dropdowns only after every plain field is written', async () => {
+    // A plain input + a custom select, with the SELECT listed first. A custom
+    // select's open list dismisses a hand-rolled modal when a later write moves
+    // focus, so plain fields must be written before any list opens — regardless of
+    // request order.
+    mountCustomSelect('Locker')
+    const name = document.createElement('input')
+    name.id = 'name'
+    document.body.appendChild(name)
+    const order: string[] = []
+    name.addEventListener('input', () => order.push('name'))
+    document.getElementById('trigger')!.addEventListener('pointerdown', () => order.push('select'))
+    await applyFill([
+      customInstruction('Office'), // select first in the request…
+      instruction({ detectedFieldId: 'name', selectorCandidates: ['#name'], proposedValue: 'Ada' }),
+    ])
+    expect(order).toEqual(['name', 'select']) // …but the plain field fills first
+  })
+
   it('falls back to the first option only when no value was proposed', async () => {
     mountCustomSelect('Parking')
     const { results } = await applyFill([customInstruction('')])
