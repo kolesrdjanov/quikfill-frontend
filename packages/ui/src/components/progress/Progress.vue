@@ -15,7 +15,9 @@ const props = withDefaults(
 )
 
 const delegated = computed(() => {
-  const { class: _class, indicatorClass: _indicatorClass, ...rest } = props
+  const { class: className, indicatorClass, ...rest } = props
+  void className
+  void indicatorClass
   return rest
 })
 

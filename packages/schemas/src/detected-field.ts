@@ -80,6 +80,13 @@ export const detectedFieldSchema = z.object({
   autocompleteHint: z.enum(['googlePlaces']).optional(),
   /** The field's input-mask pattern (maska `data-maska`), if any — drives the `masked` generator. */
   mask: z.string().optional(),
+  /** HTML5 validation attributes, when present, so the AI can produce a value that passes constraints. */
+  pattern: z.string().optional(),
+  minLength: z.number().int().nonnegative().optional(),
+  maxLength: z.number().int().nonnegative().optional(),
+  /** `min`/`max` are kept as raw strings — they may be numeric, a date, or a time depending on `inputType`. */
+  min: z.string().optional(),
+  max: z.string().optional(),
   selectorCandidates: z.array(z.string()).default([]),
   domFingerprint: z.string(),
   /** `'main'` for the top document, otherwise an opaque frame id. */
