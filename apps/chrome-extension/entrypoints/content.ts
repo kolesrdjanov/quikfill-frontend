@@ -1,11 +1,19 @@
 import { onFillRequest, onScanRequest, onUndoRequest } from '@quikfill/browser-adapter'
 import { applyFill, applyUndo, resolveScopeRoot, scanForms } from '@quikfill/form-scanner'
+import { mountOverlay } from './content/overlay'
 
 export default defineContentScript({
   matches: ['<all_urls>'],
+  runAt: 'document_idle',
   main() {
     // Thin DOM agent: scan, fill, and undo on request. The only product decision
     // here is resolving which container to scan — it needs the live DOM + focus.
+
+    // The in-page fill flow: auto-detect forms and inject floating "Fill" buttons
+    // (isolated Shadow DOM). It owns its own lifecycle (observer + listeners) and
+    // delegates the backend call to the background worker via requestAiFill. The
+    // legacy scan/fill/undo message handlers below stay for the surface's scan form.
+    mountOverlay(document)
 
     // The container the last scan resolved to (a drawer/dialog element, or the
     // whole document). Fill/undo are confined to it so a fuzzy selector can never
