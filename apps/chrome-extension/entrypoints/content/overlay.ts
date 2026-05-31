@@ -495,10 +495,8 @@ const OVERLAY_CSS = `
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 30px;
   height: 30px;
-  padding: 0;
+  padding: 0 6px;
   border: none;
   border-radius: 9px;
   background: linear-gradient(135deg, #3f66e0, #2544c0);
@@ -508,24 +506,24 @@ const OVERLAY_CSS = `
   box-shadow: 0 2px 6px rgba(37, 68, 192, 0.32);
   overflow: hidden;
   white-space: nowrap;
+  /* Animate ONLY interpolable properties — never width:auto or transform, which
+     snap/jump rather than ease. The button is content-sized: it grows into a pill
+     because the LABEL's max-width eases open and the button reflows to follow it.
+     padding-left stays fixed so the glyph never drifts; depth comes from the
+     shadow, not a translate, so the button never moves. */
   transition:
-    width 0.18s ease,
+    padding 0.18s ease,
     border-radius 0.18s ease,
     box-shadow 0.18s ease,
-    transform 0.18s ease,
     background 0.15s ease;
 }
 .qf-fill-btn:hover,
 .qf-fill-btn.is-loading,
 .qf-fill-btn.is-success,
 .qf-fill-btn.is-error {
-  width: auto;
-  padding: 0 12px 0 8px;
-  border-radius: 9999px;
-}
-.qf-fill-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(37, 68, 192, 0.42);
+  padding: 0 12px 0 6px;
+  border-radius: 15px;
+  box-shadow: 0 5px 14px rgba(37, 68, 192, 0.4);
 }
 .qf-mark {
   display: inline-flex;
@@ -554,9 +552,9 @@ const OVERLAY_CSS = `
   margin-left: 6px;
   opacity: 1;
 }
-.qf-fill-btn.is-success { background: #13c296; box-shadow: 0 4px 12px rgba(19, 194, 150, 0.4); }
-.qf-fill-btn.is-error { background: #e11d48; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.4); }
-.qf-fill-btn.is-loading { opacity: 0.9; cursor: default; transform: none; }
+.qf-fill-btn.is-success { background: #13c296; box-shadow: 0 5px 14px rgba(19, 194, 150, 0.4); }
+.qf-fill-btn.is-error { background: #e11d48; box-shadow: 0 5px 14px rgba(225, 29, 72, 0.4); }
+.qf-fill-btn.is-loading { opacity: 0.9; cursor: default; }
 `
 
 /**
