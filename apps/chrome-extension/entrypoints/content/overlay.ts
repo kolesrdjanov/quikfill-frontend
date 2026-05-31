@@ -328,20 +328,27 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   win.addEventListener('scroll', onScrollResize, { passive: true, capture: true })
   win.addEventListener('resize', onScrollResize, { passive: true })
 
-  // Modals/drawers that "close on outside click" treat a press on our button —
+  // Modals/drawers that "close on outside click" treat an event on our button —
   // which lives in a host on <html>, outside their subtree — as an outside click
   // and dismiss themselves. The overlay mounts at document_idle, BEFORE any modal
   // opens, so this capture-phase guard runs ahead of the modal's dismiss listener:
-  // when a press originates from our host we stop it propagating, so no dismiss
-  // fires. We never swallow `click`, so our button's own handler still runs; and we
-  // preventDefault on mousedown so focus stays in the modal (focus-out dismiss).
+  // when an event originates from our host we stop it propagating, so no dismiss
+  // fires. preventDefault on mousedown keeps focus in the modal (focus-out dismiss).
+  // We must also swallow `click`: some modals dismiss on a CAPTURE-phase outside
+  // click, which fires on document before the event ever reaches our button's own
+  // (bubble-phase) handler — so the modal closes and the fill never runs. Stopping
+  // the click here would skip that handler, so we re-activate the pressed button.
   const swallowFromHost = (e: Event): void => {
     const path = (e.composedPath?.() ?? []) as EventTarget[]
     if (!path.includes(host)) return
     e.stopImmediatePropagation()
     if (e.type === 'mousedown') e.preventDefault()
+    if (e.type === 'click') {
+      const pressed = [...buttons.values()].find((b) => path.includes(b.el))
+      if (pressed) void onFill(pressed)
+    }
   }
-  const SWALLOWED = ['pointerdown', 'mousedown', 'pointerup', 'mouseup'] as const
+  const SWALLOWED = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'] as const
   for (const type of SWALLOWED) win.addEventListener(type, swallowFromHost, true)
 
   // Seed the AI-budget gate from the background and stay in sync: a usage bump,
