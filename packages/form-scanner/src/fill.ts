@@ -433,18 +433,21 @@ async function fillCustomSelect(
       : await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
 
   if (!option) {
+    // No selection to make. Close the list before bailing — see closeOpenList: an
+    // open custom select left behind is an outside-dismiss layer that takes the
+    // surrounding modal down with it as the rest of the fill moves focus.
+    await closeOpenList(widget, widgetEl, trigger, doc)
     if (want === '') {
       return {
         result: fail(ins.detectedFieldId, 'Opened the dropdown but found no option to select.'),
         entry,
       }
     }
-    // Found the list but nothing matched it — leave it open for the user to finish.
     return {
       result: assisted(
         ins.detectedFieldId,
         ins.proposedValue,
-        `Couldn't find "${ins.proposedValue}" in the dropdown — pick it from the open list.`,
+        `Couldn't find "${ins.proposedValue}" in the dropdown — open it and pick it manually.`,
       ),
       entry,
     }
@@ -465,6 +468,8 @@ async function fillCustomSelect(
     return { result: success(ins.detectedFieldId, chosenLabel || null), entry }
   }
 
+  // Couldn't commit the pick — make sure we don't strand an open list (see above).
+  await closeOpenList(widget, widgetEl, trigger, doc)
   return {
     result: fail(
       ins.detectedFieldId,
@@ -472,6 +477,27 @@ async function fillCustomSelect(
     ),
     entry,
   }
+}
+
+/**
+ * Dismiss an open custom-select list WITHOUT disturbing a surrounding modal. A
+ * custom select we opened and didn't commit is its own outside-dismiss layer:
+ * leaving it open lets it fire an interact/focus-outside as the rest of the fill
+ * proceeds, which cascades to the host drawer and closes the whole thing (every
+ * later field then reports "element not found"). Re-pressing the trigger — the
+ * inverse of the open click the drawer already tolerated, and which re-focuses the
+ * trigger inside the scoped root — toggles the list shut without ever producing an
+ * event the modal's own outside-dismiss reads as "outside". No-op if already closed.
+ */
+async function closeOpenList(
+  widget: CustomWidget,
+  widgetEl: Element,
+  trigger: Element,
+  doc: Document,
+): Promise<void> {
+  if (openOptionNodes(widget, widgetEl, trigger, doc).length === 0) return
+  clickElement(trigger)
+  await settle()
 }
 
 /**

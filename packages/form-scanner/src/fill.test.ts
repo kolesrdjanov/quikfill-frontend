@@ -352,13 +352,35 @@ describe('applyFill — custom select (value-matching)', () => {
     expect(results[0].status).toBe('success')
   })
 
-  it('leaves the list open and reports assisted when no option matches', async () => {
+  it('reports assisted (no selection committed) when no option matches', async () => {
     mountCustomSelect('Parking')
     const { results } = await applyFill([customInstruction('Penthouse')])
-    // Nothing was clicked — the display still shows the prior selection.
+    // Nothing matched — no selection is committed; the display is unchanged and we
+    // prompt the user to pick manually.
     expect(document.querySelector('.val')!.textContent).toBe('Parking')
     expect(results[0].status).toBe('assisted')
-    expect(results[0].reason).toMatch(/couldn't find "Penthouse"/i)
+    expect(results[0].reason).toMatch(/couldn't find "Penthouse".*pick it manually/i)
+  })
+
+  it('closes the list on no match (re-presses the trigger) so it cannot dismiss a host modal', async () => {
+    // Model an open-on-demand select: the option list is only in the DOM while open,
+    // and the trigger toggles it. An open custom select we leave behind is its own
+    // outside-dismiss layer that takes a surrounding modal down with it — so on a
+    // no-match we must close it again. Without the fix the list stays in the DOM.
+    mountCustomSelect('Parking')
+    const relative = document.querySelector('.relative')!
+    const dropdown = document.querySelector('.dropdown') as HTMLElement
+    const trigger = document.getElementById('trigger')!
+    dropdown.remove()
+    let open = false
+    trigger.addEventListener('click', () => {
+      open = !open
+      if (open) relative.appendChild(dropdown)
+      else dropdown.remove()
+    })
+    const { results } = await applyFill([customInstruction('Penthouse')])
+    expect(results[0].status).toBe('assisted')
+    expect(document.querySelector('.dropdown')).toBeNull() // opened to search, then closed
   })
 
   it('falls back to the first option only when no value was proposed', async () => {
