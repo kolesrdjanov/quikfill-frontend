@@ -235,13 +235,33 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       setStatus(button, 'error')
       return
     }
+    // Dev-only diagnostics (stripped from prod builds): the per-field plan and
+    // outcome, so we can see ordering + which field's fill coincides with a host
+    // modal dismissing. Logged in the page console of the tab being filled.
+    if (import.meta.env.DEV) {
+      console.debug(
+        '[QuikFill] applying fill',
+        instructions.map((i) => ({ id: i.detectedFieldId, strategy: i.fillStrategy })),
+      )
+    }
     try {
       const outcome = await applyFill(instructions, doc)
+      if (import.meta.env.DEV) {
+        console.debug(
+          '[QuikFill] fill results',
+          outcome.results.map((r) => ({
+            id: r.detectedFieldId,
+            status: r.status,
+            reason: r.reason,
+          })),
+        )
+      }
       const anyFilled = outcome.results.some(
         (r) => r.status === 'success' || r.status === 'assisted',
       )
       setStatus(button, anyFilled ? 'success' : 'error')
-    } catch {
+    } catch (err) {
+      if (import.meta.env.DEV) console.debug('[QuikFill] fill threw', err)
       setStatus(button, 'error')
     }
   }
