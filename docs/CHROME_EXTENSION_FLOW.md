@@ -150,8 +150,12 @@ When the user clicks **Fill** on a form's button:
 5. Map each `values[].fieldId` → a `FillInstruction` and call the existing
    **`applyFill(instructions, root)`** to prefill. Resolution is by
    `[data-qf-id="…"]` first (exact element), then ranked selector candidates.
-6. Reflect **spinner → success / error** in the shadow UI. Entitlement (402) and
-   rate-limit responses surface as a blocking error state.
+6. Reflect **spinner → success / error** in the shadow UI. The failure cause is
+   surfaced specifically: the background maps the backend error (status + `code`)
+   to a coarse reason (`quota` / `rate-limited` / `auth` / `not-configured` /
+   `offline` / `error`), and the pill shows matching copy — e.g. a 429
+   `QUOTA_EXCEEDED` reads as **"AI limit reached"** (with a fuller tooltip), not a
+   flat "Try again". Error states linger a few seconds before resetting.
 
 ### id ↔ value mapping
 

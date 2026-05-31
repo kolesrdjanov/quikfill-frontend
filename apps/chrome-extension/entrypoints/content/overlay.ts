@@ -1,7 +1,33 @@
 import { buildAiFillRequest, isNativeFillable, valuesToFillInstructions } from '@quikfill/ai'
-import { requestAiFill } from '@quikfill/browser-adapter'
+import { requestAiFill, type AiClassifyReason } from '@quikfill/browser-adapter'
 import { applyFill, scanFormsGrouped } from '@quikfill/form-scanner'
 import type { DetectedField, DetectedForm } from '@quikfill/schemas'
+
+/**
+ * User-facing copy per AI failure cause (mirrors lib/display-maps `AI_REASON_MESSAGE`;
+ * duplicated here so the content script doesn't pull in Vue/lucide). `label` shows
+ * in the pill, `title` is the hover tooltip.
+ */
+const ERROR_COPY: Record<AiClassifyReason, { label: string; title: string }> = {
+  quota: {
+    label: 'AI limit reached',
+    title: 'You’ve reached this month’s AI limit — it resets next month.',
+  },
+  'rate-limited': {
+    label: 'Slow down',
+    title: 'Too many AI requests just now — wait a moment and try again.',
+  },
+  auth: { label: 'Sign in again', title: 'Your session expired — sign in again to use AI.' },
+  'not-configured': {
+    label: 'AI unavailable',
+    title: 'QuikFill AI isn’t enabled on the server right now.',
+  },
+  offline: {
+    label: 'Offline',
+    title: 'QuikFill AI is unreachable. Check your connection and try again.',
+  },
+  error: { label: 'Try again', title: 'QuikFill AI hit an unexpected error.' },
+}
 
 /** A mounted overlay; call `destroy()` to remove all UI + listeners (SPA teardown/tests). */
 export interface OverlayHandle {
@@ -157,7 +183,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     const request = buildAiFillRequest(pageGlobals(doc), fields)
     const reply = await requestAiFill(request)
     if (!reply.ok) {
-      setStatus(button, 'error')
+      // Surface the mapped cause (quota / rate-limit / auth / …) instead of a flat
+      // "Try again", so a 429 QUOTA_EXCEEDED reads as "AI limit reached".
+      setStatus(button, 'error', ERROR_COPY[reply.reason])
       return
     }
 
@@ -177,9 +205,14 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     }
   }
 
-  function setStatus(button: FormButton, status: ButtonStatus): void {
+  function setStatus(
+    button: FormButton,
+    status: ButtonStatus,
+    error?: { label: string; title?: string },
+  ): void {
     button.status = status
     button.el.classList.remove('is-loading', 'is-success', 'is-error')
+    if (status !== 'error') button.el.removeAttribute('title')
     if (status === 'loading') {
       button.el.classList.add('is-loading')
       button.label.textContent = 'Filling…'
@@ -188,15 +221,20 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       button.label.textContent = 'Filled'
     } else if (status === 'error') {
       button.el.classList.add('is-error')
-      button.label.textContent = 'Try again'
+      button.label.textContent = error?.label ?? 'Try again'
+      if (error?.title) button.el.setAttribute('title', error.title)
     } else {
       button.label.textContent = 'Fill'
     }
-    // Auto-return success/error to idle so the button is reusable.
+    // Auto-return to idle so the button is reusable; let an error linger longer so
+    // an actionable message (e.g. "AI limit reached") is readable before it clears.
     if (status === 'success' || status === 'error') {
-      win.setTimeout(() => {
-        if (button.status === status) setStatus(button, 'idle')
-      }, 2500)
+      win.setTimeout(
+        () => {
+          if (button.status === status) setStatus(button, 'idle')
+        },
+        status === 'error' ? 5000 : 2500,
+      )
     }
   }
 
