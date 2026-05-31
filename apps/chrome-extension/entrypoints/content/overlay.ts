@@ -1,4 +1,4 @@
-import { buildAiFillRequest, isNativeFillable, valuesToFillInstructions } from '@quikfill/ai'
+import { buildAiFillRequest, isFillableField, valuesToFillInstructions } from '@quikfill/ai'
 import {
   onEntitlementsChange,
   refreshEntitlements,
@@ -117,10 +117,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     for (const form of result.forms) {
       const groupRoot = resolveGroupRoot(form, fieldById, doc)
       if (!groupRoot) continue
-      // Native inputs only — skip forms whose detectable fields are all custom.
+      // Fillable fields = native inputs + detected custom selects; skip forms with
+      // none (a button that could fill nothing).
       const nativeIds = form.fieldIds.filter((id) => {
         const f = fieldById.get(id)
-        return f ? isNativeFillable(f) : false
+        return f ? isFillableField(f) : false
       })
       if (nativeIds.length === 0) continue
 
@@ -206,7 +207,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
 
     const fields = form.fieldIds
       .map((id) => fieldById.get(id))
-      .filter((f): f is DetectedField => !!f && isNativeFillable(f))
+      .filter((f): f is DetectedField => !!f && isFillableField(f))
     if (fields.length === 0) {
       setStatus(button, 'error')
       return

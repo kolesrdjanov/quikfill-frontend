@@ -5,5 +5,6 @@ export {
   buildAiFillRequest,
   valuesToFillInstructions,
   isNativeFillable,
+  isFillableField,
   type AiFillPageInput,
 } from './fill-request'

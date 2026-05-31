@@ -29,11 +29,25 @@ function redactText(raw: string | undefined | null): string | undefined {
 }
 
 /**
- * Native fillable field only. Custom widgets / non-native selects are out of
- * scope for the in-page fill flow, so they never reach the request or the filler.
+ * A truly native fillable input (text / select / checkbox / radio / …). A custom
+ * widget (a `<div>`-based dropdown) is NOT native — see {@link isFillableField},
+ * which the in-page flow uses so it also fills detected custom selects.
  */
 export function isNativeFillable(field: DetectedField): boolean {
   return !field.customWidget && field.inputType !== 'customSelect'
+}
+
+/**
+ * A field the in-page flow can fill end-to-end: any native input, PLUS a detected
+ * custom select that carries a click-driving `customWidget` descriptor. For the
+ * latter the filler opens the dropdown, value-matches the option to the proposed
+ * value, clicks it, and verifies — degrading to `assisted` (list left open for the
+ * user) when nothing matches. A custom select with no descriptor can't be driven,
+ * so it stays excluded.
+ */
+export function isFillableField(field: DetectedField): boolean {
+  if (isNativeFillable(field)) return true
+  return field.inputType === 'customSelect' && !!field.customWidget
 }
 
 /** DetectedField → redacted AiFillField. NEVER carries the current value or raw HTML. */
@@ -62,23 +76,25 @@ function toAiFillField(field: DetectedField): AiFillField {
 
 /**
  * Build the redacted `/ai/fill` request from page globals + detected fields.
- * Native inputs only; every text field is HTML-stripped and length-capped, and
- * the current value is never included — the same privacy guarantee as classify.
- * Throws if no native fields remain (an empty request is meaningless).
+ * Native inputs plus detected custom selects (see {@link isFillableField}); every
+ * text field is HTML-stripped and length-capped, and the current value is never
+ * included — the same privacy guarantee as classify. Throws if no fillable fields
+ * remain (an empty request is meaningless).
  */
 export function buildAiFillRequest(page: AiFillPageInput, fields: DetectedField[]): AiFillRequest {
-  const native = fields.filter(isNativeFillable)
+  const fillable = fields.filter(isFillableField)
   return aiFillRequestSchema.parse({
     page: {
       lang: page.lang?.slice(0, MAX_SUMMARY_TEXT) ?? '',
       title: redactText(page.title) ?? '',
       description: redactText(page.description) ?? '',
     },
-    fields: native.map(toAiFillField),
+    fields: fillable.map(toAiFillField),
   })
 }
 
 function strategyFor(inputType: string): FillStrategy {
+  if (inputType === 'customSelect') return 'customSelect'
   if (inputType === 'select') return 'select'
   if (inputType === 'checkbox' || inputType === 'radio') return 'clickToggle'
   return 'nativeInput'
@@ -86,9 +102,11 @@ function strategyFor(inputType: string): FillStrategy {
 
 /**
  * Map AI fill values back to fill instructions, keyed by the `fieldId` the request
- * sent (= scanner `data-qf-id`). Drops values for unknown ids or non-native fields,
+ * sent (= scanner `data-qf-id`). Drops values for unknown ids or non-fillable fields,
  * so a hallucinated id can never target an element. The picked strategy lets the
- * filler value-match selects and toggle checkboxes/radios correctly.
+ * filler value-match native selects, toggle checkboxes/radios, and — for a custom
+ * select — open the dropdown and click the matching option (its `customWidget`
+ * descriptor is carried through so the filler knows how to drive it).
  */
 export function valuesToFillInstructions(
   values: { fieldId: string; value: string }[],
@@ -98,7 +116,7 @@ export function valuesToFillInstructions(
   const instructions: FillInstruction[] = []
   for (const { fieldId, value } of values) {
     const field = byId.get(fieldId)
-    if (!field || !isNativeFillable(field)) continue
+    if (!field || !isFillableField(field)) continue
     instructions.push(
       fillInstructionSchema.parse({
         detectedFieldId: field.id,
@@ -108,6 +126,7 @@ export function valuesToFillInstructions(
         tagName: field.tagName,
         inputType: field.inputType,
         fillStrategy: strategyFor(field.inputType),
+        ...(field.customWidget ? { customWidget: field.customWidget } : {}),
         proposedValue: value,
       }),
     )
