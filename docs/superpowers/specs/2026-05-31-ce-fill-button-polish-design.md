@@ -1,8 +1,9 @@
 # Chrome Extension — Floating "Fill" Button Polish & Qualification
 
-> Status: **Designed, approved, not started.** Design doc for the CE in-page
-> floating-button visual + behaviour pass. Implementation plan follows
-> (writing-plans). Date: 2026-05-31.
+> Status: **Implemented.** Design doc for the CE in-page floating-button visual +
+> behaviour pass. Built in `@quikfill/form-scanner` (`placement.ts`) +
+> `overlay.ts`; plan at `docs/superpowers/plans/2026-05-31-ce-fill-button-polish.md`.
+> Date: 2026-05-31.
 
 ---
 
