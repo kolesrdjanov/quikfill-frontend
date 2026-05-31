@@ -273,6 +273,14 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
           reason: r.reason,
         })),
       )
+      // TEMPORARY: pinpoint WHEN the host modal closes — is the form already
+      // detached the instant the fill finishes (closed during the fill), or does it
+      // vanish a moment later (closed by the left-open dropdown / an async dismiss)?
+      qfDebug('drawer connected right after fill?', button.groupRoot.isConnected)
+      setTimeout(
+        () => qfDebug('drawer connected 300ms after fill?', button.groupRoot.isConnected),
+        300,
+      )
       const anyFilled = outcome.results.some(
         (r) => r.status === 'success' || r.status === 'assisted',
       )
