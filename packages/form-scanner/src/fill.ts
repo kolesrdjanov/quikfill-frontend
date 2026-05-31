@@ -380,13 +380,37 @@ function collectRadiosInto(
 // --- Custom (non-native) select -------------------------------------------
 
 /**
+ * The element to press to OPEN a custom select, resolved STRICTLY inside the widget
+ * container. We find the container reliably (its data-qf-id marker), but the
+ * trigger's own serialized selector is often just a structural path that drifts at
+ * fill time to an unrelated node — e.g. a stray icon `<button>` elsewhere in the
+ * drawer — and clicking the wrong node collapses the whole drawer. The real trigger
+ * always lives inside the widget root (see resolveWidgetRoot), so we scope the
+ * search there and prefer the strongest opener markers. Returns the container itself
+ * as a last resort.
+ */
+const TRIGGER_TIERS = [
+  '[data-trigger="select"]',
+  '[role="combobox"], [aria-haspopup="listbox"], [aria-haspopup="dialog"], [aria-haspopup="grid"]',
+  '[role="button"][aria-controls], [role="button"][aria-expanded]',
+  '[role="button"], button',
+]
+function resolveTrigger(widgetEl: Element): Element {
+  for (const sel of TRIGGER_TIERS) {
+    if (widgetEl.matches(sel)) return widgetEl
+    const found = widgetEl.querySelector(sel)
+    if (found) return found
+  }
+  return widgetEl
+}
+
+/**
  * Fill a custom (non-native) widget by driving it the way a user would: open it,
  * find the option whose accessible name matches the proposed value, and click it —
  * never by setting a value or `aria-selected` (which the framework ignores).
  * Branches by widget kind (single select, multi-select, datepicker). When no option
- * matches a non-empty value, returns `assisted` with the list left open rather than
- * silently picking the wrong (first) option. An empty proposed value keeps the
- * legacy first-option fill (there is nothing to match against).
+ * matches, returns `assisted` with the list left open rather than picking a wrong
+ * option or sending a dismiss signal that would collapse the host drawer.
  */
 async function fillCustomSelect(
   ins: FillInstruction,
@@ -406,7 +430,7 @@ async function fillCustomSelect(
   // portaled to <body> — OUTSIDE the drawer — so the open-list lookups search the
   // whole owning document, not the scoped root.
   const doc = ownerDocOf(widgetEl)
-  const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
+  const trigger = resolveTrigger(widgetEl)
   const previousDisplayText = readDisplay(widgetEl, widget, doc)
   const entry: UndoEntry = {
     detectedFieldId: ins.detectedFieldId,
@@ -435,15 +459,18 @@ async function fillCustomSelect(
   const option = await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
 
   if (!option) {
-    // No match. Close the list before bailing — see closeOpenList: an open custom
-    // select left behind is an outside-dismiss layer that takes the surrounding
-    // modal down with it as the rest of the fill moves focus.
-    await closeOpenList(widget, widgetEl, trigger, doc)
+    // No match. LEAVE THE LIST OPEN — never try to close it. Confirmed against the
+    // real app (2026-06-01): the host drawer collapses on ANY dismiss signal — an
+    // Escape (the drawer has its own Escape-to-close), or a trigger re-press whose
+    // pointerdown the app reads as an outside press and tears the drawer down a tick
+    // later. The ONLY drawer-safe way to close a custom select is to actually select
+    // an option (an inside-the-panel click). With nothing to select, we leave the
+    // open list for the user and report assisted.
     return {
       result: assisted(
         ins.detectedFieldId,
         ins.proposedValue,
-        `Couldn't find "${ins.proposedValue}" in the dropdown — open it and pick it manually.`,
+        `Couldn't find "${ins.proposedValue}" in the dropdown — it's open, pick it manually.`,
       ),
       entry,
     }
@@ -464,8 +491,8 @@ async function fillCustomSelect(
     return { result: success(ins.detectedFieldId, chosenLabel || null), entry }
   }
 
-  // Couldn't commit the pick — make sure we don't strand an open list (see above).
-  await closeOpenList(widget, widgetEl, trigger, doc)
+  // Couldn't commit the pick — leave the list open. Closing it with any dismiss
+  // signal would collapse the host drawer (see the no-match branch above).
   return {
     result: fail(
       ins.detectedFieldId,
@@ -473,27 +500,6 @@ async function fillCustomSelect(
     ),
     entry,
   }
-}
-
-/**
- * Dismiss an open custom-select list WITHOUT disturbing a surrounding modal. A
- * custom select we opened and didn't commit is its own outside-dismiss layer:
- * leaving it open lets it fire an interact/focus-outside as the rest of the fill
- * proceeds, which cascades to the host drawer and closes the whole thing (every
- * later field then reports "element not found"). Re-pressing the trigger — the
- * inverse of the open click the drawer already tolerated, and which re-focuses the
- * trigger inside the scoped root — toggles the list shut without ever producing an
- * event the modal's own outside-dismiss reads as "outside". No-op if already closed.
- */
-async function closeOpenList(
-  widget: CustomWidget,
-  widgetEl: Element,
-  trigger: Element,
-  doc: Document,
-): Promise<void> {
-  if (openOptionNodes(widget, widgetEl, trigger, doc).length === 0) return
-  clickElement(trigger)
-  await settle()
 }
 
 /**
@@ -1171,7 +1177,7 @@ async function undoCustomSelect(
   if (!widgetEl) return skip(entry.detectedFieldId, 'Element not found on the page.')
 
   const doc = ownerDocOf(widgetEl)
-  const trigger = findElement(root, widget.triggerSelectorCandidates) ?? widgetEl
+  const trigger = resolveTrigger(widgetEl)
   clickElement(trigger)
   await settle()
   const option = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, prev)
@@ -1188,8 +1194,7 @@ function readDisplay(widgetEl: Element, widget: CustomWidget, doc: Document): st
     const m = queryIn(widgetEl, sel) ?? queryIn(doc, sel)
     if (m) return displayValue(m)
   }
-  const trigger = findElement(doc, widget.triggerSelectorCandidates)
-  return displayValue(trigger ?? widgetEl)
+  return displayValue(resolveTrigger(widgetEl))
 }
 
 /**

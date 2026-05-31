@@ -362,25 +362,44 @@ describe('applyFill — custom select (value-matching)', () => {
     expect(results[0].reason).toMatch(/couldn't find "Penthouse".*pick it manually/i)
   })
 
-  it('closes the list on no match (re-presses the trigger) so it cannot dismiss a host modal', async () => {
-    // Model an open-on-demand select: the option list is only in the DOM while open,
-    // and the trigger toggles it. An open custom select we leave behind is its own
-    // outside-dismiss layer that takes a surrounding modal down with it — so on a
-    // no-match we must close it again. Without the fix the list stays in the DOM.
+  it('leaves the list OPEN on no match — sends no dismiss signal that could collapse a host drawer', async () => {
+    // Confirmed against the real app (2026-06-01): the host drawer collapses on ANY
+    // dismiss signal — Escape (the drawer has its own Escape-to-close) OR a trigger
+    // re-press whose pointerdown the app reads as an outside press. The only
+    // drawer-safe close is selecting an option, so on a no-match we leave the open
+    // list alone and let the user pick (the assisted message says so).
     mountCustomSelect('Parking')
     const relative = document.querySelector('.relative')!
     const dropdown = document.querySelector('.dropdown') as HTMLElement
     const trigger = document.getElementById('trigger')!
     dropdown.remove()
     let open = false
-    trigger.addEventListener('click', () => {
-      open = !open
-      if (open) relative.appendChild(dropdown)
-      else dropdown.remove()
-    })
-    const { results } = await applyFill([customInstruction('Penthouse')])
-    expect(results[0].status).toBe('assisted')
-    expect(document.querySelector('.dropdown')).toBeNull() // opened to search, then closed
+    const onClick = (): void => {
+      if (!open) {
+        open = true
+        relative.appendChild(dropdown)
+      }
+    }
+    // Any of these while the panel is open is a drawer-killer; the fix must emit zero.
+    let dismissSignals = 0
+    const onEsc = (e: Event): void => {
+      if ((e as KeyboardEvent).key === 'Escape') dismissSignals++
+    }
+    const onPress = (): void => {
+      if (open) dismissSignals++
+    }
+    trigger.addEventListener('click', onClick)
+    document.addEventListener('keydown', onEsc, true)
+    document.addEventListener('pointerdown', onPress, true)
+    try {
+      const { results } = await applyFill([customInstruction('Penthouse')])
+      expect(results[0].status).toBe('assisted')
+      expect(document.querySelector('.dropdown')).not.toBeNull() // left OPEN for the user
+      expect(dismissSignals).toBe(0) // no Escape, no pointer press while the panel was open
+    } finally {
+      document.removeEventListener('keydown', onEsc, true)
+      document.removeEventListener('pointerdown', onPress, true)
+    }
   })
 
   it('opens custom-select dropdowns only after every plain field is written', async () => {
@@ -420,6 +439,54 @@ describe('applyFill — custom select (value-matching)', () => {
       </div>`
     const { results } = await applyFill([customInstruction('Office')])
     expect(results[0].status).toBe('assisted')
+  })
+
+  it('presses the real in-container trigger, never a drifting selector that resolves elsewhere', async () => {
+    // The live bug (2026-06-01): the trigger's serialized selector (a structural path,
+    // since the trigger has no id/name/test-id) drifted at fill time to a stray icon
+    // <button> elsewhere in the drawer; pressing it collapsed the whole drawer. The
+    // trigger MUST be resolved strictly inside the widget container.
+    document.body.innerHTML = `
+      <button id="decoy">x</button>
+      <div id="cat" data-test-id="cat" name="cat">
+        <div role="button" data-trigger="select" id="realtrigger"><div class="val">—</div></div>
+        <div class="dropdown"><div role="button" aria-label="Select option">Office</div></div>
+      </div>`
+    let decoyPressed = false
+    document.getElementById('decoy')!.addEventListener('pointerdown', () => {
+      decoyPressed = true
+    })
+    const val = document.querySelector('.val')!
+    document.querySelector('.dropdown [role="button"]')!.addEventListener('click', () => {
+      val.textContent = 'Office'
+    })
+    const widget: CustomWidget = {
+      kind: 'select',
+      // Drift: points at the wrong element. The fix must ignore it and find the real
+      // [data-trigger="select"] inside the container instead.
+      triggerSelectorCandidates: ['#decoy'],
+      valueDisplaySelectorCandidates: ['.val'],
+      optionItemSelector: '[role="option"], [role="button"][aria-label*="option" i]',
+      optionsOpenOnDemand: false,
+      isSearchable: false,
+      isVirtualized: false,
+    }
+    const { results } = await applyFill([
+      {
+        detectedFieldId: 'cat',
+        selectorCandidates: ['#cat'],
+        frame: 'main',
+        shadow: false,
+        tagName: 'div',
+        inputType: 'customSelect',
+        fillStrategy: 'customSelect',
+        proposedValue: 'Office',
+        customWidget: widget,
+      },
+    ])
+    expect(decoyPressed).toBe(false) // never pressed the drifting selector's target
+    expect(val.textContent).toBe('Office')
+    expect(results[0].status).toBe('success')
   })
 })
 
