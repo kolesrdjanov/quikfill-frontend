@@ -109,6 +109,17 @@ anchor it.
   `<html>`, outside the observed body subtree), so injecting a button never triggers
   another scan — no feedback loop.
 
+### Not dismissing the modal we sit on
+
+Because the host lives on `<html>` (outside any modal's subtree), a "close on
+outside click" modal/drawer would read a press on our button as an outside click
+and dismiss itself. The overlay mounts at `document_idle` — **before** any modal
+opens — so a **capture-phase guard** on `window` (registered first) runs ahead of
+the modal's dismiss listener: when a `pointerdown`/`mousedown`/`pointerup`/`mouseup`
+originates from our host it calls `stopImmediatePropagation()`, so no dismiss fires.
+`click` is **not** swallowed (the button's own handler still runs), and `mousedown`'s
+default is prevented so focus stays in the modal (covers focus-out dismiss).
+
 ### Out of scope (for now)
 
 - **Custom selects** and all **non-native widgets** are ignored — native inputs

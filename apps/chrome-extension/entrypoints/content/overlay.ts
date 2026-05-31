@@ -249,6 +249,22 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   win.addEventListener('scroll', onScrollResize, { passive: true, capture: true })
   win.addEventListener('resize', onScrollResize, { passive: true })
 
+  // Modals/drawers that "close on outside click" treat a press on our button —
+  // which lives in a host on <html>, outside their subtree — as an outside click
+  // and dismiss themselves. The overlay mounts at document_idle, BEFORE any modal
+  // opens, so this capture-phase guard runs ahead of the modal's dismiss listener:
+  // when a press originates from our host we stop it propagating, so no dismiss
+  // fires. We never swallow `click`, so our button's own handler still runs; and we
+  // preventDefault on mousedown so focus stays in the modal (focus-out dismiss).
+  const swallowFromHost = (e: Event): void => {
+    const path = (e.composedPath?.() ?? []) as EventTarget[]
+    if (!path.includes(host)) return
+    e.stopImmediatePropagation()
+    if (e.type === 'mousedown') e.preventDefault()
+  }
+  const SWALLOWED = ['pointerdown', 'mousedown', 'pointerup', 'mouseup'] as const
+  for (const type of SWALLOWED) win.addEventListener(type, swallowFromHost, true)
+
   scan()
 
   return {
@@ -257,6 +273,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       observer.disconnect()
       if (debounce) win.clearTimeout(debounce)
       doc.removeEventListener('focusin', onFocusIn, true)
+      for (const type of SWALLOWED) win.removeEventListener(type, swallowFromHost, true)
       win.removeEventListener('scroll', onScrollResize, { capture: true } as EventListenerOptions)
       win.removeEventListener('resize', onScrollResize)
       host.remove()
