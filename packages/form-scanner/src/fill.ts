@@ -643,6 +643,44 @@ async function scrollAndMatch(
   return matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
 }
 
+/**
+ * Automation/value attributes an option may carry a stable handle in, à la a
+ * Playwright locator. Consulted at fill time on the LIVE option nodes (they don't
+ * exist at scan time). Both the whole value and its trailing segment are matched,
+ * so `data-test-id="cat-option-US"` resolves a proposed code "US".
+ */
+const OPTION_AUTOMATION_ATTRS = [
+  'data-test-id',
+  'data-testid',
+  'data-test',
+  'data-cy',
+  'data-qa',
+  'data-automation-id',
+  'data-value',
+  'data-option-value',
+  'data-key',
+  'value',
+]
+
+/** Normalized automation-attribute values on an option (whole value + trailing segment). */
+function optionAutomationValues(node: Element, widget: CustomWidget): string[] {
+  const attrs = new Set(
+    widget.optionValueAttr
+      ? [...OPTION_AUTOMATION_ATTRS, widget.optionValueAttr]
+      : OPTION_AUTOMATION_ATTRS,
+  )
+  const out: string[] = []
+  for (const attr of attrs) {
+    const raw = node.getAttribute(attr)
+    if (!raw) continue
+    const whole = norm(raw)
+    if (whole) out.push(whole)
+    const seg = norm(raw.split(/[-_/.\s]+/).pop() ?? '')
+    if (seg) out.push(seg)
+  }
+  return out
+}
+
 /** ARIA option roles, safe to resolve document-wide (open lists are often portaled). */
 const ARIA_OPTION_SELECTORS = [
   '[role="option"]',
@@ -772,8 +810,8 @@ function optionIsSelected(option: Element): boolean {
  * The option whose accessible name best matches `value`. Tries each option's
  * visible text, `aria-label` (only when it discriminates between options — many
  * widgets stamp every option with the SAME generic label like "Select option", so
- * the real value is the text), `title`, and a configured value attribute. Tiers,
- * best wins: exact name → exact value-attr → contains (either way) → prefix.
+ * the real value is the text), `title`, and any automation/value attribute. Tiers,
+ * best wins: automation-attribute handle → exact name → contains (either way) → prefix.
  */
 function matchOption(nodes: Element[], widget: CustomWidget, value: string): Element | null {
   const want = norm(value)
@@ -804,13 +842,12 @@ function optionTier(node: Element, widget: CustomWidget, want: string, ariaLabel
     norm(ariaLabel),
     norm(node.getAttribute('title') ?? ''),
   ].filter(Boolean)
-  const valueAttr = widget.optionValueAttr
-    ? norm(node.getAttribute(widget.optionValueAttr) ?? '')
-    : ''
-  if (names.some((n) => n === want)) return 1
-  if (valueAttr && valueAttr === want) return 2
-  if (names.some((n) => n.includes(want) || want.includes(n))) return 3
-  if (names.some((n) => n.startsWith(want) || want.startsWith(n))) return 4
+  // Tier 1: a stable automation/value handle equals the target (or its trailing
+  // segment does) — the Playwright-style locator, strongest when present.
+  if (optionAutomationValues(node, widget).includes(want)) return 1
+  if (names.some((n) => n === want)) return 2 // exact accessible name
+  if (names.some((n) => n.includes(want) || want.includes(n))) return 3 // contains
+  if (names.some((n) => n.startsWith(want) || want.startsWith(n))) return 4 // prefix
   return 0
 }
 

@@ -862,6 +862,74 @@ describe('applyFill — scoped to a root element', () => {
   })
 })
 
+// Options that carry stable automation attributes (data-test-id / data-value),
+// the common E2E-instrumented app. Matching must prefer these — like a Playwright
+// locator — so a proposed CODE resolves even when the visible text differs.
+const attrWidget: CustomWidget = {
+  kind: 'select',
+  triggerSelectorCandidates: ['#trigger'],
+  valueDisplaySelectorCandidates: ['.val'],
+  optionItemSelector: '[role="option"], [role="button"][aria-label*="option" i]',
+  optionsOpenOnDemand: false,
+  isSearchable: false,
+  isVirtualized: false,
+}
+
+function mountAttrSelect() {
+  document.body.innerHTML = `
+    <div id="cat" data-test-id="cat" name="cat">
+      <div role="button" data-trigger="select" id="trigger"><div class="val">—</div></div>
+      <div class="dropdown">
+        <div role="option" data-value="US" data-test-id="cat-option-US">United States</div>
+        <div role="option" data-value="CA" data-test-id="cat-option-CA">Canada</div>
+        <div role="option" data-value="MX" data-test-id="cat-option-MX">Mexico</div>
+      </div>
+    </div>`
+  const val = document.querySelector('.val')!
+  for (const opt of Array.from(document.querySelectorAll('.dropdown [role="option"]'))) {
+    opt.addEventListener('click', () => {
+      val.textContent = opt.textContent
+    })
+  }
+}
+
+function attrInstruction(proposedValue: string): FillInstruction {
+  return {
+    detectedFieldId: 'cat',
+    selectorCandidates: ['#cat'],
+    frame: 'main',
+    shadow: false,
+    tagName: 'div',
+    inputType: 'customSelect',
+    fillStrategy: 'customSelect',
+    proposedValue,
+    customWidget: attrWidget,
+  }
+}
+
+describe('applyFill — custom select (automation-attribute matching)', () => {
+  it('matches a proposed code against data-value', async () => {
+    mountAttrSelect()
+    const { results } = await applyFill([attrInstruction('CA')])
+    expect(document.querySelector('.val')!.textContent).toBe('Canada')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('matches the trailing segment of a data-test-id', async () => {
+    mountAttrSelect()
+    const { results } = await applyFill([attrInstruction('MX')])
+    expect(document.querySelector('.val')!.textContent).toBe('Mexico')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('still matches the human label by text when the code is not used', async () => {
+    mountAttrSelect()
+    const { results } = await applyFill([attrInstruction('United States')])
+    expect(document.querySelector('.val')!.textContent).toBe('United States')
+    expect(results[0].status).toBe('success')
+  })
+})
+
 // Universal value-matching across the ARIA/library patterns the engine must handle
 // without per-framework code: portaled listboxes, label-vs-value, typeahead filter,
 // keyboard-only commit, multi-select, and calendar navigation.
