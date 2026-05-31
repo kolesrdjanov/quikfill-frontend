@@ -6,7 +6,7 @@ withDefaults(defineProps<{ showFooter?: boolean }>(), { showFooter: true })
 </script>
 
 <template>
-  <div class="bg-background text-foreground flex h-screen flex-col">
+  <div class="bg-background text-foreground flex h-full flex-col">
     <header class="bg-card border-b px-[15px] py-[13px]">
       <slot name="header" />
     </header>
