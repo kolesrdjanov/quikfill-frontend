@@ -15,9 +15,10 @@ flow revamp. It supersedes the side-panel scan → preview → AI-suggestion →
 
 ## 1. Target flow
 
-1. The user signs in through the extension surface (popup / side panel) — the
-   existing email-OTP auth gate. The surface keeps only **auth**, **subscription
-   settings**, and **a single-action scan form**, and nothing else.
+1. The user signs in through the **toolbar popup** — the existing email-OTP auth
+   gate. After sign-in the popup shows a **subscription/usage mini-dashboard** with
+   a **Manage** link to the dashboard app (`localhost:5173` dev / `app.quikfill.io`
+   prod); there are no in-extension settings and no scan UI.
 2. On **every page**, the content script automatically detects each form, finds
    that form's submit button, and injects **our own floating button** anchored
    near it. The button lives in an **isolated Shadow DOM** so host CSS can't bleed

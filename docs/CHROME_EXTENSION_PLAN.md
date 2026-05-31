@@ -14,15 +14,16 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 
 ## Status
 
-| #   | Iteration                                                  | Status  |
-| --- | ---------------------------------------------------------- | ------- |
-| 3   | Scanner prototype (scan + inspect detected fields)         | ✅ Done |
-| 4   | Fill plan preview (generators + heuristics + preview UI)   | ✅ Done |
-| 5   | Fill execution + undo (native fill, verify, undo, results) | ✅ Done |
-| 6   | Local form profiles (save/match/reuse mappings)            | ✅ Done |
-| 7   | Gemini assistance (privacy-aware AI, review/accept/reject) | ✅ Done |
-| —   | UI design-system pass (popup / side panel / options)       | ✅ Done |
-| —   | In-page fill flow (floating "Fill" buttons + `/ai/fill`)   | ✅ Done |
+| #   | Iteration                                                                     | Status  |
+| --- | ----------------------------------------------------------------------------- | ------- |
+| 3   | Scanner prototype (scan + inspect detected fields)                            | ✅ Done |
+| 4   | Fill plan preview (generators + heuristics + preview UI)                      | ✅ Done |
+| 5   | Fill execution + undo (native fill, verify, undo, results)                    | ✅ Done |
+| 6   | Local form profiles (save/match/reuse mappings)                               | ✅ Done |
+| 7   | Gemini assistance (privacy-aware AI, review/accept/reject)                    | ✅ Done |
+| —   | UI design-system pass (popup / side panel / options)                          | ✅ Done |
+| —   | In-page fill flow (floating "Fill" buttons + `/ai/fill`)                      | ✅ Done |
+| —   | v2 popup surface (auth + usage mini-dashboard; side panel & settings retired) | ✅ Done |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)
@@ -47,6 +48,15 @@ prerequisites for everything below.)
 > [`CHROME_EXTENSION_FLOW.md`](./CHROME_EXTENSION_FLOW.md). This surface fills
 > directly from AI (no per-field review) — an intentional departure — while keeping
 > the privacy half (redacted metadata only; never values or HTML).
+
+> **v2 popup surface:** the extension's UI is the **toolbar popup** (a dropdown).
+> It is auth (email-OTP log in / sign up) → success → a **mini-dashboard** of the
+> user's subscription/usage with a **Manage** button to the dashboard app
+> (`localhost:5173` dev / `app.quikfill.io` prod) and a Sign out. There are **no
+> in-extension settings and no scan UI** — filling happens on the page via the
+> content overlay. The icon opens the popup (`default_popup`); the `sidePanel` and
+> `activeTab` permissions are dropped, and the side-panel and options/settings
+> entrypoints are retired to `apps/chrome-extension/legacy/` (preserved, unbuilt).
 
 ---
 
