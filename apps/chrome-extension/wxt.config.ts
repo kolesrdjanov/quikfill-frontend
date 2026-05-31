@@ -10,8 +10,8 @@ export default defineConfig({
   manifest: {
     name: 'QuikFill',
     description: 'Scan, map, and fill any web form.',
-    // Minimal permissions; host access is requested on user action (activeTab).
-    permissions: ['sidePanel', 'scripting', 'storage', 'activeTab'],
+    // Minimal permissions; the content script injects via its declared matches.
+    permissions: ['scripting', 'storage'],
     // Lets the background worker reach the local backend for (user-initiated) AI.
     // Production builds add their API origin here.
     host_permissions: ['http://localhost:4010/*'],

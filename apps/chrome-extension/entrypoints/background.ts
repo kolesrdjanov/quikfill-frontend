@@ -48,9 +48,6 @@ const API_BASE_URL = 'http://localhost:4010/api/v1'
 const MOCK_AI_FILL = import.meta.env.VITE_QF_MOCK_AI_FILL === 'true'
 
 export default defineBackground(() => {
-  // Open the side panel (the primary UI) when the toolbar icon is clicked.
-  browser.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {})
-
   // Single session owner: tokens + state snapshot live in chrome.storage.local.
   const store = createChromeAuthStore()
 
