@@ -1,4 +1,4 @@
-import { createAiClient, createApiClient } from '@quikfill/api-client'
+import { createAiClient, createApiClient, mockAiFill } from '@quikfill/api-client'
 import {
   AUTH_STATE_KEY,
   createBackgroundAuth,
@@ -9,6 +9,7 @@ import {
   createChromeStorageAdapter,
   createProfileStore,
   onAiClassifyRequest,
+  onAiFillRequest,
   onAuthRequest,
   onEntitlementsRequest,
   onEntityDataRequest,
@@ -40,6 +41,11 @@ function reflectBadge(state: AuthState): void {
 // script. Production builds must point this at their API origin and add it to
 // `host_permissions` (see wxt.config.ts), exactly as today's AI base URL.
 const API_BASE_URL = 'http://localhost:4010/api/v1'
+
+// Opt-in dev flag: short-circuit /ai/fill to a deterministic local stand-in so
+// the in-page floating-button flow is exercisable without a Gemini key. Set
+// `VITE_QF_MOCK_AI_FILL=true` for `pnpm dev:ext`; off (and tree-shaken) otherwise.
+const MOCK_AI_FILL = import.meta.env.VITE_QF_MOCK_AI_FILL === 'true'
 
 export default defineBackground(() => {
   // Open the side panel (the primary UI) when the toolbar icon is clicked.
@@ -107,6 +113,12 @@ export default defineBackground(() => {
   onAiClassifyRequest(async (summaries) =>
     ai.suggestMappings(summaries, await buildSuggestContext()),
   )
+  // In-page floating-button fill: the content overlay sends redacted page + field
+  // metadata; the call runs over the authenticated api-client (so it carries the
+  // token AND inherits 401 → refresh → retry), and the backend enforces the AI
+  // entitlement + rate limit — a 402/429 surfaces back to the overlay as a mapped
+  // failure cause. The dev flag swaps in a local mock so no Gemini key is needed.
+  onAiFillRequest(async (request) => (MOCK_AI_FILL ? mockAiFill(request) : ai.fill(request)))
   onProfileSyncRequest(sync.handlers)
   // Record fill-run history: create the run, then write its result. Best-effort —
   // the panel ignores failures, so an offline/expired session never blocks a fill.
