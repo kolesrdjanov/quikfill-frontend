@@ -134,6 +134,41 @@ describe('findSubmitButton', () => {
     expect(findSubmitButton(div)?.textContent).toBe('Apply changes')
   })
 
+  it('picks the trailing non-dismiss action over a Cancel — no verb list needed', () => {
+    // "Add Facility" is in no positive vocabulary; it is chosen because it is the
+    // last button that is not an obvious dismiss.
+    setBody(`
+      <div>
+        <button>Cancel</button>
+        <button>Add Facility</button>
+      </div>
+    `)
+    const div = document.querySelector('div')!
+    expect(findSubmitButton(div)?.textContent).toBe('Add Facility')
+  })
+
+  it('skips an icon close button (aria-label) and picks the trailing action', () => {
+    setBody(`
+      <div>
+        <button aria-label="Close">✕</button>
+        <input name="x" />
+        <button>Wizardly Proceed-o-tron</button>
+      </div>
+    `)
+    const div = document.querySelector('div')!
+    expect(findSubmitButton(div)?.textContent).toBe('Wizardly Proceed-o-tron')
+  })
+
+  it('treats a no-type <button> inside a <form> as the submit (HTML spec)', () => {
+    setBody(`
+      <form id="np">
+        <input name="x" />
+        <button>Whatever Label</button>
+      </form>
+    `)
+    expect(findSubmitButton(document.querySelector('form')!)?.textContent).toBe('Whatever Label')
+  })
+
   it('returns null when no button reads as submit-intent', () => {
     setBody(`<div><button>Reset</button><button>Cancel</button></div>`)
     const div = document.querySelector('div')!

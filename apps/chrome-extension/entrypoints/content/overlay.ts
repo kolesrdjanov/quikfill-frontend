@@ -60,22 +60,28 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       const groupRoot = resolveGroupRoot(form, fieldById, doc)
       if (!groupRoot) continue
       // Native inputs only — skip forms whose detectable fields are all custom.
-      const hasNative = form.fieldIds.some((id) => {
+      const nativeIds = form.fieldIds.filter((id) => {
         const f = fieldById.get(id)
         return f ? isNativeFillable(f) : false
       })
-      if (!hasNative) continue
+      if (nativeIds.length === 0) continue
+
+      // Anchor preference: the submit button (where the user looks), else the last
+      // field, else the group root. A clear submit OR a substantial form (2+ native
+      // fields) earns a button; a lone field with no submit is left alone to avoid
+      // decorating stray inputs (search boxes etc.). This is the §10.1 resolution:
+      // anchor to the last field rather than skip when no submit is detected.
       const submitEl = resolveSubmit(form, groupRoot, doc)
-      // No anchor → no button (open question §10.1: skip forms with no submit).
-      if (!submitEl) continue
+      if (!submitEl && nativeIds.length < 2) continue
+      const anchor = submitEl ?? resolveFieldEl(nativeIds[nativeIds.length - 1], doc) ?? groupRoot
 
       seen.add(groupRoot)
       const existing = buttons.get(groupRoot)
       if (existing) {
-        existing.submitEl = submitEl
+        existing.submitEl = anchor
         existing.formId = form.formId
       } else {
-        buttons.set(groupRoot, createButton(groupRoot, form.formId, submitEl, shadow, doc))
+        buttons.set(groupRoot, createButton(groupRoot, form.formId, anchor, shadow, doc))
       }
     }
 
@@ -219,11 +225,18 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   // Debounced re-scan on DOM changes. childList+subtree only (NOT attributes) so
   // the scanner's own data-qf-id / data-qf-form stamping can't feed the loop.
   let debounce: number | undefined
-  const observer = new MutationObserver(() => {
+  const scheduleScan = (): void => {
     if (debounce) win.clearTimeout(debounce)
     debounce = win.setTimeout(scan, RESCAN_DEBOUNCE_MS)
-  })
+  }
+  const observer = new MutationObserver(scheduleScan)
   if (doc.body) observer.observe(doc.body, { childList: true, subtree: true })
+
+  // Safety net for forms the childList observer can't see open: a modal/drawer
+  // that is pre-rendered and merely toggled via CSS fires no node insertion, so
+  // re-scan when the user focuses any field — by then it is visible and scannable.
+  const onFocusIn = (): void => scheduleScan()
+  doc.addEventListener('focusin', onFocusIn, true)
 
   const onScrollResize = (): void => reposition()
   win.addEventListener('scroll', onScrollResize, { passive: true, capture: true })
@@ -236,12 +249,18 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     destroy() {
       observer.disconnect()
       if (debounce) win.clearTimeout(debounce)
+      doc.removeEventListener('focusin', onFocusIn, true)
       win.removeEventListener('scroll', onScrollResize, { capture: true } as EventListenerOptions)
       win.removeEventListener('resize', onScrollResize)
       host.remove()
       buttons.clear()
     },
   }
+}
+
+/** Resolve a field's element by its data-qf-id within the document. */
+function resolveFieldEl(id: string, doc: Document): Element | null {
+  return doc.querySelector(`[data-qf-id="${cssAttr(id)}"]`)
 }
 
 /** Resolve a form's group-root element via its first field, climbing to form/[data-qf-form]. */

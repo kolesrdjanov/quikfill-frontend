@@ -49,10 +49,11 @@ existing `onScanRequest` / `onFillRequest` / `onUndoRequest` message handlers st
 document_idle
   └─ mountOverlay()
        ├─ scanGrouped(document)            // form-scanner: grouped pass
-       ├─ for each DetectedForm with a submit button:
-       │     └─ inject a floating button anchored to the submit button's rect
+       ├─ for each DetectedForm with native fields:
+       │     └─ inject a floating button anchored to submit → last field → form
        ├─ MutationObserver(document.body)  // debounced, ignores our own nodes
        │     └─ re-scan → add buttons for new forms, drop detached ones, reposition
+       ├─ focusin listener                 // re-scan: catches CSS-toggled drawers
        └─ scroll/resize listeners          // re-anchor visible buttons
 ```
 
@@ -71,15 +72,42 @@ Existing scanner behaviour is reused unchanged: visibility filtering
 and `data-qf-id` stamping (our per-input id, used to map AI results back to
 elements).
 
+### Submit-button detection (semantics, not a verb list)
+
+`findSubmitButton` identifies a form's action button by **HTML semantics and
+position**, never by guessing whether a label contains a "submit" word:
+
+1. an explicit `button[type=submit]` / `input[type=submit]` (or a `form="<id>"`-linked
+   one) — unambiguous;
+2. inside a real `<form>`, a `<button>` with **no `type`** submits by HTML spec —
+   take the last one (the primary action sits at the end);
+3. otherwise (formless groups, or forms whose action is a plain/`type=button` button
+   driven by JS) the **last visible button-like element that is not an obvious
+   dismiss** (Cancel / Close / Back / Reset / …). A short, stable _negative_ list is
+   used — we never try to enumerate every "submit" verb.
+
+Crucially, **the floating button is not gated on this succeeding.** A form with
+native fields gets a button regardless; submit detection only chooses _where_ to
+anchor it.
+
 ### Anchoring & the observer
 
-- Each button is positioned with `getBoundingClientRect()` of the form's submit
-  button and re-anchored on `scroll` / `resize`.
-- A **debounced** `MutationObserver` on `document.body` re-runs the grouped scan
-  on subtree changes so buttons appear on dynamically-added forms (modals, SPA
-  routes), drop when a form detaches, and reposition on layout shift.
-- The observer **ignores our own injected nodes** (the shadow host is skipped) so
-  injecting a button never triggers another scan — no feedback loop.
+- A form earns a button when it has a detected submit **or** ≥2 native fields (a
+  lone field with no action button is left alone, e.g. a nav search box).
+- The button is positioned with `getBoundingClientRect()` of, in order: the detected
+  submit button → the form's **last field** → the form's group root; re-anchored on
+  `scroll` / `resize`.
+- A **debounced** `MutationObserver` on `document.body` (`childList` + `subtree`
+  only — _not_ attributes, so the scanner's own `data-qf-id` / `data-qf-form`
+  stamping can't feed the loop) re-runs the grouped scan on subtree changes, so
+  buttons appear on dynamically-added forms (modals, SPA routes), drop when a form
+  detaches, and reposition on layout shift.
+- A **`focusin`** listener also schedules a re-scan — the safety net for a modal /
+  drawer that is pre-rendered and merely toggled via CSS (no node insertion fires no
+  mutation); by the time the user focuses a field it is visible and scannable.
+- The observer **ignores our own injected nodes** (the shadow host lives on
+  `<html>`, outside the observed body subtree), so injecting a button never triggers
+  another scan — no feedback loop.
 
 ### Out of scope (for now)
 

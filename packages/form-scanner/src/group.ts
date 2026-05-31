@@ -5,16 +5,21 @@ import { scanForms } from './scan'
 /** A grouped scan: the flat ScanResult plus its fields organized into forms. */
 export type GroupedScanResult = ScanResult & { forms: DetectedForm[] }
 
-/**
- * Submit-intent words for a fallback button (a form may use a styled `<button>`
- * with no `type=submit`). Matched whole-word, case-insensitively, against the
- * button's visible text.
- */
-const SUBMIT_INTENT_RE =
-  /\b(submit|save|continue|next|apply|send|sign\s?up|sign\s?in|log\s?in|login|register|create|update|confirm|subscribe|join|done|finish|proceed|get\s?started|pay|order|checkout|book|reserve|request|search)\b/i
-
 /** Candidate elements that could act as a form's action button. */
 const BUTTONLIKE = 'button, [role="button"], input[type="submit"], input[type="button"]'
+
+/**
+ * Buttons that clearly are NOT a form's submit. A short, stable *negative* list is
+ * far more robust than trying to enumerate every "submit" verb: there are only a
+ * handful of dismiss/secondary words, and they rarely drift. Anything not on this
+ * list is treated as a possible primary action.
+ */
+const DISMISS_RE = /\b(cancel|close|back|dismiss|reset|skip|previous|prev|clear)\b/i
+
+function isDismissAction(el: Element): boolean {
+  const text = `${el.textContent ?? ''} ${el.getAttribute('aria-label') ?? ''}`
+  return DISMISS_RE.test(text)
+}
 
 /**
  * Scan a page and group the detected fields by their owning form. A field's group
@@ -144,34 +149,48 @@ function nearestSubmitAncestor(el: Element): Element | null {
 }
 
 /**
- * The form's action button: an explicit `button[type=submit]`/`input[type=submit]`
- * (or one linked by `form="<id>"`), else the last visible button-like element whose
- * text reads as submit-intent. Returns null when none is found.
+ * The form's action button, detected by HTML semantics + position rather than a
+ * word list:
+ *  1. An explicit `button[type=submit]` / `input[type=submit]` (or one linked by
+ *     `form="<id>"`) — unambiguous.
+ *  2. Inside a real `<form>`, a `<button>` with no `type` attribute submits by HTML
+ *     spec; take the last such button (the primary action sits at the end).
+ *  3. Otherwise (formless groups, or forms whose action is a plain/`type=button`
+ *     button driven by JS) the last visible button-like element that is not an
+ *     obvious dismiss (Cancel/Close/Back/…).
+ * Returns null only when there is no button-like element at all.
  */
 export function findSubmitButton(formRoot: Element): Element | null {
+  const isForm = formRoot.tagName.toLowerCase() === 'form'
+
   const explicit = Array.from(
     formRoot.querySelectorAll('button[type="submit"], input[type="submit"]'),
   ).find((el) => isVisible(el))
   if (explicit) return explicit
 
   // A submit linked to a real form by its `form` attribute may sit outside the form.
-  const id = formRoot.tagName.toLowerCase() === 'form' ? formRoot.getAttribute('id') : null
+  const id = isForm ? formRoot.getAttribute('id') : null
   if (id) {
-    const owner = formRoot.ownerDocument
-    const linked = owner?.querySelector(
+    const linked = formRoot.ownerDocument?.querySelector(
       `button[type="submit"][form="${cssAttr(id)}"], input[type="submit"][form="${cssAttr(id)}"]`,
     )
     if (linked && isVisible(linked)) return linked
   }
 
-  const buttonlike = Array.from(formRoot.querySelectorAll(BUTTONLIKE)).filter((el) => isVisible(el))
-  // Trailing match wins — the action button is conventionally last in the form.
-  for (let i = buttonlike.length - 1; i >= 0; i--) {
-    const el = buttonlike[i]
-    const text = (el.textContent ?? '') + ' ' + (el.getAttribute('value') ?? '')
-    if (SUBMIT_INTENT_RE.test(text)) return el
+  // A no-type <button> inside a <form> is a submit per spec — last one wins.
+  if (isForm) {
+    const implicit = Array.from(
+      formRoot.querySelectorAll('button:not([type]), button[type="submit"]'),
+    ).filter((el) => isVisible(el))
+    if (implicit.length > 0) return implicit[implicit.length - 1]
   }
-  return null
+
+  // Generic fallback: the trailing non-dismiss button-like element is, by
+  // convention, the primary action — no positive verb list needed.
+  const actions = Array.from(formRoot.querySelectorAll(BUTTONLIKE)).filter(
+    (el) => isVisible(el) && !isDismissAction(el),
+  )
+  return actions.length > 0 ? actions[actions.length - 1] : null
 }
 
 /** A human label for the form: aria-label, nearest heading, or submit-button text. */
