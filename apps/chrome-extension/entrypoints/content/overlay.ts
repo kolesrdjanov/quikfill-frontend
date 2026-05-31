@@ -212,11 +212,16 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         continue
       }
       button.el.style.display = ''
-      // Anchor to the submit button's top-right corner, nudged just outside it.
-      const top = rect.top + win.scrollY - 4
-      const left = rect.right + win.scrollX + 8
-      button.el.style.top = `${Math.max(4, top)}px`
-      button.el.style.left = `${left}px`
+      // The button is `position: fixed`, so we use viewport coordinates directly
+      // (no scroll offset). This keeps it glued whether the anchor lives in normal
+      // flow or in a `position: fixed` modal/drawer — re-anchoring on scroll/resize
+      // recomputes the rect either way. Clamp into the viewport so it never sits
+      // off-screen to the right of a near-edge submit button.
+      const vw = win.innerWidth || doc.documentElement.clientWidth
+      const top = Math.max(4, rect.top - 4)
+      const left = Math.min(rect.right + 8, vw - 170)
+      button.el.style.top = `${top}px`
+      button.el.style.left = `${Math.max(4, left)}px`
     }
   }
 
@@ -312,7 +317,7 @@ function cssAttr(value: string): string {
 const OVERLAY_CSS = `
 :host { all: initial; }
 .qf-fill-btn {
-  position: absolute;
+  position: fixed;
   z-index: 2147483646;
   display: inline-flex;
   align-items: center;
