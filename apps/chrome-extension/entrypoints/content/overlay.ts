@@ -50,12 +50,18 @@ export interface OverlayHandle {
 const HOST_ID = 'quikfill-overlay-host'
 const RESCAN_DEBOUNCE_MS = 300
 
-// TEMPORARY fill diagnostics. The content-script bundle strips `console.*`, so we
-// reach the console indirectly (computed access) to survive the build. Logs to the
-// page console of the filled tab. Remove once the drawer-close culprit is pinned.
+// TEMPORARY fill diagnostics. Logged in two places so they're visible regardless
+// of which DevTools you have open: the filled tab's PAGE console (direct), and the
+// background service-worker console (mirrored — that's where the /ai/fill POST
+// shows). Remove once the drawer-close culprit is pinned.
 const qfDebug = (...args: unknown[]): void => {
   const g = globalThis as unknown as { console?: Record<string, (...a: unknown[]) => void> }
   g.console?.['log']?.('[QuikFill]', ...args)
+  try {
+    void chrome.runtime?.sendMessage?.({ type: 'QF_DEBUG', args })?.catch?.(() => {})
+  } catch {
+    /* extension context torn down — ignore */
+  }
 }
 
 type ButtonStatus = 'idle' | 'loading' | 'success' | 'error'

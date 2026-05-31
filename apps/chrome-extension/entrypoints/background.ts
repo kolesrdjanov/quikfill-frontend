@@ -151,4 +151,13 @@ export default defineBackground(() => {
     const change = changes[AUTH_STATE_KEY]
     if (change?.newValue) onAuthState(change.newValue as AuthState)
   })
+
+  // TEMPORARY: mirror the content overlay's fill diagnostics into THIS (service
+  // worker) console — the same place the /ai/fill POST shows — so they're visible
+  // without opening the filled tab's page console. Remove with the qfDebug calls.
+  browser.runtime.onMessage.addListener((message) => {
+    const m = message as { type?: string; args?: unknown[] }
+    if (m?.type === 'QF_DEBUG') console.log('[QuikFill][page]', ...(m.args ?? []))
+    return undefined
+  })
 })
