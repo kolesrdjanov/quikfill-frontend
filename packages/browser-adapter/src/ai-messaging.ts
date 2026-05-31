@@ -1,5 +1,5 @@
 /// <reference types="chrome" />
-import type { AiSuggestion, FieldSummary } from '@quikfill/schemas'
+import type { AiFillRequest, AiFillResponse, AiSuggestion, FieldSummary } from '@quikfill/schemas'
 
 /**
  * Panel → background message asking the background worker to classify fields via
@@ -86,6 +86,71 @@ export function onAiClassifyRequest(
       .then((suggestions) => sendResponse({ ok: true, suggestions } satisfies AiClassifyResponse))
       .catch((error: unknown) =>
         sendResponse({ ok: false, ...aiClassifyReason(error) } satisfies AiClassifyResponse),
+      )
+    return true
+  })
+}
+
+/**
+ * Content → background message asking the background worker to fill a form's
+ * fields via the backend `/ai/fill`. The api-client call lives in the background
+ * so no token or base URL is ever exposed to a content script. The request is
+ * already redacted (no values, no HTML) by the overlay's request builder.
+ */
+export const AI_FILL = 'AI_FILL'
+
+export interface AiFillMessage {
+  type: typeof AI_FILL
+  request: AiFillRequest
+}
+
+/** Background → content reply. Reuses the coarse AI cause taxonomy. */
+export type AiFillResult =
+  | { ok: true; response: AiFillResponse }
+  | { ok: false; reason: AiClassifyReason; message?: string }
+
+export function isAiFillRequest(message: unknown): message is AiFillMessage {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    (message as { type?: unknown }).type === AI_FILL
+  )
+}
+
+/**
+ * Ask the background worker to fill the given (already redacted) request. Never
+ * throws — a missing receiver resolves to an `offline` failure; the background
+ * forwards the backend's mapped cause (quota / rate-limit / auth / …) otherwise.
+ */
+export async function requestAiFill(request: AiFillRequest): Promise<AiFillResult> {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: AI_FILL,
+      request,
+    } satisfies AiFillMessage)
+    if (response && typeof response === 'object' && 'ok' in response) {
+      return response as AiFillResult
+    }
+    return { ok: false, reason: 'error' }
+  } catch {
+    return { ok: false, reason: 'offline' }
+  }
+}
+
+/**
+ * Register the background handler for fill requests. Returning `true` keeps the
+ * message channel open for the async `sendResponse`; a handler failure is mapped
+ * to its cause (see {@link aiClassifyReason}) rather than crashing the worker.
+ */
+export function onAiFillRequest(
+  handler: (request: AiFillRequest) => AiFillResponse | Promise<AiFillResponse>,
+): void {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!isAiFillRequest(message)) return undefined
+    Promise.resolve(handler(message.request))
+      .then((response) => sendResponse({ ok: true, response } satisfies AiFillResult))
+      .catch((error: unknown) =>
+        sendResponse({ ok: false, ...aiClassifyReason(error) } satisfies AiFillResult),
       )
     return true
   })

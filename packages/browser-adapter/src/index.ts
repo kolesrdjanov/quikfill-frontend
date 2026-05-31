@@ -25,9 +25,15 @@ export {
   requestAiClassify,
   onAiClassifyRequest,
   aiClassifyReason,
+  AI_FILL,
+  isAiFillRequest,
+  requestAiFill,
+  onAiFillRequest,
   type AiClassifyMessage,
   type AiClassifyResponse,
   type AiClassifyReason,
+  type AiFillMessage,
+  type AiFillResult,
 } from './ai-messaging'
 export {
   FILL_RUN_RECORD,
