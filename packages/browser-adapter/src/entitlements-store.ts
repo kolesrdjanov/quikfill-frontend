@@ -39,3 +39,21 @@ export function createChromeEntitlementsStore(): EntitlementsStore {
 
 /** The storage key surfaces watch via `chrome.storage.onChanged` for live updates. */
 export const ENTITLEMENTS_STATE_KEY = STATE_KEY
+
+/**
+ * Subscribe to entitlements-snapshot changes (the background is the only writer),
+ * so any reader — surface or content script — reacts live to a plan change, a
+ * usage bump, or a monthly reset. Returns an unsubscribe function. Keeps the
+ * `chrome.storage` dependency inside the adapter, per the repo's layering rule.
+ */
+export function onEntitlementsChange(
+  callback: (entitlements: Entitlements | null) => void,
+): () => void {
+  const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string): void => {
+    if (area !== 'local') return
+    const change = changes[STATE_KEY]
+    if (change) callback((change.newValue as Entitlements | undefined) ?? null)
+  }
+  chrome.storage.onChanged.addListener(listener)
+  return () => chrome.storage.onChanged.removeListener(listener)
+}

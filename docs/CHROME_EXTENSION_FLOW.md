@@ -120,6 +120,18 @@ originates from our host it calls `stopImmediatePropagation()`, so no dismiss fi
 `click` is **not** swallowed (the button's own handler still runs), and `mousedown`'s
 default is prevented so focus stays in the modal (covers focus-out dismiss).
 
+### The button is the AI-budget signal
+
+The floating button doubles as the at-a-glance budget indicator: it appears only
+while the user has AI budget. The overlay seeds entitlements from the background
+(`requestEntitlements`) and stays in sync via `onEntitlementsChange` (a
+`chrome.storage.onChanged` subscription in the adapter), re-running the scan when
+usage, plan, or a monthly reset changes. When `isOverQuota`, **no button is
+injected** — all usage numbers/detail live in the side panel, not on the page.
+Unknown entitlements (`null`) are treated optimistically (button shown), matching
+the surfaces; if a fill then tips the user over budget, it fails with **"AI limit
+reached"** and refreshes the snapshot, which removes the buttons.
+
 ### Out of scope (for now)
 
 - **Custom selects** and all **non-native widgets** are ignored — native inputs

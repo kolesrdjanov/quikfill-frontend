@@ -1,7 +1,18 @@
 import { buildAiFillRequest, isNativeFillable, valuesToFillInstructions } from '@quikfill/ai'
-import { requestAiFill, type AiClassifyReason } from '@quikfill/browser-adapter'
+import {
+  onEntitlementsChange,
+  refreshEntitlements,
+  requestAiFill,
+  requestEntitlements,
+  type AiClassifyReason,
+} from '@quikfill/browser-adapter'
 import { applyFill, scanFormsGrouped } from '@quikfill/form-scanner'
-import type { DetectedField, DetectedForm } from '@quikfill/schemas'
+import {
+  isOverQuota,
+  type DetectedField,
+  type DetectedForm,
+  type Entitlements,
+} from '@quikfill/schemas'
 
 /**
  * User-facing copy per AI failure cause (mirrors lib/display-maps `AI_REASON_MESSAGE`;
@@ -72,7 +83,28 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   // reconciles against live DOM rather than the positional formId.
   const buttons = new Map<Element, FormButton>()
 
+  // The on-page button is the AI-budget signal: it appears only while the user has
+  // budget. Over-quota → no button (all usage detail lives in the side panel).
+  // Unknown entitlements (null) are treated optimistically — show the button — to
+  // match the surfaces; an actual over-budget click then fails with "AI limit
+  // reached" and refreshes the snapshot, which hides the button.
+  let overQuota = false
+  const applyEntitlements = (e: Entitlements | null): void => {
+    overQuota = e !== null && isOverQuota(e.tokensUsed, e.tokenLimit)
+  }
+
+  function removeAllButtons(): void {
+    for (const [root, button] of buttons) {
+      button.el.remove()
+      buttons.delete(root)
+    }
+  }
+
   function scan(): void {
+    if (overQuota) {
+      removeAllButtons()
+      return
+    }
     let result: ReturnType<typeof scanFormsGrouped>
     try {
       result = scanFormsGrouped(doc)
@@ -186,6 +218,14 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       // Surface the mapped cause (quota / rate-limit / auth / …) instead of a flat
       // "Try again", so a 429 QUOTA_EXCEEDED reads as "AI limit reached".
       setStatus(button, 'error', ERROR_COPY[reply.reason])
+      // A fill that tipped the user over budget: refresh the snapshot so the
+      // buttons disappear (the side panel shows the depleted budget).
+      if (reply.reason === 'quota') {
+        void refreshEntitlements().then((e) => {
+          applyEntitlements(e)
+          scan()
+        })
+      }
       return
     }
 
@@ -303,6 +343,17 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   const SWALLOWED = ['pointerdown', 'mousedown', 'pointerup', 'mouseup'] as const
   for (const type of SWALLOWED) win.addEventListener(type, swallowFromHost, true)
 
+  // Seed the AI-budget gate from the background and stay in sync: a usage bump,
+  // plan change, or monthly reset flips the buttons on/off without a page reload.
+  void requestEntitlements().then((e) => {
+    applyEntitlements(e)
+    scan()
+  })
+  const unsubscribeEntitlements = onEntitlementsChange((e) => {
+    applyEntitlements(e)
+    scan()
+  })
+
   scan()
 
   return {
@@ -314,6 +365,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       for (const type of SWALLOWED) win.removeEventListener(type, swallowFromHost, true)
       win.removeEventListener('scroll', onScrollResize, { capture: true } as EventListenerOptions)
       win.removeEventListener('resize', onScrollResize)
+      unsubscribeEntitlements()
       host.remove()
       buttons.clear()
     },

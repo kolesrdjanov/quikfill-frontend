@@ -77,6 +77,7 @@ export {
 export {
   createEntitlementsStore,
   createChromeEntitlementsStore,
+  onEntitlementsChange,
   ENTITLEMENTS_STATE_KEY,
   type EntitlementsStore,
 } from './entitlements-store'
