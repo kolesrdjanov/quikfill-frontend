@@ -715,6 +715,8 @@ function openOptionNodes(
   for (const scope of [linked, widgetEl].filter((s) => s !== null) as ParentNode[]) {
     const rows = structuralOptions(scope, trigger)
     if (rows.length) return rows
+    const tagged = automationOptions(scope, trigger, widgetEl)
+    if (tagged.length) return tagged
   }
   return []
 }
@@ -754,6 +756,43 @@ function structuralOptions(scope: ParentNode, trigger: Element): Element[] {
     if (row && row !== trigger && !trigger.contains(row) && textOf(row) !== '') rows.add(row)
   }
   return Array.from(rows)
+}
+
+/** Attributes whose presence (scoped to the widget) marks an automation-tagged option row. */
+const OPTION_AUTOMATION_FIND_ATTRS = ['data-test-id', 'data-testid', 'data-cy', 'data-qa']
+
+/**
+ * Option rows that expose no ARIA role and no list structure, only an automation
+ * attribute (e.g. `<div data-test-id="cat-option-US">`). Restricted to the widget's
+ * own id-namespace (the container's data-test-id prefix) when it has one, so a stray
+ * test-id elsewhere in the panel can't be mistaken for an option. Leaf rows only —
+ * a node that wraps other tagged rows is a group container, not an option.
+ */
+function automationOptions(scope: ParentNode, trigger: Element, widgetEl: Element): Element[] {
+  const ns = OPTION_AUTOMATION_FIND_ATTRS.map((a) => widgetEl.getAttribute(a)).find(Boolean)
+  const selector = OPTION_AUTOMATION_FIND_ATTRS.map((a) =>
+    ns ? `[${a}^="${cssEscapeAttr(ns)}"]` : `[${a}]`,
+  ).join(', ')
+  let nodes: Element[]
+  try {
+    nodes = Array.from(scope.querySelectorAll(selector))
+  } catch {
+    return []
+  }
+  return nodes.filter(
+    (n) =>
+      n !== trigger &&
+      n !== widgetEl &&
+      !trigger.contains(n) &&
+      !n.contains(trigger) &&
+      !OPTION_AUTOMATION_FIND_ATTRS.some((a) => n.querySelector(`[${a}]`)) &&
+      textOf(n) !== '',
+  )
+}
+
+/** Escape a value for use inside an attribute selector's quoted string. */
+function cssEscapeAttr(value: string): string {
+  return value.replace(/["\\]/g, '\\$&')
 }
 
 /** The selectable row wrapping a checkbox/radio: its list item, else a labelled ancestor. */

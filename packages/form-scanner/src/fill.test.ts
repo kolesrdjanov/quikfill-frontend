@@ -930,6 +930,49 @@ describe('applyFill — custom select (automation-attribute matching)', () => {
   })
 })
 
+describe('applyFill — custom select (finds role-less automation-attribute options)', () => {
+  it('locates options that have only a namespaced data-test-id', async () => {
+    document.body.innerHTML = `
+      <div id="cat" data-test-id="cat" name="cat">
+        <div role="button" data-trigger="select" id="trigger"><div class="val">—</div></div>
+        <div class="dropdown">
+          <div data-test-id="cat-option-locker">Locker</div>
+          <div data-test-id="cat-option-office">Office</div>
+        </div>
+      </div>`
+    const val = document.querySelector('.val')!
+    for (const opt of Array.from(document.querySelectorAll('.dropdown [data-test-id]'))) {
+      opt.addEventListener('click', () => {
+        val.textContent = opt.textContent
+      })
+    }
+    const widget: CustomWidget = {
+      kind: 'select',
+      triggerSelectorCandidates: ['#trigger'],
+      valueDisplaySelectorCandidates: ['.val'],
+      optionItemSelector: '[role="option"], [role="button"][aria-label*="option" i]',
+      optionsOpenOnDemand: false,
+      isSearchable: false,
+      isVirtualized: false,
+    }
+    const { results } = await applyFill([
+      {
+        detectedFieldId: 'cat',
+        selectorCandidates: ['#cat'],
+        frame: 'main',
+        shadow: false,
+        tagName: 'div',
+        inputType: 'customSelect',
+        fillStrategy: 'customSelect',
+        proposedValue: 'Office',
+        customWidget: widget,
+      },
+    ])
+    expect(document.querySelector('.val')!.textContent).toBe('Office')
+    expect(results[0].status).toBe('success')
+  })
+})
+
 // Universal value-matching across the ARIA/library patterns the engine must handle
 // without per-framework code: portaled listboxes, label-vs-value, typeahead filter,
 // keyboard-only commit, multi-select, and calendar navigation.
