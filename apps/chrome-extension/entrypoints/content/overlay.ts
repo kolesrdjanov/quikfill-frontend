@@ -6,7 +6,12 @@ import {
   requestEntitlements,
   type AiClassifyReason,
 } from '@quikfill/browser-adapter'
-import { applyFill, scanFormsGrouped } from '@quikfill/form-scanner'
+import {
+  applyFill,
+  isOccludingHit,
+  qualifiesForFill,
+  scanFormsGrouped,
+} from '@quikfill/form-scanner'
 import {
   isOverQuota,
   type DetectedField,
@@ -131,22 +136,22 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     for (const form of result.forms) {
       const groupRoot = resolveGroupRoot(form, fieldById, doc)
       if (!groupRoot) continue
-      // Fillable fields = native inputs + detected custom selects; skip forms with
-      // none (a button that could fill nothing).
-      const nativeIds = form.fieldIds.filter((id) => {
+      // Fillable fields = native inputs + detected custom selects. A form must clear
+      // the MIN_FILLABLE_FIELDS floor (qualifiesForFill) to earn a button: this skips
+      // button-only forms (0), single-input search boxes (1), and 2-input forms
+      // (incl. email+password logins) so we only decorate substantial forms.
+      const fillableIds = form.fieldIds.filter((id) => {
         const f = fieldById.get(id)
         return f ? isFillableField(f) : false
       })
-      if (nativeIds.length === 0) continue
+      if (!qualifiesForFill(fillableIds.length)) continue
 
-      // Anchor preference: the submit button (where the user looks), else the last
-      // field, else the group root. A clear submit OR a substantial form (2+ native
-      // fields) earns a button; a lone field with no submit is left alone to avoid
-      // decorating stray inputs (search boxes etc.). This is the §10.1 resolution:
-      // anchor to the last field rather than skip when no submit is detected.
+      // The submit button only POSITIONS the button — it no longer gates whether a
+      // form qualifies. Anchor to the submit, else the last fillable field, else the
+      // group root.
       const submitEl = resolveSubmit(form, groupRoot, doc)
-      if (!submitEl && nativeIds.length < 2) continue
-      const anchor = submitEl ?? resolveFieldEl(nativeIds[nativeIds.length - 1], doc) ?? groupRoot
+      const anchor =
+        submitEl ?? resolveFieldEl(fillableIds[fillableIds.length - 1], doc) ?? groupRoot
 
       seen.add(groupRoot)
       const existing = buttons.get(groupRoot)
@@ -181,9 +186,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     el.setAttribute('aria-label', 'Fill this form with QuikFill')
     const mark = ownerDoc.createElement('span')
     mark.className = 'qf-mark'
-    // Inline the brand SVG (decorative — the button itself carries the aria-label).
-    // Lives in the isolated shadow root, so the gradient id can't clash with the page.
-    mark.innerHTML = QUIKFILL_ICON_SVG
+    // Inline the brand glyph (decorative — the button itself carries the aria-label).
+    // The button's own gradient surface is the tile, so the glyph sits straight on it.
+    mark.innerHTML = QUIKFILL_GLYPH_SVG
     const label = ownerDoc.createElement('span')
     label.className = 'qf-label'
     label.textContent = 'Fill'
@@ -321,6 +326,17 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       const rect = anchor.getBoundingClientRect()
       // Hidden / zero-box anchor (e.g. inside a closed tab) → hide the button.
       if (rect.width === 0 && rect.height === 0) {
+        button.el.style.display = 'none'
+        continue
+      }
+      // Occlusion guard: a drawer/modal/sticky element now covering the anchor makes
+      // a hit-test at its centre return that element (or null when scrolled off).
+      // Hide the button so it can't float on top of an overlay that sits above the
+      // form. Our own host is ignored, so the button never hides itself. When the
+      // drawer closes, the resulting DOM mutation re-scans → reposition → it returns.
+      const cx = rect.left + rect.width / 2
+      const cy = rect.top + rect.height / 2
+      if (isOccludingHit(anchor, host, doc.elementFromPoint(cx, cy))) {
         button.el.style.display = 'none'
         continue
       }
@@ -468,28 +484,41 @@ const OVERLAY_CSS = `
 .qf-fill-btn {
   position: fixed;
   z-index: 2147483646;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: none;
-  border-radius: 9999px;
-  background: #3056d3;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #3f66e0, #2544c0);
   color: #ffffff;
-  font: 600 12px/1 system-ui, -apple-system, Segoe UI, sans-serif;
+  font: 600 12.5px/1 system-ui, -apple-system, Segoe UI, sans-serif;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(48, 86, 211, 0.35);
-  max-width: 34px;
+  box-shadow: 0 2px 6px rgba(37, 68, 192, 0.32);
   overflow: hidden;
-  transition: max-width 0.18s ease, background 0.15s ease;
   white-space: nowrap;
+  transition:
+    width 0.18s ease,
+    border-radius 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background 0.15s ease;
 }
 .qf-fill-btn:hover,
 .qf-fill-btn.is-loading,
 .qf-fill-btn.is-success,
-.qf-fill-btn.is-error { max-width: 160px; }
-.qf-fill-btn:hover { background: #2544c0; }
+.qf-fill-btn.is-error {
+  width: auto;
+  padding: 0 12px 0 8px;
+  border-radius: 9999px;
+}
+.qf-fill-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 68, 192, 0.42);
+}
 .qf-mark {
   display: inline-flex;
   align-items: center;
@@ -499,27 +528,38 @@ const OVERLAY_CSS = `
   flex: 0 0 auto;
 }
 .qf-mark svg { width: 18px; height: 18px; display: block; }
-.qf-label { padding-right: 4px; }
-.qf-fill-btn.is-success { background: #13c296; }
-.qf-fill-btn.is-error { background: #e11d48; }
-.qf-fill-btn.is-loading { opacity: 0.85; cursor: default; }
+.qf-label {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-width 0.18s ease,
+    margin-left 0.18s ease,
+    opacity 0.15s ease;
+}
+.qf-fill-btn:hover .qf-label,
+.qf-fill-btn.is-loading .qf-label,
+.qf-fill-btn.is-success .qf-label,
+.qf-fill-btn.is-error .qf-label {
+  max-width: 130px;
+  margin-left: 6px;
+  opacity: 1;
+}
+.qf-fill-btn.is-success { background: #13c296; box-shadow: 0 4px 12px rgba(19, 194, 150, 0.4); }
+.qf-fill-btn.is-error { background: #e11d48; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.4); }
+.qf-fill-btn.is-loading { opacity: 0.9; cursor: default; transform: none; }
 `
 
 /**
- * The QuikFill brand mark (mirror of packages/assets/logos/quikfill-icon.svg).
- * Inlined so it ships with the content script and renders inside the shadow root;
- * the `qfTile` gradient id is scoped to that shadow root, so it can't collide with
- * the host page.
+ * The QuikFill glyph — the lightning bolt + green "spark" dot, WITHOUT the brand
+ * tile's background rect/gradient. The button's own gradient surface IS the tile, so
+ * the glyph sits straight on it (no nested square, no clipped seam). White bolt on
+ * the blue surface; the dot keeps the brand green. Decorative — the button itself
+ * carries the aria-label.
  */
-const QUIKFILL_ICON_SVG = `
+const QUIKFILL_GLYPH_SVG = `
 <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-  <defs>
-    <linearGradient id="qfTile" x1="6" y1="2" x2="42" y2="46" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3F66E0"/>
-      <stop offset="1" stop-color="#2544C0"/>
-    </linearGradient>
-  </defs>
-  <rect width="48" height="48" rx="13" fill="url(#qfTile)"/>
   <path d="M25.25 11.5 12.75 26.5H24l-1.25 10 12.5-15H24l1.25-9.5Z" fill="#fff" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
   <circle cx="35.4" cy="12.6" r="3.4" fill="#13C296"/>
 </svg>`
