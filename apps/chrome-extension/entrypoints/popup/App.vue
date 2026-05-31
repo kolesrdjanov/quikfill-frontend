@@ -1,227 +1,100 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, type Component } from 'vue'
-import {
-  CircleHelp,
-  CreditCard,
-  Database,
-  LogIn,
-  Lock,
-  PanelRightOpen,
-  ScanLine,
-  Settings,
-  TriangleAlert,
-} from 'lucide-vue-next'
-import { Button } from '@quikfill/ui'
-import { createChromeStorageAdapter, createProfileStore } from '@quikfill/browser-adapter'
+import { computed, onMounted } from 'vue'
+import { ArrowUpRight, LogOut } from 'lucide-vue-next'
+import { Badge, Button } from '@quikfill/ui'
 import BrandLockup from '../../components/BrandLockup.vue'
-import AuthStatusBadge from '../../components/auth/AuthStatusBadge.vue'
-import { useSettings } from '../../lib/useSettings'
+import AuthPanel from '../../components/auth/AuthPanel.vue'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
 import { useEntitlements } from '../../lib/useEntitlements'
 
-const HELP_URL = 'http://localhost:5173/'
+// v2 surface: the toolbar popup is auth → success → a mini-dashboard of the user's
+// subscription/usage, with a Manage button that opens the full dashboard app. No
+// settings and no on-page scan live here — filling happens on the page (overlay).
+const DASHBOARD_URL = import.meta.env.PROD ? 'https://app.quikfill.io' : 'http://localhost:5173'
 
-const { load: loadSettings } = useSettings()
 const { init: initTheme } = useExtensionTheme()
 const gate = useAuthGate()
 const entitlements = useEntitlements()
-const store = createProfileStore(createChromeStorageAdapter())
 
-/** At-a-glance plan + AI budget line for the signed-in launcher. */
 const planLine = computed(() => {
-  if (!gate.isAppReady.value || !entitlements.known.value) return null
+  if (!entitlements.known.value) return null
   const name = entitlements.planName.value ?? 'Plan'
-  if (entitlements.isUnlimited.value) return `${name} · Unlimited AI`
-  if (entitlements.isOverQuota.value) return `${name} · AI limit reached`
-  return `${name} · ≈ ${entitlements.fillsRemaining.value.toLocaleString()} AI fills left`
+  const status = entitlements.status.value
+  return status && status !== 'active' ? `${name} · ${status}` : name
 })
 
-const profileCount = ref(0)
-const domainCount = ref(0)
-
-const dataSummary = () => {
-  if (!profileCount.value) return 'No saved profiles yet'
-  const p = `${profileCount.value} profile${profileCount.value === 1 ? '' : 's'}`
-  const d = `${domainCount.value} domain${domainCount.value === 1 ? '' : 's'}`
-  return `${p} · ${d}`
-}
-
-// The popup never hosts the auth form — it points at the side panel and varies
-// its tinted message by the gate's current screen.
-type Tone = 'primary' | 'warning' | 'danger'
-interface GatedMessage {
-  tone: Tone
-  icon: Component
-  text: string
-  action: string
-  actionIcon: Component
-}
-
-const toneBox: Record<Tone, string> = {
-  primary: 'bg-accent',
-  warning: 'bg-warning/15',
-  danger: 'bg-destructive/10',
-}
-const toneIcon: Record<Tone, string> = {
-  primary: 'text-primary',
-  warning: 'text-[#b7791f] dark:text-warning',
-  danger: 'text-destructive',
-}
-
-const gatedMessage = computed<GatedMessage>(() => {
-  switch (gate.screen.value) {
-    case 'subscription':
-      return {
-        tone: 'warning',
-        icon: CreditCard,
-        text: 'Plan paused. Filling is off until your subscription is active.',
-        action: 'Open side panel',
-        actionIcon: PanelRightOpen,
-      }
-    case 'error':
-    case 'offline':
-    case 'update':
-    case 'ratelimit':
-      return {
-        tone: 'danger',
-        icon: TriangleAlert,
-        text: 'QuikFill is unavailable. Open the panel to see what to do next.',
-        action: 'Open side panel',
-        actionIcon: PanelRightOpen,
-      }
-    default:
-      return {
-        tone: 'primary',
-        icon: Lock,
-        text: 'Sign in to use QuikFill. Filling is only available to signed-in accounts.',
-        action: 'Sign in in the side panel',
-        actionIcon: LogIn,
-      }
-  }
+const usageText = computed(() => {
+  if (!entitlements.known.value) return 'Loading your plan…'
+  if (entitlements.isUnlimited.value) return 'Unlimited AI fills'
+  if (entitlements.isOverQuota.value) return 'AI limit reached — resets next month'
+  return `≈ ${entitlements.fillsRemaining.value.toLocaleString()} AI fills left this month`
 })
+
+const showBar = computed(() => entitlements.known.value && !entitlements.isUnlimited.value)
+const barPct = computed(() => Math.min(100, Math.max(0, entitlements.usagePercent.value)))
+const barClass = computed(() =>
+  entitlements.isOverQuota.value
+    ? 'bg-destructive'
+    : entitlements.isNearQuota.value
+      ? 'bg-warning'
+      : 'bg-primary',
+)
 
 onMounted(async () => {
-  const loaded = await loadSettings()
-  initTheme(loaded.theme)
+  initTheme('auto')
   await gate.init()
-  const [profiles, domains] = await Promise.all([store.listFormProfiles(), store.listDomains()])
-  profileCount.value = profiles.length
-  domainCount.value = domains.length
+  await entitlements.init()
 })
 
-async function openSidePanel() {
-  const win = await browser.windows?.getCurrent()
-  if (win?.id != null) await browser.sidePanel?.open({ windowId: win.id })
-  window.close()
-}
-
-// Open the side panel and have it land on the in-panel settings view — no chrome:// modal.
-async function openSettings() {
-  const win = await browser.windows?.getCurrent()
-  if (win?.id != null) await browser.sidePanel?.open({ windowId: win.id })
-  await browser.storage.session?.set({ 'ui:pendingView': 'settings' })
-  window.close()
-}
-
-function openOptions() {
-  browser.runtime.openOptionsPage?.()
-  window.close()
-}
-
-function openHelp() {
-  void browser.tabs?.create({ url: HELP_URL })
+function openDashboard() {
+  void browser.tabs?.create({ url: DASHBOARD_URL })
   window.close()
 }
 </script>
 
 <template>
-  <div class="bg-card text-foreground w-[290px]">
-    <div class="bg-card flex items-center justify-between border-b px-4 py-3">
-      <BrandLockup />
-      <AuthStatusBadge :screen="gate.screen.value" />
-    </div>
+  <div class="bg-card text-foreground w-[340px]">
+    <!-- AUTH: log in / sign up → enter code → success (all handled by AuthPanel) -->
+    <AuthPanel v-if="!gate.isAppReady.value" />
 
-    <!-- SIGNED IN — the full launcher -->
-    <div v-if="gate.isAppReady.value" class="flex flex-col gap-3 p-4">
-      <Button class="w-full" @click="openSidePanel">
-        <PanelRightOpen class="size-4" />
-        Open side panel
-      </Button>
-
-      <hr class="border-border" />
-
-      <button
-        type="button"
-        class="hover:bg-muted flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left transition-colors"
-        @click="openSidePanel"
-      >
-        <ScanLine class="text-muted-foreground size-[17px]" />
-        <span>
-          <span class="block text-[13px] font-semibold">Quick scan</span>
-          <span class="text-muted-foreground block text-[11px]">Detect fields on this page</span>
-        </span>
-      </button>
-
-      <button
-        type="button"
-        class="hover:bg-muted flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left transition-colors"
-        @click="openOptions"
-      >
-        <Database class="text-muted-foreground size-[17px]" />
-        <span>
-          <span class="block text-[13px] font-semibold">My data</span>
-          <span class="text-muted-foreground block text-[11px]">{{ dataSummary() }}</span>
-        </span>
-      </button>
-
-      <p v-if="planLine" class="text-muted-foreground px-1 text-[11px]">{{ planLine }}</p>
-
-      <button
-        type="button"
-        class="hover:bg-muted flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left transition-colors"
-        @click="openSettings"
-      >
-        <Settings class="text-muted-foreground size-[17px]" />
-        <span>
-          <span class="block text-[13px] font-semibold">Settings</span>
-          <span class="text-muted-foreground block text-[11px]">Preferences in the side panel</span>
-        </span>
-      </button>
-    </div>
-
-    <!-- GATED — point at the side panel -->
-    <div v-else class="flex flex-col gap-2 p-[13px]">
-      <div
-        class="flex gap-2.5 rounded-[10px] p-[11px] text-[12.5px] leading-snug"
-        :class="toneBox[gatedMessage.tone]"
-      >
-        <component
-          :is="gatedMessage.icon"
-          class="mt-0.5 size-4 shrink-0"
-          :class="toneIcon[gatedMessage.tone]"
-        />
-        <span>{{ gatedMessage.text }}</span>
+    <!-- MINI-DASHBOARD -->
+    <div v-else class="flex flex-col gap-4 p-4">
+      <div class="flex items-center justify-between">
+        <BrandLockup />
+        <Button variant="ghost" size="sm" class="gap-1.5" @click="gate.signOut()">
+          <LogOut class="size-3.5" />
+          Sign out
+        </Button>
       </div>
 
-      <Button class="w-full" @click="openSidePanel">
-        <component :is="gatedMessage.actionIcon" class="size-4" />
-        {{ gatedMessage.action }}
+      <div class="bg-muted/40 flex flex-col gap-3 rounded-[12px] border p-3.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[13px] font-semibold">{{ planLine ?? 'Your plan' }}</span>
+          <Badge v-if="entitlements.isOverQuota.value" variant="danger">AI limit reached</Badge>
+        </div>
+        <p class="text-muted-foreground text-[12px]">{{ usageText }}</p>
+        <div v-if="showBar" class="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+          <div
+            class="h-full rounded-full transition-all"
+            :class="barClass"
+            :style="{ width: `${barPct}%` }"
+          />
+        </div>
+      </div>
+
+      <p v-if="gate.user.value?.email" class="text-muted-foreground px-1 text-[11px]">
+        Signed in as {{ gate.user.value.email }}
+      </p>
+
+      <Button class="w-full" @click="openDashboard">
+        Manage subscription
+        <ArrowUpRight class="size-4" />
       </Button>
 
-      <button
-        type="button"
-        class="hover:bg-muted flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left transition-colors"
-        @click="openHelp"
-      >
-        <CircleHelp class="text-muted-foreground size-[17px]" />
-        <span>
-          <span class="block text-[13px] font-semibold">Help & privacy</span>
-          <span class="text-muted-foreground block text-[11px]"
-            >How QuikFill handles your data</span
-          >
-        </span>
-      </button>
+      <p class="text-muted-foreground px-1 text-center text-[11px] leading-snug">
+        Fill happens on the page — look for the QuikFill button near each form.
+      </p>
     </div>
   </div>
 </template>
