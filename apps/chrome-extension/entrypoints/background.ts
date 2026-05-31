@@ -130,15 +130,25 @@ export default defineBackground(() => {
     return { types, records }
   })
 
-  // Warm the entitlements cache so the panel can show plan + usage immediately
-  // (best-effort: a signed-out / offline worker just keeps an empty snapshot).
-  void entitlements.refresh()
-
-  // Keep the toolbar badge in sync with the session snapshot every surface reads.
-  void Promise.resolve(auth.handlers.getState()).then(reflectBadge)
+  // Keep the toolbar badge — and the entitlements snapshot — in sync with the
+  // session. The startup state is usually signed-out, so warming entitlements only
+  // on boot leaves the popup stuck on "Loading…" and the on-page buttons unable to
+  // re-evaluate their AI-budget gate after sign-in without a page reload. So
+  // (re)fetch entitlements the moment the user signs in, and drop the snapshot on
+  // sign-out; writing the store wakes every surface (popup + overlay) via
+  // storage.onChanged.
+  let lastAuthStatus: AuthState['status'] | null = null
+  function onAuthState(state: AuthState): void {
+    reflectBadge(state)
+    if (state.status === lastAuthStatus) return
+    lastAuthStatus = state.status
+    if (state.status === 'signed-in') void entitlements.refresh()
+    else if (state.status === 'signed-out') void entitlements.clear()
+  }
+  void Promise.resolve(auth.handlers.getState()).then(onAuthState)
   browser.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return
     const change = changes[AUTH_STATE_KEY]
-    if (change?.newValue) reflectBadge(change.newValue as AuthState)
+    if (change?.newValue) onAuthState(change.newValue as AuthState)
   })
 })
