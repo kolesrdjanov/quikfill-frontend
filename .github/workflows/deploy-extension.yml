@@ -1,0 +1,70 @@
+name: Deploy Chrome Extension (private)
+
+# Push na `main` → build produkcione ekstenzije → upload + publish na Chrome Web Store.
+#
+# PRIVATNOST: vidljivost se NE kontroliše odavde. U CWS Developer Dashboard-u jednom
+# postaviš listing na Visibility = Private i dodaš Google naloge koje pozivaš kao
+# "trusted testers". Ovaj pipeline samo gura nove verzije paketa — one nasleđuju
+# privatnu vidljivost listinga, pa ostaju dostupne samo pozvanim korisnicima.
+#
+# Jednokratni setup (secrets + listing) je opisan u docs/DEPLOY_EXTENSION.md.
+
+on:
+  push:
+    branches: [main]
+    paths: # pokreni samo kad se ekstenzija ili deljeni paketi promene
+      - 'apps/chrome-extension/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch: {} # dozvoljava i ručno pokretanje iz Actions taba
+
+concurrency:
+  group: deploy-extension
+  cancel-in-progress: false # ne prekidaj upload koji je u toku
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Quality gate — ne šaljemo na store ako ekstenzija ne prolazi.
+      - name: Typecheck + test
+        run: |
+          pnpm --filter @quikfill/chrome-extension typecheck
+          pnpm --filter @quikfill/chrome-extension test
+
+      # CWS odbija upload ako verzija nije VEĆA od poslednje objavljene.
+      # package.json je 0.0.0 → izvedi rastuću verziju iz broja workflow run-a.
+      # Major/minor menjaš ručno u package.json; patch ide iz github.run_number.
+      - name: Set release version
+        working-directory: apps/chrome-extension
+        run: npm pkg set version=1.0.${{ github.run_number }}
+
+      - name: Build + zip (production)
+        working-directory: apps/chrome-extension
+        run: pnpm exec wxt zip
+        env:
+          # Bez ovoga produkcioni build pada (build:manifestGenerated hook u wxt.config.ts).
+          WXT_QF_API_BASE_URL: ${{ secrets.WXT_QF_API_BASE_URL }}
+
+      - name: Upload + publish to Chrome Web Store
+        working-directory: apps/chrome-extension
+        run: pnpm exec wxt submit --chrome-zip .output/*-chrome.zip
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
