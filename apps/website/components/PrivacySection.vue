@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MousePointerClick, HardDrive, EyeOff } from 'lucide-vue-next'
+import { MousePointerClick, Lock, EyeOff } from 'lucide-vue-next'
 </script>
 
 <template>
@@ -10,8 +10,8 @@ import { MousePointerClick, HardDrive, EyeOff } from 'lucide-vue-next'
           <span class="eyebrow">Private by design</span>
           <h2>Nothing is read until you scan.</h2>
           <p>
-            QuikFill has no access to a page until you open the panel and press scan — and your
-            values stay on your device. AI only ever sees a minimised, redacted field summary.
+            QuikFill can't see a page until you open it and press scan. What it reads from the page
+            stays on your device — only a minimised, redacted field summary is ever sent to AI.
           </p>
         </div>
         <div class="plist">
@@ -23,10 +23,12 @@ import { MousePointerClick, HardDrive, EyeOff } from 'lucide-vue-next'
             </div>
           </div>
           <div class="pitem">
-            <span class="ico"><HardDrive /></span>
+            <span class="ico"><Lock /></span>
             <div>
-              <h4>Local-first storage</h4>
-              <p>Records and profiles live on your device. Sync is opt-in.</p>
+              <h4>Synced to your account</h4>
+              <p>
+                Your saved profiles and data sync to your private account — encrypted, never sold.
+              </p>
             </div>
           </div>
           <div class="pitem">

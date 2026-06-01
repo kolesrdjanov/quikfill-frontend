@@ -9,8 +9,8 @@ import { ScanLine, Sparkles, Eye, CheckCheck } from 'lucide-vue-next'
         <span class="eyebrow">How it works</span>
         <h2>Four steps. About a second.</h2>
         <p>
-          QuikFill never touches the page until you ask. When you do, it works locally and shows you
-          everything before it writes a thing.
+          QuikFill never touches the page until you ask. When you do, it reads the page on your
+          device and shows you everything before it writes a thing.
         </p>
       </div>
       <div class="steps">
@@ -18,8 +18,8 @@ import { ScanLine, Sparkles, Eye, CheckCheck } from 'lucide-vue-next'
           <span class="num"><ScanLine /><span>1</span></span>
           <h3>Scan</h3>
           <p>
-            Open the side panel and scan. QuikFill reads every input, label, placeholder and ARIA
-            hint — across iframes and shadow DOM.
+            Open QuikFill and scan. It reads every input, label, placeholder and ARIA hint — even
+            inside same-origin iframes and open shadow DOM.
           </p>
         </div>
         <div class="step">
