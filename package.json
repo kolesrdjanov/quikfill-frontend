@@ -40,20 +40,6 @@
       "@parcel/watcher",
       "spawn-sync",
       "vue-demi"
-    ],
-    "supportedArchitectures": {
-      "os": [
-        "current",
-        "linux"
-      ],
-      "cpu": [
-        "current",
-        "x64"
-      ],
-      "libc": [
-        "current",
-        "glibc"
-      ]
-    }
+    ]
   }
 }
