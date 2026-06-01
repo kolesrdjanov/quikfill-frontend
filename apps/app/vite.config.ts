@@ -35,5 +35,18 @@ export default defineConfig({
     // (public/_headers) needs no inline-script allowance. Safe for the
     // dashboard's modern-browser (es2022) target.
     modulePreload: { polyfill: false },
+    rollupOptions: {
+      // Silence the noisy `INVALID_ANNOTATION` warnings Vite 8's Rolldown bundler
+      // emits for `/* #__PURE__ */` comments shipped by a dependency
+      // (@vueuse/core) in positions it can't interpret. They're cosmetic (the
+      // build still succeeds) and not actionable by us. Scoped to node_modules so
+      // a misplaced annotation in our OWN source would still surface.
+      onwarn(warning, defaultHandler) {
+        if (warning.code === 'INVALID_ANNOTATION' && warning.message.includes('node_modules')) {
+          return
+        }
+        defaultHandler(warning)
+      },
+    },
   },
 })
