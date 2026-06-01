@@ -78,20 +78,28 @@ for the `app.quikfill.io` deployment:
 ## Deploying (Cloudflare Worker — `app-quikfill`)
 
 Deployed as a **Cloudflare Worker serving static assets** (assets-only, no server
-code), config in [`wrangler.jsonc`](wrangler.jsonc). We **build locally and upload
-a pre-built `dist/`** — Cloudflare never runs `pnpm install`, which is deliberate:
-the monorepo's git-based Cloudflare _Pages_ builds fail on Linux (esbuild
-postinstall collision + pnpm not materializing oxc-parser/native Linux bindings).
-Workers + `wrangler deploy` sidesteps that entirely.
+code), config in [`wrangler.jsonc`](wrangler.jsonc). Cloudflare's **git-connected
+build** (Workers Builds) installs + builds the monorepo and runs `wrangler deploy`.
+
+> **REQUIRED: Node 24** (pinned in [`../../.nvmrc`](../../.nvmrc)). On Node 20,
+> Cloudflare's `pnpm install` fails to materialize the oxc-parser native Linux
+> binding and the website's `nuxt prepare` postinstall crashes the whole install
+> (`Cannot find @oxc-parser/binding-linux-x64-gnu`). Node 24 resolves it — this is
+> the proven setup used across the sibling `vaia-space` monorepo.
+
+**Cloudflare build configuration** (dashboard):
+
+- Root directory: `apps/app` · Build command: `pnpm --filter @quikfill/app build`
+  · Deploy command: `npx wrangler deploy` · Path/output: `dist`.
+
+**Local deploy** (alternative — wrangler is a devDep here):
 
 ```bash
-# From the monorepo root, after `pnpm install`. NOTE the `run` — `deploy` is a
-# reserved pnpm built-in, so `pnpm --filter X deploy` (without `run`) fails with
-# ERR_PNPM_INVALID_DEPLOY_TARGET. `run` forces the package script.
+# NOTE the `run` — `deploy` is a reserved pnpm built-in, so `pnpm --filter X
+# deploy` (without `run`) fails with ERR_PNPM_INVALID_DEPLOY_TARGET.
 pnpm --filter @quikfill/app run deploy          # = pnpm build && wrangler deploy
 pnpm --filter @quikfill/app run deploy:dry-run  # validate config + bundle, no upload
 # First time, log in: pnpm --filter @quikfill/app exec wrangler login
-# (or set CLOUDFLARE_API_TOKEN).
 ```
 
 - **Build env:** baked in at build time from committed [`.env.production`](.env.production)
