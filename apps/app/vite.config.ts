@@ -26,5 +26,9 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
+    // No inline modulepreload polyfill, so the strict `script-src 'self'` CSP
+    // (public/_headers) needs no inline-script allowance. Safe for the
+    // dashboard's modern-browser (es2022) target.
+    modulePreload: { polyfill: false },
   },
 })

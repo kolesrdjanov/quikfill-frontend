@@ -34,13 +34,13 @@ import MessageScreen from './MessageScreen.vue'
 import OtpInput from './OtpInput.vue'
 import AuthStatusBadge from './AuthStatusBadge.vue'
 import { useAuthGate } from '../../lib/useAuthGate'
+import { DASHBOARD_URL, WEB_STORE_URL } from '../../lib/external-urls'
 
-// Production targets for the external recovery actions. Like the background's
-// API base URL these point at dev defaults; real builds swap them for the
-// deployed dashboard + Web Store listing.
-const DASHBOARD_BILLING_URL = 'http://localhost:5173/apps'
-const HELP_URL = 'http://localhost:5173/'
-const WEB_STORE_URL = 'https://chrome.google.com/webstore'
+// External recovery destinations. The dashboard origin is build-time (prod →
+// deployed app, dev → local Vite) via lib/external-urls, so a prod build never
+// deep-links to localhost.
+const DASHBOARD_BILLING_URL = `${DASHBOARD_URL}/apps`
+const HELP_URL = `${DASHBOARD_URL}/`
 
 const gate = useAuthGate()
 

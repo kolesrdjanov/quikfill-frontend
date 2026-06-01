@@ -105,11 +105,20 @@ export function createProfileStore(adapter: StorageAdapter) {
     async touchMapping(
       profileId: string,
       mappingId: string,
-      patch: { lastSuccessfulFillAt?: string; confidence?: number },
+      patch: { lastSuccessfulFillAt?: string; confidence?: number; updatedAt?: string },
     ): Promise<void> {
       const existing = await adapter.get<FieldMapping>(KEY.mapping(profileId, mappingId))
       if (!existing) return
-      await adapter.set(KEY.mapping(profileId, mappingId), { ...existing, ...patch })
+      // Bump `updatedAt` so the touched record is last-write-wins comparable in
+      // background-sync (`isNewer`): without it the metadata bump never pushes
+      // (its timestamp ties with the last server echo) and a newer remote copy
+      // silently clobbers it on the next reconcile. Callers may pass the same
+      // timestamp they used for the metadata so the values line up.
+      await adapter.set(KEY.mapping(profileId, mappingId), {
+        ...existing,
+        ...patch,
+        updatedAt: patch.updatedAt ?? new Date().toISOString(),
+      })
     },
   }
 }

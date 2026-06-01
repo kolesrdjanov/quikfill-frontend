@@ -74,6 +74,28 @@ describe('createProfileStore', () => {
     expect(m.lastSuccessfulFillAt).toBe('2026-05-29T00:00:00.000Z')
   })
 
+  it('bumps updatedAt on touch so the change is last-write-wins comparable', async () => {
+    const store = createProfileStore(memoryAdapter())
+    await store.saveMapping({ ...mapping('m1'), updatedAt: '2020-01-01T00:00:00.000Z' })
+    await store.touchMapping('p1', 'm1', {
+      confidence: 0.9,
+      lastSuccessfulFillAt: '2026-05-29T00:00:00.000Z',
+      updatedAt: '2026-05-29T00:00:00.000Z',
+    })
+    const [m] = await store.listMappings('p1')
+    // Without this, sync (isNewer) never pushes the bump and a remote pull clobbers it.
+    expect(m.updatedAt).toBe('2026-05-29T00:00:00.000Z')
+  })
+
+  it('defaults updatedAt to now when a touch omits it', async () => {
+    const store = createProfileStore(memoryAdapter())
+    await store.saveMapping({ ...mapping('m1'), updatedAt: '2020-01-01T00:00:00.000Z' })
+    await store.touchMapping('p1', 'm1', { confidence: 0.7 })
+    const [m] = await store.listMappings('p1')
+    expect(m.updatedAt).toBeDefined()
+    expect(m.updatedAt! > '2020-01-01T00:00:00.000Z').toBe(true)
+  })
+
   it('deletes a mapping', async () => {
     const store = createProfileStore(memoryAdapter())
     await store.saveMapping(mapping('m1'))

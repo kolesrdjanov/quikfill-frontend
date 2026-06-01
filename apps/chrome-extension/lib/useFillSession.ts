@@ -727,6 +727,10 @@ export function useFillSession() {
           return store.touchMapping(profileId, mapping.id, {
             lastSuccessfulFillAt: now,
             confidence: Math.min(1, (mapping.confidence ?? 0) + 0.05),
+            // Stamp the same time as updatedAt so the bump wins last-write-wins in
+            // sync — otherwise the improvement never pushes and a remote copy can
+            // clobber it (see profile-store.touchMapping / background-sync).
+            updatedAt: now,
           })
         }),
     )

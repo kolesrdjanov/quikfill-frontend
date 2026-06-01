@@ -258,6 +258,39 @@ describe('applyFill', () => {
     expect((innerDoc.getElementById('inner') as HTMLInputElement).value).toBe('keep')
   })
 
+  it('fills a field inside an open shadow root (resolves across the shadow boundary)', async () => {
+    document.body.innerHTML = '<div id="host"></div>'
+    const shadow = document.getElementById('host')!.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<input data-qf-id="qf-s1" id="inner" value="old" />'
+    const { results } = await applyFill([
+      instruction({
+        detectedFieldId: 'qf-s1',
+        selectorCandidates: ['#inner'],
+        shadow: true,
+        proposedValue: 'in-shadow@x.com',
+      }),
+    ])
+    expect((shadow.getElementById('inner') as HTMLInputElement).value).toBe('in-shadow@x.com')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('undoes a fill inside an open shadow root', async () => {
+    document.body.innerHTML = '<div id="host"></div>'
+    const shadow = document.getElementById('host')!.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<input data-qf-id="qf-s2" id="inner" value="keep" />'
+    const { undoSnapshot } = await applyFill([
+      instruction({
+        detectedFieldId: 'qf-s2',
+        selectorCandidates: ['#inner'],
+        shadow: true,
+        proposedValue: 'changed',
+      }),
+    ])
+    expect((shadow.getElementById('inner') as HTMLInputElement).value).toBe('changed')
+    await applyUndo(undoSnapshot)
+    expect((shadow.getElementById('inner') as HTMLInputElement).value).toBe('keep')
+  })
+
   it('writes through a framework-controlled value setter', async () => {
     document.body.innerHTML = '<input id="react" />'
     const el = document.getElementById('react') as HTMLInputElement

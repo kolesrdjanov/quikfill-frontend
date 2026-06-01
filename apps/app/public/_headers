@@ -1,0 +1,18 @@
+# Security headers for the deployed dashboard (Netlify / Cloudflare Pages
+# `_headers` format — Vite copies this file from public/ to the dist root). If you
+# deploy behind nginx/Caddy/other, translate these into that layer's header
+# config. These apply to the BUILT site only, never the Vite dev server, so HMR is
+# unaffected.
+#
+# The CSP is the main mitigation for the localStorage-token XSS exposure (see
+# src/lib/auth-tokens.ts): `connect-src 'self'` stops a script from exfiltrating
+# tokens to a third-party origin, and `script-src 'self'` blocks injected/inline
+# scripts. If the API is served from a SEPARATE origin in production (not the same
+# origin via a proxy), add that origin to `connect-src`.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
