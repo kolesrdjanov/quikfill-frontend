@@ -53,3 +53,4 @@ blob-report
 *.njsproj
 *.sln
 *.sw?
+*.production
