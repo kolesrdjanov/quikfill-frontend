@@ -8,7 +8,7 @@
       <HowItWorks />
       <FeaturesSection />
       <PrivacySection />
-      <PricingSection />
+      <!-- <PricingSection /> hidden until public launch -->
       <FinalCta />
     </main>
     <SiteFooter />

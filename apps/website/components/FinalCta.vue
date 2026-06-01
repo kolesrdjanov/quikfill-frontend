@@ -11,8 +11,11 @@ import { Chrome, ShieldCheck } from 'lucide-vue-next'
           Add QuikFill, scan your first form, and watch it fill. Free to start — no card required.
         </p>
         <div class="cta-row">
+          <!-- Disabled until public launch:
           <a class="btn btn--primary btn--lg" href="#"><Chrome /> Add to Chrome — free</a>
           <a class="btn btn--ghost btn--lg" href="#pricing">See pricing</a>
+          -->
+          <span class="btn btn--primary btn--lg" aria-disabled="true"><Chrome /> Coming soon</span>
         </div>
         <div class="micro"><ShieldCheck /> Works on any site · nothing read until you scan</div>
       </div>

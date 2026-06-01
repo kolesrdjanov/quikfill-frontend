@@ -21,7 +21,8 @@ useMockFit(stageWrap)
             from your saved profiles. Preview before anything is written. Verify. Undo. On any site.
           </p>
           <div class="cta-row">
-            <a class="btn btn--primary btn--lg" href="#pricing"><Zap /> Get started</a>
+            <!-- Disabled until public launch: <a class="btn btn--primary btn--lg" href="#pricing"><Zap /> Get started</a> -->
+            <span class="btn btn--primary btn--lg" aria-disabled="true"><Zap /> Coming soon</span>
             <a class="btn btn--ghost btn--lg" href="#how"><Play /> See it work</a>
           </div>
           <div class="micro"><ShieldCheck /> No card to start · nothing is read until you scan</div>
