@@ -35,6 +35,9 @@ importers:
       typescript-eslint:
         specifier: ^8.58.2
         version: 8.60.0(eslint@10.4.0(jiti@2.7.0))(typescript@6.0.3)
+      wrangler:
+        specifier: ^4.96.0
+        version: 4.96.0
 
   apps/app:
     dependencies:
