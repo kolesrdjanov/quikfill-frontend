@@ -17,8 +17,8 @@ useMockFit(stageWrap)
           >
           <h1>Fill any form in<br /><span class="grad-text">one click.</span></h1>
           <p class="sub">
-            QuikFill reads the form in front of you, classifies every field with AI, and fills it
-            from your saved profiles. Preview before anything is written. Verify. Undo. On any site.
+            QuikFill adds a Fill button to any form. One click and its AI reads every field and
+            fills the whole thing from your data — you just review and submit. On any site.
           </p>
           <div class="cta-row">
             <!-- Disabled until public launch: <a class="btn btn--primary btn--lg" href="#pricing"><Zap /> Get started</a> -->

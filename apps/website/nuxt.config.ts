@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 
 const description =
-  'QuikFill scans any form on any site, classifies every field with AI, and fills it from your saved profiles — preview, fill, verify, undo. Built for people who live in forms.'
+  'QuikFill adds a Fill button to any form on any site. One click and its AI detects every field and fills the whole form from your data. Built for people who live in forms.'
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-01-01',

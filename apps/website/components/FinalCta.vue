@@ -8,7 +8,8 @@ import { Chrome, ShieldCheck } from 'lucide-vue-next'
       <div class="cta-box">
         <h2>Never type the<br />same form twice.</h2>
         <p>
-          Add QuikFill, scan your first form, and watch it fill. Free to start — no card required.
+          Add QuikFill, open your next form, and click Fill once — watch the whole thing complete.
+          Free to start, no card required.
         </p>
         <div class="cta-row">
           <!-- Disabled until public launch:
