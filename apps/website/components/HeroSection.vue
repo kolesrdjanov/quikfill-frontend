@@ -25,7 +25,9 @@ useMockFit(stageWrap)
             <span class="btn btn--primary btn--lg" aria-disabled="true"><Zap /> Coming soon</span>
             <a class="btn btn--ghost btn--lg" href="#how"><Play /> See it work</a>
           </div>
-          <div class="micro"><ShieldCheck /> No card to start · nothing is read until you scan</div>
+          <div class="micro">
+            <ShieldCheck /> Passwordless sign-in · no card to start · nothing is read until you scan
+          </div>
         </div>
         <div ref="stageWrap" class="stage-wrap" data-slot="a">
           <ProductMock />

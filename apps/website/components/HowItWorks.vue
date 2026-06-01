@@ -9,8 +9,9 @@ import { ScanLine, Sparkles, Eye, CheckCheck } from 'lucide-vue-next'
         <span class="eyebrow">How it works</span>
         <h2>Four steps. About a second.</h2>
         <p>
-          QuikFill never touches the page until you ask. When you do, it reads the page on your
-          device and shows you everything before it writes a thing.
+          Sign in once with your email — no password. After that, QuikFill never touches a page
+          until you ask: it reads the page on your device and shows you everything before it writes
+          a thing.
         </p>
       </div>
       <div class="steps">

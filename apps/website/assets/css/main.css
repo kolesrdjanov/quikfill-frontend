@@ -1211,6 +1211,7 @@ svg {
   display: grid;
   grid-template-columns: 1fr 372px;
   height: 612px;
+  background: var(--surface);
 }
 .mb-host {
   overflow: hidden;
@@ -1358,11 +1359,16 @@ svg {
 
 /* ---- side panel ---- */
 .mb-panel {
-  border-left: 1px solid var(--line);
+  /* Floating toolbar popup (not a docked side rail): inset card with shadow. */
+  margin: 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
   background: var(--card);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 .pp-head {
   display: flex;

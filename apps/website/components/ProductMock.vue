@@ -372,7 +372,7 @@ function onBtnClick() {
             </div>
           </div>
         </div>
-        <!-- QuikFill side panel -->
+        <!-- QuikFill popup (anchored to the toolbar) -->
         <aside class="mb-panel">
           <div class="pp-head">
             <img src="/quikfill-icon.svg" alt="" />
