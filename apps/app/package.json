@@ -11,7 +11,9 @@
     "typecheck": "vue-tsc --noEmit",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy": "pnpm build && wrangler deploy",
+    "deploy:dry-run": "pnpm build && wrangler deploy --dry-run"
   },
   "dependencies": {
     "@quikfill/api-client": "workspace:*",
@@ -37,6 +39,7 @@
     "typescript": "~6.0.3",
     "vite": "^8.0.9",
     "vitest": "^3.2.4",
-    "vue-tsc": "^3.2.7"
+    "vue-tsc": "^3.2.7",
+    "wrangler": "^4.96.0"
   }
 }

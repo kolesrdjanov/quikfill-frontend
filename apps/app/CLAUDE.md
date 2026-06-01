@@ -75,18 +75,36 @@ for the `app.quikfill.io` deployment:
   bundle and the backend still serves any valid session, so real access control
   must live in `quikfill-services`. Empty/unset => open.
 
-## Deploying (Cloudflare Pages)
+## Deploying (Cloudflare Worker — `app-quikfill`)
 
-- **Build command:** `pnpm --filter @quikfill/app build` (monorepo root) — runs
-  `vue-tsc` then `vite build`.
-- **Output directory:** `frontend/apps/app/dist`.
-- **SPA fallback:** [`public/_redirects`](public/_redirects) (`/* /index.html 200`)
-  makes deep links / reloads resolve to the SPA. Security headers ship via
-  [`public/_headers`](public/_headers); both are copied to `dist/` by Vite.
-- **Build env vars** (set in the Pages dashboard — only `VITE_*` and
-  `ALLOWED_USERS` reach the bundle, see `vite.config.ts` `envPrefix`):
-  - `VITE_QF_API_BASE_URL=https://api.quikfill.io/api/v1`
-  - `ALLOWED_USERS=colio.subs@gmail.com;eivansavic@gmail.com`
-- **Backend prerequisites:** `https://app.quikfill.io` must be in the
-  `quikfill-services` **CORS allowlist**, and `https://api.quikfill.io` is already
-  in the CSP `connect-src`. Keep the two in sync.
+Deployed as a **Cloudflare Worker serving static assets** (assets-only, no server
+code), config in [`wrangler.jsonc`](wrangler.jsonc). We **build locally and upload
+a pre-built `dist/`** — Cloudflare never runs `pnpm install`, which is deliberate:
+the monorepo's git-based Cloudflare _Pages_ builds fail on Linux (esbuild
+postinstall collision + pnpm not materializing oxc-parser/native Linux bindings).
+Workers + `wrangler deploy` sidesteps that entirely.
+
+```bash
+# From the monorepo root, after `pnpm install`:
+pnpm --filter @quikfill/app deploy          # = pnpm build && wrangler deploy
+pnpm --filter @quikfill/app deploy:dry-run  # validate config + bundle, no upload
+# First time: `wrangler login` (or set CLOUDFLARE_API_TOKEN).
+```
+
+- **Build env:** baked in at build time from committed [`.env.production`](.env.production)
+  (`vite build` always runs in production mode) — `VITE_QF_API_BASE_URL` +
+  `ALLOWED_USERS`. Only `VITE_*` and `ALLOWED_USERS` reach the bundle (see
+  `vite.config.ts` `envPrefix`).
+- **SPA routing:** `assets.not_found_handling: "single-page-application"` in
+  `wrangler.jsonc` serves `index.html` for non-asset paths (deep links / reloads).
+  Security headers (CSP) ship via [`public/_headers`](public/_headers) — Workers
+  assets honor `_headers`; copied to `dist/` by Vite.
+- **Custom domain:** `app.quikfill.io`, bound via the `routes` entry
+  (`custom_domain: true`); wrangler provisions DNS + cert on the `quikfill.io`
+  zone. Comment it out to deploy to the `*.workers.dev` URL first.
+- **Backend prerequisite:** `https://app.quikfill.io` must be in the
+  `quikfill-services` **CORS allowlist**; `https://api.quikfill.io` is already in
+  the CSP `connect-src`. Keep the two in sync.
+
+> The **website** (`apps/website`, Nuxt) still targets Cloudflare **Pages**
+> separately.

@@ -1,0 +1,23 @@
+{
+  // Cloudflare Worker that serves the built SPA as static assets (assets-only —
+  // no server code). We deploy a PRE-BUILT `dist/` from a machine where the
+  // build already works (see the `deploy` script), so Cloudflare never runs
+  // `pnpm install` — sidestepping the monorepo install failures that block
+  // Cloudflare Pages' git-based builds.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "app-quikfill",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": "./dist",
+    // SPA routing: serve index.html (200) for any path that isn't a real asset,
+    // so client-side routes like /billing and /sign-in resolve on reload/deep
+    // link. Replaces the Pages-style `_redirects` fallback. The CSP/security
+    // headers still ship via `public/_headers` (Workers assets honor `_headers`).
+    "not_found_handling": "single-page-application",
+  },
+  // Bind the production hostname. Requires the `quikfill.io` zone to be on this
+  // Cloudflare account (it is — api.quikfill.io lives there); wrangler provisions
+  // the DNS record + cert on deploy. Comment out to deploy only to the
+  // *.workers.dev URL first.
+  "routes": [{ "pattern": "app.quikfill.io", "custom_domain": true }],
+}
