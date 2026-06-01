@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import {
-  ScanLine,
   ShieldCheck,
   User,
   Mail,
@@ -10,10 +9,8 @@ import {
   Sparkles,
   Circle,
   Check,
-  Eye,
   WandSparkles,
   CheckCheck,
-  RotateCcw,
   Lock,
 } from 'lucide-vue-next'
 
@@ -143,12 +140,11 @@ type RowState = { show: boolean; preview: boolean; done: boolean }
 
 const view = ref<'scan' | 'work'>('scan')
 const statusScan = ref(true)
-const statusText = ref('Scanning page…')
+const statusText = ref('Detecting fields…')
 const statusCount = ref('0 fields')
-const btnText = ref('Scan page')
-const btnIcon = shallowRef<Component>(ScanLine)
+const btnText = ref('Fill this form')
+const btnIcon = shallowRef<Component>(WandSparkles)
 const btnCls = ref('')
-const btn2Visible = ref(false)
 const pressed = ref(false)
 
 const mf = reactive<Record<FieldKey, MfState>>(
@@ -190,10 +186,9 @@ function reset() {
     rowState[f].done = false
     mf[f] = ''
   })
-  btn2Visible.value = false
   statusScan.value = true
   view.value = 'scan'
-  setBtn('Scan page', ScanLine, '')
+  setBtn('Fill this form', WandSparkles, '')
 }
 
 function showFinal() {
@@ -207,7 +202,6 @@ function showFinal() {
     mf[f] = 'fill'
   })
   setBtn(`Filled · ${N}/${N}`, CheckCheck, 'done')
-  btn2Visible.value = true
 }
 
 function run() {
@@ -218,69 +212,32 @@ function run() {
     return
   }
 
-  // 0) dwell on scan CTA
+  // 0) dwell on the Fill button
   after(1700, () => {
-    pressPulse()
-    // 1) scanning — reveal rows + sweep form fields, count up
+    pressPulse() // a single click
+    // 1) one click → AI detects every field and fills the whole form in one pass
     after(260, () => {
       view.value = 'work'
       statusScan.value = true
-      statusText.value = 'Scanning page…'
-      let detected = 0
+      statusText.value = 'Detecting fields…'
+      statusCount.value = '0 fields'
+      setBtn('Filling…', WandSparkles, '')
+      let done = 0
       rows.forEach((r, i) => {
-        after(i * 230, () => {
+        after(i * 220, () => {
           rowState[r.key].show = true
-          mf[r.key] = 'scan'
-          after(620, () => {
-            if (mf[r.key] === 'scan') mf[r.key] = ''
-          })
-          detected++
-          statusCount.value = detected + (detected === 1 ? ' field' : ' fields')
+          rowState[r.key].done = true
+          mf[r.key] = 'fill'
+          done++
+          statusScan.value = false
+          statusText.value = done < N ? 'Filling…' : 'Filled · verified'
+          statusCount.value = `${done}/${N}`
         })
       })
-      // 2) detected
-      after(N * 230 + 520, () => {
-        statusScan.value = false
-        statusText.value = `${N} fields detected`
-        setBtn(`Preview fill (${N})`, Eye, '')
-        // 3) preview
-        after(1100, () => {
-          pressPulse()
-          after(260, () => {
-            statusText.value = 'Preview ready · review'
-            rows.forEach((r, i) =>
-              after(i * 70, () => {
-                rowState[r.key].preview = true
-                mf[r.key] = 'preview'
-              }),
-            )
-            setBtn(`Fill ${N} fields`, WandSparkles, '')
-            // 4) fill
-            after(1350, () => {
-              pressPulse()
-              after(220, () => {
-                statusScan.value = false
-                let filled = 0
-                rows.forEach((r, i) =>
-                  after(i * 300, () => {
-                    mf[r.key] = 'fill'
-                    rowState[r.key].preview = false
-                    rowState[r.key].done = true
-                    filled++
-                    statusText.value = filled < N ? 'Filling…' : 'Filled · verified'
-                    statusCount.value = `${filled}/${N}`
-                  }),
-                )
-                // 5) done
-                after(N * 300 + 360, () => {
-                  setBtn(`Filled · ${N}/${N}`, CheckCheck, 'done')
-                  btn2Visible.value = true
-                  after(3000, run) // loop
-                })
-              })
-            })
-          })
-        })
+      // 2) done → hold, then loop
+      after(N * 220 + 420, () => {
+        setBtn(`Filled · ${N}/${N}`, CheckCheck, 'done')
+        after(3200, run)
       })
     })
   })
@@ -382,10 +339,10 @@ function onBtnClick() {
           <div class="pp-body">
             <!-- scan view -->
             <div class="pv pv-scan" :class="{ on: view === 'scan' }" data-view="scan">
-              <span class="scan-ico"><ScanLine /></span>
-              <h5>Scan this page</h5>
-              <p>Detect every field, then preview a fill plan before anything is written.</p>
-              <span class="reassure"><ShieldCheck /> Nothing is read until you scan</span>
+              <span class="scan-ico"><WandSparkles /></span>
+              <h5>Fill this form</h5>
+              <p>One click and QuikFill's AI detects every field and fills the whole form.</p>
+              <span class="reassure"><ShieldCheck /> Nothing is read until you click</span>
             </div>
             <!-- work view -->
             <div class="pv pv-work" :class="{ on: view === 'work' }" data-view="work">
@@ -431,9 +388,6 @@ function onBtnClick() {
                   @click="onBtnClick"
                 >
                   <component :is="btnIcon" /> <span>{{ btnText }}</span>
-                </button>
-                <button v-show="btn2Visible" id="ppBtn2" class="pp-btn ghost">
-                  <RotateCcw /> Undo fill
                 </button>
               </div>
             </div>
