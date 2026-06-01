@@ -54,10 +54,10 @@ import { ScanLine, Sparkles, Bookmark, Eye, Dices, Database } from 'lucide-vue-n
 
         <div class="fcard sm">
           <span class="ico"><Eye /></span>
-          <h3>Preview, verify &amp; undo</h3>
+          <h3>You stay in control</h3>
           <p>
-            Every fill is previewed first, verified after, and reversible in one click. You're
-            always in control of what lands on the page.
+            QuikFill only fills when you click its button, verifies that every value actually
+            landed, and never submits the form for you — you review and send it yourself.
           </p>
         </div>
 
