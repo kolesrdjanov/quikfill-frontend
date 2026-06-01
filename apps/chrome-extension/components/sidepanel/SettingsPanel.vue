@@ -23,6 +23,7 @@ import { useSettings } from '../../lib/useSettings'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
 import { useEntitlements } from '../../lib/useEntitlements'
+import { DASHBOARD_URL } from '../../lib/external-urls'
 
 // In-panel preferences. Same controls as the options page, but rendered inside the
 // side panel (our own surface) with stacked rows so the narrow width never truncates.
@@ -33,9 +34,9 @@ const entitlements = useEntitlements()
 const adapter = createChromeStorageAdapter()
 const store = createProfileStore(adapter)
 
-// Dev default; production builds point this at the deployed dashboard (matches
-// the other extension deep-links — see AuthPanel).
-const DASHBOARD_BILLING_URL = 'http://localhost:5173/billing'
+// The dashboard origin is build-time (prod → deployed app, dev → local Vite) via
+// lib/external-urls — matches the other extension deep-links (see AuthPanel).
+const DASHBOARD_BILLING_URL = `${DASHBOARD_URL}/billing`
 
 const planName = computed(() => entitlements.planName.value ?? 'Plan')
 const planUsage = computed(() => {

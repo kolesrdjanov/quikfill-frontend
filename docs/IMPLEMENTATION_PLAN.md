@@ -53,16 +53,18 @@ repo's iterations 4–6.
 | 6   | Local Form Profiles                 | extension       | ✅ Done    |
 | 7   | Gemini Assistance                   | extension       | ✅ Done    |
 | 8   | Dashboard Management                | app             | ✅ Done    |
-| 9   | Website                             | website         | ⏳ Planned |
+| 9   | Website                             | website         | 🚧 Partial |
 | 10  | Backend Sync + Billing              | extension + app | 🚧 Partial |
 
 > **Iteration 8 note:** built directly against the live backend (`quikfill-services`
 > at `/api/v1`) rather than a local mock — per the product owner. This pulls the
 > app's slice of Iteration 10 forward: email OTP auth (store + guard + queued
 > 401-refresh) and backend-backed CRUD for data, generators, apps, form profiles
-> (incl. mapping review) and fill history are **done**. Still outstanding for
-> Iteration 10: Stripe billing, the `SyncAdapter`, and the extension's backend
-> swap. Subscription + Settings dashboard screens are deferred with them.
+> (incl. mapping review) and fill history are **done**. The **Settings** and
+> **Subscription/Billing** dashboard screens have since landed too (Billing wires
+> Stripe Checkout/Portal via `api.subscriptions`). Still outstanding for
+> Iteration 10: the `SyncAdapter`, the extension's backend swap, and the
+> server-side Stripe wiring in `quikfill-services`.
 
 > **Design-system pass note:** the extension's three surfaces (popup / side panel /
 > options) were rebuilt against the shared design system to match the dashboard —

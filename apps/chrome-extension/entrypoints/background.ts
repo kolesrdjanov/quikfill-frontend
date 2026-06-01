@@ -40,9 +40,13 @@ function reflectBadge(state: AuthState): void {
 
 // The backend owns the Gemini key and all auth; the background worker is the
 // only place the api-client runs, so no token or base URL ever reaches a content
-// script. Production builds must point this at their API origin and add it to
-// `host_permissions` (see wxt.config.ts), exactly as today's AI base URL.
-const API_BASE_URL = 'http://localhost:4010/api/v1'
+// script. The API origin is build-time config (`WXT_QF_API_BASE_URL`) shared with
+// the manifest `host_permissions` (see wxt.config.ts): dev defaults to the local
+// backend; a production build supplies the deployed origin (and fails the build
+// if it is missing — see wxt.config.ts — so a shipped extension never targets
+// localhost). The `WXT_` prefix is required so the value is also readable at
+// manifest-build time, not just in this bundled source.
+const API_BASE_URL = import.meta.env.WXT_QF_API_BASE_URL ?? 'http://localhost:4010/api/v1'
 
 // Opt-in dev flag: short-circuit /ai/fill to a deterministic local stand-in so
 // the in-page floating-button flow is exercisable without a Gemini key. Set
@@ -69,6 +73,11 @@ export default defineBackground(() => {
   const entitlements = createBackgroundEntitlements({
     api,
     store: createChromeEntitlementsStore(),
+    // Only auto-warm entitlements when a session exists: the fetch is
+    // authenticated, so a signed-out surface (e.g. the content overlay on every
+    // page load) must not trigger it — a 401 there falsely surfaces "session
+    // expired" on a fresh, never-signed-in install.
+    isSignedIn: () => store.hasSession(),
   })
 
   // The AI client runs over the REST client's authenticated transport, so

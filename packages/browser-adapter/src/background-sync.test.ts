@@ -181,6 +181,32 @@ describe('createBackgroundSync — reconcile', () => {
     expect(domains.get('d1')?.name).toBe('local-name')
   })
 
+  it('pushes a locally-touched mapping (bumped updatedAt) including its fill metadata', async () => {
+    // Profile + mapping already synced on both sides at the same (older) time.
+    const { api, mappings, profiles } = fakeBackend()
+    profiles.set('p1', profile('p1', 'signup', OLD))
+    mappings.set('m1', mapping('m1', OLD))
+    const store = createProfileStore(memoryAdapter())
+    await store.saveFormProfile(profile('p1', 'signup', OLD))
+    await store.saveMapping(mapping('m1', OLD))
+
+    // A successful fill stamps fresh metadata + updatedAt locally.
+    await store.touchMapping('p1', 'm1', {
+      confidence: 0.9,
+      lastSuccessfulFillAt: NEW,
+      updatedAt: NEW,
+    })
+
+    const result = await createBackgroundSync({ api, store }).handlers.reconcile()
+
+    // Local is now newer → it pushes (rather than being ignored or clobbered), and
+    // the backend receives the bumped confidence AND lastSuccessfulFillAt.
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.pushed).toBeGreaterThanOrEqual(1)
+    expect(mappings.get('m1')?.confidence).toBe(0.9)
+    expect(mappings.get('m1')?.lastSuccessfulFillAt).toBe(NEW)
+  })
+
   it('converges — a second reconcile moves nothing', async () => {
     const { api } = fakeBackend()
     const store = createProfileStore(memoryAdapter())

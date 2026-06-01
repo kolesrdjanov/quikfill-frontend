@@ -23,8 +23,10 @@ Engine: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 > `@quikfill/api-client`), brand design tokens ported to `packages/config/theme.css`,
 > shadcn-vue UI kit expanded, and backend-backed CRUD for **Home, Data
 > (types+records), Generators, Apps, Form Profiles + `/form-profiles/:id` mapping
-> review, Fill History**. Deferred to a follow-up: **Subscription** (no billing
-> endpoints exist yet) and **Settings** screens, plus the `SyncAdapter` and Stripe.
+> review, Fill History**. **Settings** and **Subscription/Billing** screens have
+> since landed too (Billing wires Stripe Checkout/Portal via `api.subscriptions`).
+> Deferred to a follow-up: the `SyncAdapter` and the server-side Stripe wiring in
+> `quikfill-services`.
 
 ## Stack & conventions
 

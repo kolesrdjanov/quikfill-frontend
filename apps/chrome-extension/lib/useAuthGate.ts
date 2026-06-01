@@ -118,9 +118,15 @@ function mmss(totalSeconds: number): string {
 // sign-out → session expired; a sign-out in another surface).
 watch(
   () => auth.state.value,
-  (next) => {
-    if (next.status === 'error' && next.error === 'unauthorized') screen.value = 'session'
-    else if (next.status === 'signed-out' && screen.value === 'app') screen.value = 'email'
+  (next, prev) => {
+    if (next.status === 'error' && next.error === 'unauthorized') {
+      // A background `unauthorized` (a failed token refresh, or a stray
+      // authenticated call) only means the SESSION EXPIRED if the user was
+      // actually signed in. While signed-out/unknown — e.g. a fresh install whose
+      // background entitlements/sync fetch 401s — keep them on the sign-in flow
+      // rather than hijacking it with a false "session expired".
+      if (screen.value === 'app' || prev?.status === 'signed-in') screen.value = 'session'
+    } else if (next.status === 'signed-out' && screen.value === 'app') screen.value = 'email'
     // Late hydration: the gate rendered the loader before the background resolved
     // the session (cold worker / slow `users.me()`). When the snapshot lands,
     // lift the loader instead of leaving the panel stuck on "Checking session".

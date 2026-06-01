@@ -49,10 +49,13 @@ Iteration 8 is **done**, built against the **live backend** (`/api/v1`, Vite pro
   guard, and the `@quikfill/api-client` singleton (`lib/api.ts`) with a queued
   401-refresh.
 - **Views:** `Home`, `Data` (entity types + records), `Generators`, `Apps`,
-  `FormProfiles` + `FormProfileDetail` (mapping review), `FillHistory`.
+  `FormProfiles` + `FormProfileDetail` (mapping review), `FillHistory`, `Settings`,
+  and `Billing` (+ `BillingSuccess` / `BillingCancel`).
 - **Stores:** one Pinia setup store per resource; **forms** via
   `useFormValidation(schema)` with Zod schemas in `src/schemas/forms.ts`;
   `useApiError()` + `useTheme()` composables; UI from `@quikfill/ui` (shadcn-vue).
 
-Deferred to a follow-up: **Subscription** (no billing endpoints exist yet) and
-**Settings** screens, plus the `SyncAdapter` and Stripe (Iteration 10).
+**Settings** and **Subscription/Billing** screens are built — `/settings`,
+`/billing`, `/billing/success`, `/billing/cancel`, with Billing wiring Stripe
+Checkout/Portal via `api.subscriptions`. Deferred to a follow-up: the
+`SyncAdapter` and the server-side Stripe wiring (Iteration 10).

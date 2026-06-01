@@ -62,10 +62,13 @@ export const updateFormProfileInputSchema = formProfileSchema
 export type UpdateFormProfileInput = z.infer<typeof updateFormProfileInputSchema>
 
 /* ── Field mappings ───────────────────────────────────────────────────────── */
+// `lastSuccessfulFillAt` is INCLUDED (not omitted) so the extension can sync the
+// fill-success metadata it stamps locally (see profile-store.touchMapping); the
+// backend create DTO accepts and persists it. `updatedAt` stays optional for the
+// backend's last-write-wins.
 export const createFieldMappingInputSchema = fieldMappingSchema
   .omit({
     formProfileId: true,
-    lastSuccessfulFillAt: true,
     createdAt: true,
   })
   .partial({ id: true, updatedAt: true })

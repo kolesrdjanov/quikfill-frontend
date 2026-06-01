@@ -32,9 +32,18 @@ export interface BackgroundEntitlements {
 export function createBackgroundEntitlements({
   api,
   store,
+  isSignedIn,
 }: {
   api: EntitlementsApi
   store: EntitlementsStore
+  /**
+   * Whether a session exists. `get()`'s auto-warm hits the AUTHENTICATED
+   * `/entitlements` endpoint, so without this a signed-out surface (the content
+   * overlay fires on every page load) would 401 and flip auth into a false
+   * "session expired". Omitted → always warm (legacy / tests); `background.ts`
+   * wires it to the real session.
+   */
+  isSignedIn?: () => boolean | Promise<boolean>
 }): BackgroundEntitlements {
   let cached: Entitlements | null = null
   let hydrated = false
@@ -43,9 +52,11 @@ export function createBackgroundEntitlements({
     if (!hydrated) {
       cached = await store.read()
       hydrated = true
-      // No snapshot yet (fresh sign-in / new install): kick a best-effort fetch
-      // in the background; the surface will pick it up via storage.onChanged.
-      if (!cached) void refresh()
+      // No snapshot yet (fresh sign-in / new install): warm it in the background
+      // so the surface picks it up via storage.onChanged — but only when signed
+      // in. The fetch is authenticated, so firing it while signed out 401s and
+      // would wrongly trip the "session expired" path (see useAuthGate).
+      if (!cached && (isSignedIn ? await isSignedIn() : true)) void refresh()
     }
     return cached
   }
