@@ -1,55 +1,66 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+// NOTE: This deployment is intentionally trimmed to a **billing-only** surface
+// (app.quikfill.io) — sign-in + the subscription screen. The full dashboard
+// routes below are commented out (not deleted) so they can be restored later by
+// un-commenting and re-adding their nav entries in `layouts/AppLayout.vue`.
 const routes: RouteRecordRaw[] = [
   {
+    // Root redirects to the only authenticated screen we expose right now.
     path: '/',
-    name: 'home',
-    meta: { layout: 'app', requiresAuth: true, title: 'Home' },
-    component: () => import('@/views/Home.vue'),
+    redirect: '/billing',
   },
-  {
-    path: '/data',
-    name: 'data',
-    meta: { layout: 'app', requiresAuth: true, title: 'Data' },
-    component: () => import('@/views/Data.vue'),
-  },
-  {
-    path: '/generators',
-    name: 'generators',
-    meta: { layout: 'app', requiresAuth: true, title: 'Generators' },
-    component: () => import('@/views/Generators.vue'),
-  },
-  {
-    path: '/apps',
-    name: 'apps',
-    meta: { layout: 'app', requiresAuth: true, title: 'Apps' },
-    component: () => import('@/views/Apps.vue'),
-  },
-  {
-    path: '/form-profiles',
-    name: 'form-profiles',
-    meta: { layout: 'app', requiresAuth: true, title: 'Form Profiles' },
-    component: () => import('@/views/FormProfiles.vue'),
-  },
-  {
-    path: '/form-profiles/:id',
-    name: 'form-profile-detail',
-    meta: { layout: 'app', requiresAuth: true, title: 'Mapping Review' },
-    component: () => import('@/views/FormProfileDetail.vue'),
-  },
-  {
-    path: '/fill-history',
-    name: 'fill-history',
-    meta: { layout: 'app', requiresAuth: true, title: 'Fill History' },
-    component: () => import('@/views/FillHistory.vue'),
-  },
-  {
-    path: '/settings',
-    name: 'settings',
-    meta: { layout: 'app', requiresAuth: true, title: 'Settings' },
-    component: () => import('@/views/Settings.vue'),
-  },
+  // --- Dashboard routes (disabled for the billing-only deployment) ----------
+  // {
+  //   path: '/',
+  //   name: 'home',
+  //   meta: { layout: 'app', requiresAuth: true, title: 'Home' },
+  //   component: () => import('@/views/Home.vue'),
+  // },
+  // {
+  //   path: '/data',
+  //   name: 'data',
+  //   meta: { layout: 'app', requiresAuth: true, title: 'Data' },
+  //   component: () => import('@/views/Data.vue'),
+  // },
+  // {
+  //   path: '/generators',
+  //   name: 'generators',
+  //   meta: { layout: 'app', requiresAuth: true, title: 'Generators' },
+  //   component: () => import('@/views/Generators.vue'),
+  // },
+  // {
+  //   path: '/apps',
+  //   name: 'apps',
+  //   meta: { layout: 'app', requiresAuth: true, title: 'Apps' },
+  //   component: () => import('@/views/Apps.vue'),
+  // },
+  // {
+  //   path: '/form-profiles',
+  //   name: 'form-profiles',
+  //   meta: { layout: 'app', requiresAuth: true, title: 'Form Profiles' },
+  //   component: () => import('@/views/FormProfiles.vue'),
+  // },
+  // {
+  //   path: '/form-profiles/:id',
+  //   name: 'form-profile-detail',
+  //   meta: { layout: 'app', requiresAuth: true, title: 'Mapping Review' },
+  //   component: () => import('@/views/FormProfileDetail.vue'),
+  // },
+  // {
+  //   path: '/fill-history',
+  //   name: 'fill-history',
+  //   meta: { layout: 'app', requiresAuth: true, title: 'Fill History' },
+  //   component: () => import('@/views/FillHistory.vue'),
+  // },
+  // {
+  //   path: '/settings',
+  //   name: 'settings',
+  //   meta: { layout: 'app', requiresAuth: true, title: 'Settings' },
+  //   component: () => import('@/views/Settings.vue'),
+  // },
+  // --------------------------------------------------------------------------
   {
     path: '/billing',
     name: 'billing',
@@ -95,7 +106,7 @@ router.beforeEach(async (to) => {
     return { name: 'sign-in', query: to.fullPath === '/' ? undefined : { redirect: to.fullPath } }
   }
   if (to.name === 'sign-in' && auth.isAuthenticated) {
-    return { path: '/' }
+    return { path: '/billing' }
   }
   return true
 })

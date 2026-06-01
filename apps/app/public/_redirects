@@ -1,0 +1,5 @@
+# Cloudflare Pages SPA fallback: serve the built index.html for any path that
+# isn't a real static asset, so client-side routes (e.g. /billing, /sign-in,
+# deep links and reloads) resolve instead of 404ing. Vite copies this file from
+# public/ to the dist root. The 200 keeps the URL intact (no redirect hop).
+/*    /index.html    200

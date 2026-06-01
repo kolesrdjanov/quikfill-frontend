@@ -7,10 +7,11 @@
 # The CSP is the main mitigation for the localStorage-token XSS exposure (see
 # src/lib/auth-tokens.ts): `connect-src 'self'` stops a script from exfiltrating
 # tokens to a third-party origin, and `script-src 'self'` blocks injected/inline
-# scripts. If the API is served from a SEPARATE origin in production (not the same
-# origin via a proxy), add that origin to `connect-src`.
+# scripts. The production API is a SEPARATE origin (https://api.quikfill.io — the
+# app is hosted at app.quikfill.io on Cloudflare Pages), so it is allowed in
+# `connect-src` below. Keep that origin in sync with `VITE_QF_API_BASE_URL`.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.quikfill.io; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY

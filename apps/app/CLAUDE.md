@@ -59,3 +59,34 @@ Iteration 8 is **done**, built against the **live backend** (`/api/v1`, Vite pro
 `/billing`, `/billing/success`, `/billing/cancel`, with Billing wiring Stripe
 Checkout/Portal via `api.subscriptions`. Deferred to a follow-up: the
 `SyncAdapter` and the server-side Stripe wiring (Iteration 10).
+
+## Billing-only deployment (current shape)
+
+This surface is intentionally trimmed to **sign-in + the subscription screen**
+for the `app.quikfill.io` deployment:
+
+- The dashboard routes (Home, Data, Generators, Apps, Form Profiles, Fill
+  History, Settings) are **commented out** in [`src/router/index.ts`](src/router/index.ts)
+  (not deleted) and dropped from the [`AppLayout`](src/layouts/AppLayout.vue) nav.
+  `/` redirects to `/billing`. Restore by un-commenting both together.
+- **Sign-in allowlist:** the email step is gated by `ALLOWED_USERS` (semicolon-
+  separated, [`src/lib/allowed-users.ts`](src/lib/allowed-users.ts) +
+  `signInEmailSchema`). It's a **soft UX gate only** — the list ships in the
+  bundle and the backend still serves any valid session, so real access control
+  must live in `quikfill-services`. Empty/unset => open.
+
+## Deploying (Cloudflare Pages)
+
+- **Build command:** `pnpm --filter @quikfill/app build` (monorepo root) — runs
+  `vue-tsc` then `vite build`.
+- **Output directory:** `frontend/apps/app/dist`.
+- **SPA fallback:** [`public/_redirects`](public/_redirects) (`/* /index.html 200`)
+  makes deep links / reloads resolve to the SPA. Security headers ship via
+  [`public/_headers`](public/_headers); both are copied to `dist/` by Vite.
+- **Build env vars** (set in the Pages dashboard — only `VITE_*` and
+  `ALLOWED_USERS` reach the bundle, see `vite.config.ts` `envPrefix`):
+  - `VITE_QF_API_BASE_URL=https://api.quikfill.io/api/v1`
+  - `ALLOWED_USERS=colio.subs@gmail.com;eivansavic@gmail.com`
+- **Backend prerequisites:** `https://app.quikfill.io` must be in the
+  `quikfill-services` **CORS allowlist**, and `https://api.quikfill.io` is already
+  in the CSP `connect-src`. Keep the two in sync.

@@ -1,5 +1,23 @@
 import { z } from 'zod'
-import { entityFieldTypeSchema, generatorKindSchema, seedModeSchema } from '@quikfill/schemas'
+import {
+  entityFieldTypeSchema,
+  generatorKindSchema,
+  requestMagicLinkInputSchema,
+  seedModeSchema,
+} from '@quikfill/schemas'
+import { isEmailAllowed } from '@/lib/allowed-users'
+
+/**
+ * Sign-in email step — the shared magic-link contract plus a soft allowlist gate
+ * (see `lib/allowed-users.ts`). The refinement targets the `email` path so the
+ * message renders inline under the field. When no allowlist is configured the
+ * refinement is a no-op.
+ */
+export const signInEmailSchema = requestMagicLinkInputSchema.refine(
+  (values) => isEmailAllowed(values.email),
+  { path: ['email'], message: "This email doesn't have access yet." },
+)
+export type SignInEmailValues = z.input<typeof signInEmailSchema>
 
 /** Split a textarea of newline/comma-separated values into a trimmed list. */
 const linesToList = z

@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Mail } from 'lucide-vue-next'
-import { otpCodeInputSchema, requestMagicLinkInputSchema } from '@quikfill/schemas'
+import { otpCodeInputSchema } from '@quikfill/schemas'
 import {
   Alert,
   Button,
@@ -17,6 +17,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useApiError } from '@/composables/useApiError'
 import { useFormValidation } from '@/composables/useFormValidation'
+import { signInEmailSchema } from '@/schemas/forms'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -33,7 +34,7 @@ const {
   defineField: defineEmailField,
   errors: emailErrors,
   isSubmitting: emailSubmitting,
-} = useFormValidation(requestMagicLinkInputSchema)
+} = useFormValidation(signInEmailSchema)
 const [email, emailAttrs] = defineEmailField('email')
 
 const onRequest = handleEmailSubmit(async (values) => {
@@ -60,7 +61,7 @@ const onVerify = handleCodeSubmit(async (values) => {
   try {
     await auth.verify(sentTo.value, values.code)
     const redirect = route.query.redirect
-    await router.replace(typeof redirect === 'string' ? redirect : { name: 'home' })
+    await router.replace(typeof redirect === 'string' ? redirect : { name: 'billing' })
   } catch (error) {
     handleError(error)
   }

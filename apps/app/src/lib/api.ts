@@ -14,7 +14,12 @@ export function onAuthError(handler: () => void): void {
  * the single in-flight refresh) before retrying the original request.
  */
 export const api = createApiClient({
-  baseUrl: '/api/v1',
+  // Dev: relative `/api/v1`, proxied to localhost:4010 by Vite (sidesteps CORS).
+  // Prod (Cloudflare Pages at app.quikfill.io): the API is a SEPARATE origin, so
+  // set `VITE_QF_API_BASE_URL=https://api.quikfill.io/api/v1` at build time. That
+  // origin must also be in the CSP `connect-src` (public/_headers) and the
+  // backend CORS allowlist. Mirrors the chrome-extension's `QF_API_BASE_URL`.
+  baseUrl: import.meta.env.VITE_QF_API_BASE_URL ?? '/api/v1',
   getAuthToken: () => authTokens.getAccess(),
   refreshAuth: async () => {
     const refreshToken = authTokens.getRefresh()

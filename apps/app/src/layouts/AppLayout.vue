@@ -1,19 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import {
-  CreditCard,
-  Database,
-  Dices,
-  FileText,
-  Globe,
-  History,
-  LayoutDashboard,
-  LogOut,
-  Moon,
-  Settings,
-  Sun,
-} from 'lucide-vue-next'
+import { CreditCard, LogOut, Moon, Sun } from 'lucide-vue-next'
 import { Avatar, Button } from '@quikfill/ui'
 import logoUrl from '@quikfill/assets/logos/quikfill-icon.svg?url'
 import { useAuthStore } from '@/stores/auth'
@@ -24,15 +12,10 @@ const router = useRouter()
 const auth = useAuthStore()
 const { isDark, toggle } = useTheme()
 
-const nav = [
-  { label: 'Home', to: '/', icon: LayoutDashboard },
-  { label: 'Data', to: '/data', icon: Database },
-  { label: 'Generators', to: '/generators', icon: Dices },
-  { label: 'Apps', to: '/apps', icon: Globe },
-  { label: 'Form Profiles', to: '/form-profiles', icon: FileText },
-  { label: 'Fill History', to: '/fill-history', icon: History },
-  { label: 'Billing', to: '/billing', icon: CreditCard },
-]
+// Trimmed to the billing-only surface. The full dashboard nav (Home, Data,
+// Generators, Apps, Form Profiles, Fill History, Settings) is disabled alongside
+// its routes in `router/index.ts`; restore both together to bring it back.
+const nav = [{ label: 'Billing', to: '/billing', icon: CreditCard }]
 
 function isActive(to: string): boolean {
   if (to === '/') return route.path === '/'
@@ -84,19 +67,6 @@ async function signOut(): Promise<void> {
       </nav>
 
       <div class="mt-auto flex flex-col gap-0.5 border-t pt-3">
-        <RouterLink
-          to="/settings"
-          :aria-current="isActive('/settings') ? 'page' : undefined"
-          :class="[
-            'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-            isActive('/settings')
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
-          ]"
-        >
-          <Settings class="size-[18px]" />
-          Settings
-        </RouterLink>
         <div class="mt-1 flex items-center gap-2.5 px-1 py-1.5">
           <Avatar :name="displayName" class="size-9" />
           <div class="min-w-0">
