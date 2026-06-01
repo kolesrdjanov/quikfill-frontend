@@ -85,10 +85,13 @@ postinstall collision + pnpm not materializing oxc-parser/native Linux bindings)
 Workers + `wrangler deploy` sidesteps that entirely.
 
 ```bash
-# From the monorepo root, after `pnpm install`:
-pnpm --filter @quikfill/app deploy          # = pnpm build && wrangler deploy
-pnpm --filter @quikfill/app deploy:dry-run  # validate config + bundle, no upload
-# First time: `wrangler login` (or set CLOUDFLARE_API_TOKEN).
+# From the monorepo root, after `pnpm install`. NOTE the `run` — `deploy` is a
+# reserved pnpm built-in, so `pnpm --filter X deploy` (without `run`) fails with
+# ERR_PNPM_INVALID_DEPLOY_TARGET. `run` forces the package script.
+pnpm --filter @quikfill/app run deploy          # = pnpm build && wrangler deploy
+pnpm --filter @quikfill/app run deploy:dry-run  # validate config + bundle, no upload
+# First time, log in: pnpm --filter @quikfill/app exec wrangler login
+# (or set CLOUDFLARE_API_TOKEN).
 ```
 
 - **Build env:** baked in at build time from committed [`.env.production`](.env.production)
