@@ -3,6 +3,10 @@ import { Zap, Sun, Moon } from 'lucide-vue-next'
 
 const { scrolled } = useNavScroll()
 const { toggle } = useTheme()
+
+// Sign in deep-links into the dashboard (app.quikfill.io in prod via
+// NUXT_PUBLIC_APP_URL); same origin/route the pricing free-tier CTA uses.
+const appUrl = useRuntimeConfig().public.appUrl
 </script>
 
 <template>
@@ -29,8 +33,8 @@ const { toggle } = useTheme()
           <Sun class="t-sun" />
           <Moon class="t-moon" />
         </button>
-        <!-- Disabled until public launch:
-        <a class="signin" href="#">Sign in</a>
+        <a class="signin" :href="`${appUrl}/sign-in`">Sign in</a>
+        <!-- Get started disabled until public launch:
         <a class="btn btn--primary btn--sm" href="#pricing"><Zap /> Get started</a>
         -->
         <span class="btn btn--primary btn--sm" aria-disabled="true"><Zap /> Coming soon</span>
