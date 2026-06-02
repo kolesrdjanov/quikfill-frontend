@@ -9,6 +9,7 @@ const description =
 const siteUrl = 'https://quikfill.io'
 const ogImage = `${siteUrl}/quikfill-og.png`
 
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-01-01',
   telemetry: false,
