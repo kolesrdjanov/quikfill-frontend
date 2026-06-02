@@ -10,13 +10,17 @@ name: Deploy Chrome Extension (private)
 # Jednokratni setup (secrets + listing) je opisan u docs/DEPLOY_EXTENSION.md.
 
 on:
-  push:
-    branches: [main]
-    paths: # pokreni samo kad se ekstenzija ili deljeni paketi promene
-      - 'apps/chrome-extension/**'
-      - 'packages/**'
-      - 'pnpm-lock.yaml'
-  workflow_dispatch: {} # dozvoljava i ručno pokretanje iz Actions taba
+  # PAUSED 2026-06-02: auto-publish on push to `main` is disabled — the Chrome
+  # Web Store (trusted-testers) setup isn't ready yet, so these runs only fail
+  # and add noise. Re-enable by uncommenting the `push:` block below. Manual
+  # runs still work from the Actions tab via workflow_dispatch.
+  # push:
+  #   branches: [main]
+  #   paths: # pokreni samo kad se ekstenzija ili deljeni paketi promene
+  #     - 'apps/chrome-extension/**'
+  #     - 'packages/**'
+  #     - 'pnpm-lock.yaml'
+  workflow_dispatch: {} # ručno pokretanje iz Actions taba
 
 concurrency:
   group: deploy-extension

@@ -80,7 +80,9 @@ type ButtonStatus = 'idle' | 'loading' | 'success' | 'error'
 interface FormButton {
   groupRoot: Element
   formId: string
-  submitEl: Element | null
+  /** The element the button is positioned against — the form's group root, so the
+   *  action floats at the form's bottom-right edge (not on the submit control). */
+  anchorEl: Element | null
   el: HTMLButtonElement
   label: HTMLSpanElement
   status: ButtonStatus
@@ -160,20 +162,16 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       })
       if (!qualifiesForFill(fillableIds.length)) continue
 
-      // The submit button only POSITIONS the button — it no longer gates whether a
-      // form qualifies. Anchor to the submit, else the last fillable field, else the
-      // group root.
-      const submitEl = resolveSubmit(form, groupRoot, doc)
-      const anchor =
-        submitEl ?? resolveFieldEl(fillableIds[fillableIds.length - 1], doc) ?? groupRoot
-
+      // Position the action against the FORM's bounding box (the group root) so it
+      // floats at the form's bottom-right edge — independent of where (or whether)
+      // a submit control sits.
       seen.add(groupRoot)
       const existing = buttons.get(groupRoot)
       if (existing) {
-        existing.submitEl = anchor
+        existing.anchorEl = groupRoot
         existing.formId = form.formId
       } else {
-        buttons.set(groupRoot, createButton(groupRoot, form.formId, anchor, shadow, doc))
+        buttons.set(groupRoot, createButton(groupRoot, form.formId, groupRoot, shadow, doc))
       }
     }
 
@@ -190,7 +188,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   function createButton(
     groupRoot: Element,
     formId: string,
-    submitEl: Element,
+    anchorEl: Element,
     shadowRoot: ShadowRoot,
     ownerDoc: Document,
   ): FormButton {
@@ -205,9 +203,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     mark.innerHTML = QUIKFILL_GLYPH_SVG
     const label = ownerDoc.createElement('span')
     label.className = 'qf-label'
-    label.textContent = 'Fill'
+    label.textContent = 'QuikFill'
     el.append(mark, label)
-    const button: FormButton = { groupRoot, formId, submitEl, el, label, status: 'idle' }
+    const button: FormButton = { groupRoot, formId, anchorEl, el, label, status: 'idle' }
     el.addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
@@ -343,7 +341,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       button.label.textContent = error?.label ?? 'Try again'
       if (error?.title) button.el.setAttribute('title', error.title)
     } else {
-      button.label.textContent = 'Fill'
+      button.label.textContent = 'QuikFill'
     }
     // Auto-return to idle so the button is reusable; let an error linger longer so
     // an actionable message (e.g. "AI limit reached") is readable before it clears.
@@ -358,8 +356,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   }
 
   function reposition(): void {
+    const vw = win.innerWidth || doc.documentElement.clientWidth
+    const vh = win.innerHeight || doc.documentElement.clientHeight
     for (const button of buttons.values()) {
-      const anchor = button.submitEl
+      const anchor = button.anchorEl
       if (!anchor || !anchor.isConnected) {
         button.el.style.display = 'none'
         continue
@@ -370,28 +370,30 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         button.el.style.display = 'none'
         continue
       }
-      // Occlusion guard: a drawer/modal/sticky element now covering the anchor makes
-      // a hit-test at its centre return that element (or null when scrolled off).
-      // Hide the button so it can't float on top of an overlay that sits above the
-      // form. Our own host is ignored, so the button never hides itself. When the
-      // drawer closes, the resulting DOM mutation re-scans → reposition → it returns.
-      const cx = rect.left + rect.width / 2
-      const cy = rect.top + rect.height / 2
+      // Occlusion guard: hit-test the form's centre (clamped on-screen so a tall
+      // form scrolled past its midpoint isn't mistaken for occluded). A drawer/
+      // modal/sticky element covering the form returns a foreign element → hide the
+      // button so it can't float on top of an overlay sitting above the form. Our
+      // own host is ignored, so the button never hides itself. When the cover
+      // closes, the resulting DOM mutation re-scans → reposition → it returns.
+      const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), vw - 1)
+      const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), vh - 1)
       if (isOccludingHit(anchor, host, doc.elementFromPoint(cx, cy))) {
         button.el.style.display = 'none'
         continue
       }
       button.el.style.display = ''
-      // The button is `position: fixed`, so we use viewport coordinates directly
-      // (no scroll offset). This keeps it glued whether the anchor lives in normal
-      // flow or in a `position: fixed` modal/drawer — re-anchoring on scroll/resize
-      // recomputes the rect either way. Clamp into the viewport so it never sits
-      // off-screen to the right of a near-edge submit button.
-      const vw = win.innerWidth || doc.documentElement.clientWidth
-      const top = Math.max(4, rect.top - 4)
-      const left = Math.min(rect.right + 8, vw - 170)
-      button.el.style.top = `${top}px`
-      button.el.style.left = `${Math.max(4, left)}px`
+      // Pin the button's bottom-right corner just inside the form's bottom-right
+      // edge, anchored by `right`/`bottom` (not left/top) so the resting circle
+      // never moves and the label unfurls leftwards on hover. `position: fixed`
+      // uses viewport coordinates, so re-anchoring on scroll/resize keeps it glued
+      // whether the form lives in normal flow or a fixed modal. Clamp so it stays
+      // on-screen when the form runs past the viewport edge.
+      const INSET = 12
+      button.el.style.right = `${Math.max(8, vw - rect.right + INSET)}px`
+      button.el.style.bottom = `${Math.max(8, vh - rect.bottom + INSET)}px`
+      button.el.style.left = 'auto'
+      button.el.style.top = 'auto'
     }
   }
 
@@ -474,11 +476,6 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   }
 }
 
-/** Resolve a field's element by its data-qf-id within the document. */
-function resolveFieldEl(id: string, doc: Document): Element | null {
-  return doc.querySelector(`[data-qf-id="${cssAttr(id)}"]`)
-}
-
 /** Resolve a form's group-root element via its first field, climbing to form/[data-qf-form]. */
 function resolveGroupRoot(
   form: DetectedForm,
@@ -493,22 +490,6 @@ function resolveGroupRoot(
   }
   // Synthetic group roots are stamped data-qf-form even when they hold no <form>.
   return doc.querySelector(`[data-qf-form="${cssAttr(form.formId)}"]`)
-}
-
-/** Resolve the submit element from the form's candidates, preferring one inside the group root. */
-function resolveSubmit(form: DetectedForm, groupRoot: Element, doc: Document): Element | null {
-  // Prefer a match inside the group root, then anywhere in the document.
-  for (const scope of [groupRoot, doc]) {
-    for (const selector of form.submitSelectorCandidates) {
-      try {
-        const match = scope.querySelector(selector)
-        if (match) return match
-      } catch {
-        /* invalid selector — skip */
-      }
-    }
-  }
-  return null
 }
 
 /** Page globals — language, title, meta description. Never any HTML. */
@@ -532,67 +513,83 @@ const OVERLAY_CSS = `
   z-index: 2147483646;
   box-sizing: border-box;
   display: inline-flex;
+  /* Glyph (DOM-first child) renders on the RIGHT — the pinned corner — and the
+     label unfurls to its LEFT, so the resting circle never moves on hover. */
+  flex-direction: row-reverse;
   align-items: center;
-  height: 30px;
-  padding: 0 6px;
+  justify-content: center;
+  height: 46px;
+  min-width: 46px;
+  /* 11 + 24px glyph + 11 = 46 → the glyph sits dead-centre in the resting circle.
+     padding-right stays fixed so the glyph keeps its place when the pill opens. */
+  padding: 0 11px;
   border: none;
-  border-radius: 9px;
+  border-radius: 23px; /* = height / 2: a circle at 46x46, a pill once the label opens */
   background: linear-gradient(135deg, #3f66e0, #2544c0);
   color: #ffffff;
-  font: 600 12.5px/1 system-ui, -apple-system, Segoe UI, sans-serif;
+  font: 600 14px/1 system-ui, -apple-system, Segoe UI, sans-serif;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(37, 68, 192, 0.32);
+  box-shadow: 0 4px 14px rgba(37, 68, 192, 0.36);
   overflow: hidden;
   white-space: nowrap;
-  /* Animate ONLY interpolable properties — never width:auto or transform, which
-     snap/jump rather than ease. The button is content-sized: it grows into a pill
-     because the LABEL's max-width eases open and the button reflows to follow it.
-     padding-left stays fixed so the glyph never drifts; depth comes from the
-     shadow, not a translate, so the button never moves. */
+  /* Animate ONLY interpolable properties — never width:auto, which snaps. The
+     button is content-sized: it eases into a pill because the LABEL's max-width
+     opens and the button reflows leftwards to follow it. Depth comes from the
+     shadow, not a translate, so the button itself never moves. */
   transition:
-    padding 0.18s ease,
-    border-radius 0.18s ease,
-    box-shadow 0.18s ease,
+    padding-left 0.2s ease,
+    box-shadow 0.2s ease,
     background 0.15s ease;
+  animation: qf-pulse 2.4s ease-in-out infinite;
+}
+/* Resting attention pulse — a soft halo that breathes out and fades. Pauses while
+   hovered / busy so the open pill reads as steady. */
+@keyframes qf-pulse {
+  0%   { box-shadow: 0 4px 14px rgba(37, 68, 192, 0.36), 0 0 0 0 rgba(63, 102, 224, 0.5); }
+  70%  { box-shadow: 0 4px 14px rgba(37, 68, 192, 0.36), 0 0 0 12px rgba(63, 102, 224, 0); }
+  100% { box-shadow: 0 4px 14px rgba(37, 68, 192, 0.36), 0 0 0 0 rgba(63, 102, 224, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qf-fill-btn { animation: none; }
 }
 .qf-fill-btn:hover,
 .qf-fill-btn.is-loading,
 .qf-fill-btn.is-success,
 .qf-fill-btn.is-error {
-  padding: 0 12px 0 6px;
-  border-radius: 15px;
-  box-shadow: 0 5px 14px rgba(37, 68, 192, 0.4);
+  padding-left: 18px;
+  box-shadow: 0 8px 22px rgba(37, 68, 192, 0.45);
+  animation: none;
 }
 .qf-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   flex: 0 0 auto;
 }
-.qf-mark svg { width: 18px; height: 18px; display: block; }
+.qf-mark svg { width: 24px; height: 24px; display: block; }
 .qf-label {
   max-width: 0;
-  margin-left: 0;
+  margin-right: 0; /* gap toward the glyph on its right (row-reverse) — eases open with the label */
   opacity: 0;
   overflow: hidden;
   transition:
-    max-width 0.18s ease,
-    margin-left 0.18s ease,
+    max-width 0.2s ease,
+    margin-right 0.2s ease,
     opacity 0.15s ease;
 }
 .qf-fill-btn:hover .qf-label,
 .qf-fill-btn.is-loading .qf-label,
 .qf-fill-btn.is-success .qf-label,
 .qf-fill-btn.is-error .qf-label {
-  max-width: 130px;
-  margin-left: 6px;
+  max-width: 150px;
+  margin-right: 8px;
   opacity: 1;
 }
-.qf-fill-btn.is-success { background: #13c296; box-shadow: 0 5px 14px rgba(19, 194, 150, 0.4); }
-.qf-fill-btn.is-error { background: #e11d48; box-shadow: 0 5px 14px rgba(225, 29, 72, 0.4); }
-.qf-fill-btn.is-loading { opacity: 0.9; cursor: default; }
+.qf-fill-btn.is-success { background: #13c296; box-shadow: 0 8px 22px rgba(19, 194, 150, 0.45); }
+.qf-fill-btn.is-error { background: #e11d48; box-shadow: 0 8px 22px rgba(225, 29, 72, 0.45); }
+.qf-fill-btn.is-loading { cursor: default; }
 `
 
 /**
