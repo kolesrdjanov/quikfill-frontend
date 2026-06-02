@@ -4,7 +4,9 @@ export { suggestionToProposal, type SuggestionProposal } from './proposal'
 export {
   buildAiFillRequest,
   valuesToFillInstructions,
+  localPickInstructions,
   isNativeFillable,
   isFillableField,
+  isAiFillableField,
   type AiFillPageInput,
 } from './fill-request'

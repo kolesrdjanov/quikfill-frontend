@@ -6,25 +6,37 @@ import type {
   UndoSnapshot,
 } from '@quikfill/schemas'
 import { coerceToMask, getMaskSpec, valuesMatch } from './mask'
+import {
+  calendarHeading,
+  clickElement,
+  dayCellNodes,
+  dispatchKey,
+  findElement,
+  focusEl,
+  frameDocument,
+  isAdjacentMonth,
+  isDayDisabled,
+  markedSelectors,
+  MONTH_NAMES,
+  norm,
+  openOptionNodes,
+  optionAutomationValues,
+  optionLabelText,
+  ownerDocOf,
+  queryIn,
+  resolveTrigger,
+  settle,
+  textOf,
+  type Fillable,
+  type FillRoot,
+} from './widget-dom'
 
 export interface FillOutcome {
   results: FillResult[]
   undoSnapshot: UndoSnapshot
 }
 
-type Fillable = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLElement
-/**
- * Where a fill resolves elements. The scan resolves a container (a drawer/dialog
- * Element, or the whole Document) and the fill is confined to it — so a fuzzy
- * selector can never reach an element outside the drawer and trip its
- * click-outside dismiss. Shadow roots appear during deep traversal.
- */
-type FillRoot = Document | ShadowRoot | Element
-
-/** The Document a node belongs to (itself, when the node already is a Document). */
-function ownerDocOf(node: Node): Document {
-  return node.ownerDocument ?? (node as Document)
-}
+export type { FillRoot } from './widget-dom'
 
 /**
  * Whether a node lives within the scoped root. A Document/ShadowRoot root keeps the
@@ -230,26 +242,6 @@ function assistAutocomplete(ins: FillInstruction, el: Fillable): FillResult {
   )
 }
 
-function focusEl(el: Fillable): void {
-  if (typeof el.focus === 'function') {
-    try {
-      el.focus()
-    } catch {
-      /* focus can throw on detached nodes */
-    }
-  }
-}
-
-function dispatchKey(el: Element, type: 'keydown' | 'keyup', key = 'Unidentified'): void {
-  let ev: Event
-  try {
-    ev = new KeyboardEvent(type, { bubbles: true, key })
-  } catch {
-    ev = new Event(type, { bubbles: true })
-  }
-  el.dispatchEvent(ev)
-}
-
 function capture(ins: FillInstruction, el: Fillable): UndoEntry {
   return {
     detectedFieldId: ins.detectedFieldId,
@@ -380,31 +372,6 @@ function collectRadiosInto(
 // --- Custom (non-native) select -------------------------------------------
 
 /**
- * The element to press to OPEN a custom select, resolved STRICTLY inside the widget
- * container. We find the container reliably (its data-qf-id marker), but the
- * trigger's own serialized selector is often just a structural path that drifts at
- * fill time to an unrelated node — e.g. a stray icon `<button>` elsewhere in the
- * drawer — and clicking the wrong node collapses the whole drawer. The real trigger
- * always lives inside the widget root (see resolveWidgetRoot), so we scope the
- * search there and prefer the strongest opener markers. Returns the container itself
- * as a last resort.
- */
-const TRIGGER_TIERS = [
-  '[data-trigger="select"]',
-  '[role="combobox"], [aria-haspopup="listbox"], [aria-haspopup="dialog"], [aria-haspopup="grid"]',
-  '[role="button"][aria-controls], [role="button"][aria-expanded]',
-  '[role="button"], button',
-]
-function resolveTrigger(widgetEl: Element): Element {
-  for (const sel of TRIGGER_TIERS) {
-    if (widgetEl.matches(sel)) return widgetEl
-    const found = widgetEl.querySelector(sel)
-    if (found) return found
-  }
-  return widgetEl
-}
-
-/**
  * Fill a custom (non-native) widget by driving it the way a user would: open it,
  * find the option whose accessible name matches the proposed value, and click it —
  * never by setting a value or `aria-selected` (which the framework ignores).
@@ -446,8 +413,15 @@ async function fillCustomSelect(
     return { result: await fillDatePicker(ins, widgetEl, trigger, root, doc), entry }
   }
 
-  clickElement(trigger)
-  await settle()
+  // The scan-time probe may have failed to close this widget (some only close on
+  // selection). When the trigger says the list is ALREADY open, a press would
+  // TOGGLE it closed — so skip it. Only aria-expanded is trusted here: "option
+  // nodes findable in the DOM" would also match pre-rendered-but-hidden lists,
+  // which DO still need the opening press.
+  if (trigger.getAttribute('aria-expanded') !== 'true') {
+    clickElement(trigger)
+    await settle()
+  }
 
   // Multi-select is detected from the OPEN list too (checkbox rows / aria-multiselectable),
   // not just the scan-time kind — a closed ARIA-less widget can't reveal it earlier.
@@ -456,7 +430,15 @@ async function fillCustomSelect(
   }
 
   // --- Single select ---
-  const option = await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
+  let option = await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
+
+  // Probed widget: its options were harvested at scan time and the proposed value
+  // came from that set — when the re-rendered list no longer matches it (labels
+  // changed, async re-fetch), pick a random enabled option instead of degrading
+  // to assisted. The user opted into random selection for these widgets.
+  if (!option && widget.optionsProbed) {
+    option = randomOption(openOptionNodes(widget, widgetEl, trigger, doc))
+  }
 
   if (!option) {
     // No match. LEAVE THE LIST OPEN — never try to close it. Confirmed against the
@@ -500,6 +482,13 @@ async function fillCustomSelect(
     ),
     entry,
   }
+}
+
+/** A uniformly random enabled option from the open list, or null when none. */
+function randomOption(nodes: Element[]): Element | null {
+  const enabled = nodes.filter((n) => !isDayDisabled(n))
+  if (enabled.length === 0) return null
+  return enabled[Math.floor(Math.random() * enabled.length)]
 }
 
 /**
@@ -649,169 +638,6 @@ async function scrollAndMatch(
   return matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, value)
 }
 
-/**
- * Automation/value attributes an option may carry a stable handle in, à la a
- * Playwright locator. Consulted at fill time on the LIVE option nodes (they don't
- * exist at scan time). Both the whole value and its trailing segment are matched,
- * so `data-test-id="cat-option-US"` resolves a proposed code "US".
- */
-const OPTION_AUTOMATION_ATTRS = [
-  'data-test-id',
-  'data-testid',
-  'data-test',
-  'data-cy',
-  'data-qa',
-  'data-automation-id',
-  'data-value',
-  'data-option-value',
-  'data-key',
-  'value',
-]
-
-/** Normalized automation-attribute values on an option (whole value + trailing segment). */
-function optionAutomationValues(node: Element, widget: CustomWidget): string[] {
-  const attrs = new Set(
-    widget.optionValueAttr
-      ? [...OPTION_AUTOMATION_ATTRS, widget.optionValueAttr]
-      : OPTION_AUTOMATION_ATTRS,
-  )
-  const out: string[] = []
-  for (const attr of attrs) {
-    const raw = node.getAttribute(attr)
-    if (!raw) continue
-    const whole = norm(raw)
-    if (whole) out.push(whole)
-    const seg = norm(raw.split(/[-_/.\s]+/).pop() ?? '')
-    if (seg) out.push(seg)
-  }
-  return out
-}
-
-/** ARIA option roles, safe to resolve document-wide (open lists are often portaled). */
-const ARIA_OPTION_SELECTORS = [
-  '[role="option"]',
-  '[role="menuitemcheckbox"], [role="menuitemradio"]',
-  '[role="button"][aria-label*="option" i]',
-]
-
-/**
- * Option nodes in the now-open list. Tries the widget's stored selector and the ARIA
- * option roles first (in the aria-controls listbox / widget / whole document, since
- * lists are often portaled to <body>); then falls back to STRUCTURAL options scoped
- * to the widget only — list items, or rows wrapping a single checkbox/radio — because
- * many real dropdowns expose no ARIA at all, just `<li>`/checkbox rows whose text is
- * the value. The trigger and empty rows are always excluded.
- */
-function openOptionNodes(
-  widget: CustomWidget,
-  widgetEl: Element,
-  trigger: Element,
-  doc: Document,
-): Element[] {
-  const linked = widget.listboxId ? doc.getElementById(widget.listboxId) : null
-  const ariaScopes = [linked, widgetEl, doc].filter((s) => s !== null) as ParentNode[]
-  for (const selector of [widget.optionItemSelector, ...ARIA_OPTION_SELECTORS]) {
-    for (const scope of ariaScopes) {
-      const nodes = queryOptions(scope, selector, trigger)
-      if (nodes.length) return nodes
-    }
-  }
-  // Structural fallback — scope to the widget / linked panel ONLY (never document-wide,
-  // or unrelated page lists would match).
-  for (const scope of [linked, widgetEl].filter((s) => s !== null) as ParentNode[]) {
-    const rows = structuralOptions(scope, trigger)
-    if (rows.length) return rows
-    const tagged = automationOptions(scope, trigger, widgetEl)
-    if (tagged.length) return tagged
-  }
-  return []
-}
-
-function queryOptions(scope: ParentNode, selector: string, trigger: Element): Element[] {
-  let nodes: Element[]
-  try {
-    nodes = Array.from(scope.querySelectorAll(selector))
-  } catch {
-    return []
-  }
-  return nodes.filter(
-    (n) => n !== trigger && !trigger.contains(n) && !n.contains(trigger) && textOf(n) !== '',
-  )
-}
-
-/**
- * ARIA-less options: list items in a list, or rows that each wrap a single
- * checkbox/radio (a multi-select / radio list). The row's text is its value.
- */
-function structuralOptions(scope: ParentNode, trigger: Element): Element[] {
-  const listItems = queryOptions(
-    scope,
-    'ul > li, ol > li, [role="listbox"] > li, [role="list"] > li',
-    trigger,
-  )
-  if (listItems.length) return listItems
-  let inputs: Element[]
-  try {
-    inputs = Array.from(scope.querySelectorAll('input[type="checkbox"], input[type="radio"]'))
-  } catch {
-    return []
-  }
-  const rows = new Set<Element>()
-  for (const input of inputs) {
-    const row = optionRowFor(input)
-    if (row && row !== trigger && !trigger.contains(row) && textOf(row) !== '') rows.add(row)
-  }
-  return Array.from(rows)
-}
-
-/** Attributes whose presence (scoped to the widget) marks an automation-tagged option row. */
-const OPTION_AUTOMATION_FIND_ATTRS = ['data-test-id', 'data-testid', 'data-cy', 'data-qa']
-
-/**
- * Option rows that expose no ARIA role and no list structure, only an automation
- * attribute (e.g. `<div data-test-id="cat-option-US">`). Restricted to the widget's
- * own id-namespace (the container's data-test-id prefix) when it has one, so a stray
- * test-id elsewhere in the panel can't be mistaken for an option. Leaf rows only —
- * a node that wraps other tagged rows is a group container, not an option.
- */
-function automationOptions(scope: ParentNode, trigger: Element, widgetEl: Element): Element[] {
-  const ns = OPTION_AUTOMATION_FIND_ATTRS.map((a) => widgetEl.getAttribute(a)).find(Boolean)
-  const selector = OPTION_AUTOMATION_FIND_ATTRS.map((a) =>
-    ns ? `[${a}^="${cssEscapeAttr(ns)}"]` : `[${a}]`,
-  ).join(', ')
-  let nodes: Element[]
-  try {
-    nodes = Array.from(scope.querySelectorAll(selector))
-  } catch {
-    return []
-  }
-  return nodes.filter(
-    (n) =>
-      n !== trigger &&
-      n !== widgetEl &&
-      !trigger.contains(n) &&
-      !n.contains(trigger) &&
-      !OPTION_AUTOMATION_FIND_ATTRS.some((a) => n.querySelector(`[${a}]`)) &&
-      textOf(n) !== '',
-  )
-}
-
-/** Escape a value for use inside an attribute selector's quoted string. */
-function cssEscapeAttr(value: string): string {
-  return value.replace(/["\\]/g, '\\$&')
-}
-
-/** The selectable row wrapping a checkbox/radio: its list item, else a labelled ancestor. */
-function optionRowFor(input: Element): Element | null {
-  const li = input.closest('li')
-  if (li) return li
-  let node = input.parentElement
-  for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
-    if (node.querySelector('label') || textOf(node) !== '') return node
-  }
-  return input.parentElement
-}
-
 /** Whether this widget lets several options be chosen at once (so we fill a token list). */
 function isMultiSelect(
   widget: CustomWidget,
@@ -831,13 +657,6 @@ function isMultiSelect(
   return openOptionNodes(widget, widgetEl, trigger, doc).some(
     (n) => n.querySelector('input[type="checkbox"]') !== null,
   )
-}
-
-/** The display label of an option: its inner `<label>`, else its text, else aria-label. */
-function optionLabelText(option: Element): string {
-  const label = option.querySelector('label')
-  const labelText = label ? textOf(label) : ''
-  return labelText || textOf(option) || option.getAttribute('aria-label')?.trim() || ''
 }
 
 /** Whether an option currently reads as selected: a checked inner box, aria, or class. */
@@ -964,21 +783,6 @@ interface TargetDate {
   day: number
 }
 
-const MONTH_NAMES = [
-  'january',
-  'february',
-  'march',
-  'april',
-  'may',
-  'june',
-  'july',
-  'august',
-  'september',
-  'october',
-  'november',
-  'december',
-]
-
 /**
  * Fill a calendar widget. Prefers typing the date into an editable input; otherwise
  * opens the calendar, navigates to the target month, and clicks the day cell. Falls
@@ -1000,13 +804,19 @@ async function fillDatePicker(
     )
   }
 
-  // Editable input → type the value (the simplest reliable path when allowed).
-  const input = queryIn(widgetEl, 'input') as HTMLInputElement | null
+  // Editable input → type the value (the simplest reliable path when allowed). The
+  // widget element ITSELF is the input for probe-detected datepickers (the scan
+  // stamped data-qf-id on the `<input>`), so check it before searching descendants.
+  const input = (
+    widgetEl.matches('input') ? widgetEl : queryIn(widgetEl, 'input')
+  ) as HTMLInputElement | null
   if (input && !isReadonly(input) && !isDisabled(input)) {
     setValue(input, ins.proposedValue)
     await settle()
     const got = readValue(input)
-    if (norm(got) !== '') return success(ins.detectedFieldId, got)
+    // "Non-empty" is NOT acceptance: a constrained picker (min/max) clears or
+    // restores a rejected value — require the day + year to survive in the text.
+    if (dateLanded(got, date)) return success(ins.detectedFieldId, got)
   }
 
   clickElement(trigger)
@@ -1025,7 +835,20 @@ async function fillDatePicker(
     clickElement(apply)
     await settle()
   }
-  return success(ins.detectedFieldId, ins.proposedValue)
+  const accepted = input ? readValue(input) : textOf(cell)
+  return success(ins.detectedFieldId, accepted || ins.proposedValue)
+}
+
+/**
+ * Whether an input's accepted text plausibly encodes the target date: the day and
+ * the year (4- or 2-digit) must both survive as standalone number tokens.
+ */
+function dateLanded(got: string, date: TargetDate): boolean {
+  if (norm(got) === '') return false
+  const hasDay = new RegExp(`(^|\\D)0?${date.day}(\\D|$)`).test(got)
+  const year = String(date.year)
+  const hasYear = got.includes(year) || new RegExp(`(^|\\D)${year.slice(-2)}(\\D|$)`).test(got)
+  return hasDay && hasYear
 }
 
 /**
@@ -1054,16 +877,6 @@ async function navigateCalendar(
   return cell
 }
 
-/** Text of the calendar's month/year header, or null. */
-function calendarHeading(doc: Document, widgetEl: Element): string | null {
-  const sel =
-    '[class*="header" i] [class*="title" i], [class*="month" i][class*="year" i], ' +
-    '[aria-live], .dp__month_year_wrap, .mat-calendar-period-button, [role="grid"]'
-  const el = queryIn(widgetEl, sel) ?? queryIn(doc, sel)
-  if (!el) return null
-  return el.getAttribute('aria-label') || textOf(el) || null
-}
-
 /** Whether a header string names the target month and year. */
 function headingMatches(heading: string, date: TargetDate): boolean {
   const h = norm(heading)
@@ -1072,7 +885,9 @@ function headingMatches(heading: string, date: TargetDate): boolean {
 
 /**
  * The previous/next-month button to step toward the target. Direction is chosen
- * from the current heading when it can be read, else defaults to "next".
+ * from the current heading when it can be read, else defaults to "next". Disabled
+ * buttons are skipped — a range-edge calendar (its min/max reached) renders the nav
+ * disabled, and pressing it forever would just spin the loop.
  */
 function navButton(
   doc: Document,
@@ -1082,11 +897,24 @@ function navButton(
 ): Element | null {
   const goBack = heading !== null && headingIsAfter(heading, date)
   const forward =
-    '[aria-label*="next" i], [class*="next" i], .dp__inner_nav_next, button[class*="next" i]'
+    '[aria-label*="next" i], [data-test-id*="next" i], [data-testid*="next" i], ' +
+    '[class*="next" i], .dp__inner_nav_next, button[class*="next" i]'
   const backward =
-    '[aria-label*="prev" i], [aria-label*="previous" i], [class*="prev" i], .dp__inner_nav, button[class*="prev" i]'
+    '[aria-label*="prev" i], [aria-label*="previous" i], [data-test-id*="prev" i], ' +
+    '[data-testid*="prev" i], [class*="prev" i], .dp__inner_nav, button[class*="prev" i]'
   const sel = goBack ? backward : forward
-  return queryIn(widgetEl, sel) ?? queryIn(doc, sel)
+  for (const scope of [widgetEl, doc] as ParentNode[]) {
+    let matches: Element[]
+    try {
+      matches = Array.from(scope.querySelectorAll(sel))
+    } catch {
+      matches = []
+    }
+    for (const m of matches) {
+      if (!isDayDisabled(m)) return m
+    }
+  }
+  return null
 }
 
 /** Whether the displayed month/year is later than the target (so we must page back). */
@@ -1098,19 +926,19 @@ function headingIsAfter(heading: string, date: TargetDate): boolean {
   return year > date.year || (year === date.year && month > date.month)
 }
 
-/** The day cell for the target date: matched by full-date aria-label, else day-number text. */
+/**
+ * The day cell for the target date: matched by full-date aria-label (ordinal
+ * suffixes tolerated — "June 1st, 2032"), else day-number text. When the exact day
+ * is disabled or absent (a constrained picker, e.g. a min date mid-month), falls
+ * back to the NEAREST enabled day in the visible month — a valid nearby date beats
+ * leaving the field empty.
+ */
 function dayCell(doc: Document, widgetEl: Element, date: TargetDate): Element | null {
-  const sel =
-    '[role="gridcell"], .dp__cell_inner, .mat-calendar-body-cell, td[role] button, [class*="day" i]'
-  const scope: ParentNode = (widgetEl.querySelector(sel) ? widgetEl : doc) as ParentNode
-  let cells: Element[]
-  try {
-    cells = Array.from(scope.querySelectorAll(sel))
-  } catch {
-    return null
-  }
+  const cells = dayCellNodes(doc, widgetEl)
+  if (cells.length === 0) return null
   const day = String(date.day)
   const monthName = MONTH_NAMES[date.month]
+  const dayRe = new RegExp(`\\b${day}(?:st|nd|rd|th)?\\b`)
   // Prefer an unambiguous full-date aria-label.
   const byLabel = cells.find((c) => {
     if (isDayDisabled(c)) return false
@@ -1119,28 +947,35 @@ function dayCell(doc: Document, widgetEl: Element, date: TargetDate): Element | 
       label !== '' &&
       label.includes(monthName) &&
       label.includes(String(date.year)) &&
-      new RegExp(`\\b${day}\\b`).test(label)
+      dayRe.test(label)
     )
   })
   if (byLabel) return byLabel
   // Fall back to the day number, skipping disabled / adjacent-month cells.
-  return (
-    cells.find((c) => !isDayDisabled(c) && !isAdjacentMonth(c) && norm(textOf(c)) === day) ?? null
+  const byText = cells.find(
+    (c) => !isDayDisabled(c) && !isAdjacentMonth(c) && norm(textOf(c)) === day,
   )
+  if (byText) return byText
+  return nearestEnabledDay(cells, date.day)
 }
 
-function isDayDisabled(cell: Element): boolean {
-  return (
-    cell.getAttribute('aria-disabled') === 'true' ||
-    (cell as HTMLButtonElement).disabled === true ||
-    /disabled/i.test(cell.getAttribute('class') ?? '')
-  )
-}
-
-function isAdjacentMonth(cell: Element): boolean {
-  return /(other|adjacent|outside|offset|sibling)[-_]?month|dp__cell_offset/i.test(
-    cell.getAttribute('class') ?? '',
-  )
+/** The enabled, in-month numeric day cell closest to `target`; later days win ties. */
+function nearestEnabledDay(cells: Element[], target: number): Element | null {
+  let best: Element | null = null
+  let bestDist = Infinity
+  for (const cell of cells) {
+    if (isDayDisabled(cell) || isAdjacentMonth(cell)) continue
+    const num = Number(norm(textOf(cell)))
+    if (!Number.isInteger(num) || num < 1 || num > 31) continue
+    // Constraints usually disable the PAST, so a later day is likelier valid —
+    // subtract half a step so it beats the equally-distant earlier day.
+    const dist = num > target ? num - target - 0.5 : target - num
+    if (dist < bestDist) {
+      bestDist = dist
+      best = cell
+    }
+  }
+  return best
 }
 
 /** Parse common date formats to a target Y/M/D, or null when unrecognized. */
@@ -1149,7 +984,7 @@ function parseDate(value: string): TargetDate | null {
   if (!t) return null
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t) // ISO 8601 YYYY-MM-DD
   if (m) return { year: +m[1], month: +m[2] - 1, day: +m[3] }
-  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(t) // US M/D/Y
+  m = /^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})$/.exec(t) // US M/D/Y (loose spacing)
   if (m) {
     const year = +m[3] < 100 ? 2000 + +m[3] : +m[3]
     return { year, month: +m[1] - 1, day: +m[2] }
@@ -1214,128 +1049,6 @@ function displayValue(el: Element): string {
   return textOf(el)
 }
 
-function queryIn(scope: ParentNode, selector: string): Element | null {
-  try {
-    return scope.querySelector(selector)
-  } catch {
-    return null
-  }
-}
-
-/** Text content minus SVG/icon noise, whitespace-collapsed. */
-function textOf(el: Element): string {
-  const clone = el.cloneNode(true) as Element
-  for (const svg of Array.from(clone.querySelectorAll('svg'))) svg.remove()
-  return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
-}
-
-function norm(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, ' ').trim()
-}
-
-/**
- * Click an element the way a user would: a faithful pointer + mouse sequence at
- * the element's on-screen center, then a native click + focus.
- *
- * The coordinates and PointerEvent identity are load-bearing, not cosmetic. We
- * only click-drive custom selects, which usually live inside a drawer/dialog,
- * and modern drawer layers (Vaul, Radix, Reka) decide "press inside vs. outside"
- * from event geometry and pointer identity. A coordinate-less press reports
- * clientX/clientY = 0 — the viewport's top-left corner, outside the panel — so
- * those layers treat the fill as an outside click and tear the drawer down
- * mid-fill, even on the in-drawer trigger click that opens the dropdown. Sending
- * a real PointerEvent at the element's center makes the press read as inside.
- */
-function clickElement(el: Element, anchor: Element = el): void {
-  // Events fire on `el`; the press COORDINATES come from `anchor`. They differ only
-  // when `el` is portaled outside the drawer — then `anchor` is an in-drawer node so
-  // the geometry reads as inside (see fillCustomSelect). Same element by default.
-  const { x, y } = pointerCenter(anchor)
-  el.dispatchEvent(pointerEvent('pointerdown', x, y, 1))
-  el.dispatchEvent(mouseEvent('mousedown', x, y, 1))
-  el.dispatchEvent(pointerEvent('pointerup', x, y, 0))
-  el.dispatchEvent(mouseEvent('mouseup', x, y, 0))
-  // Dispatch the click WITH the press coordinates — NOT HTMLElement.click(), which
-  // is coordinate-less (clientX/clientY = 0 → the viewport's top-left corner,
-  // OUTSIDE a right-anchored drawer). A modal that decides "inside vs outside" from
-  // the CLICK event's geometry (not just pointerdown) would otherwise read our
-  // in-drawer trigger press as an outside click and dismiss the drawer ~mid-fill.
-  el.dispatchEvent(mouseEvent('click', x, y, 0))
-  const node = el as HTMLElement
-  if (typeof node.focus === 'function') {
-    try {
-      node.focus()
-    } catch {
-      /* focus can throw on detached nodes */
-    }
-  }
-}
-
-/**
- * The on-screen center of an element, used as synthetic-press coordinates.
- * Falls back to (0,0) only for a detached or zero-box node (or an environment
- * without layout, e.g. jsdom) — on a real page the rect is real.
- */
-function pointerCenter(el: Element): { x: number; y: number } {
-  try {
-    const r = el.getBoundingClientRect()
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-  } catch {
-    return { x: 0, y: 0 }
-  }
-}
-
-function mouseEvent(type: string, x = 0, y = 0, buttons = 0): Event {
-  try {
-    return new MouseEvent(type, pointerInit(x, y, buttons))
-  } catch {
-    return new Event(type, { bubbles: true, cancelable: true })
-  }
-}
-
-function pointerEvent(type: string, x: number, y: number, buttons: number): Event {
-  try {
-    return new PointerEvent(type, {
-      ...pointerInit(x, y, buttons),
-      pointerId: 1,
-      pointerType: 'mouse',
-      isPrimary: true,
-      width: 1,
-      height: 1,
-    })
-  } catch {
-    // Engines without a PointerEvent constructor: a same-typed mouse event still
-    // carries the coordinates that outside-dismiss logic reads.
-    return mouseEvent(type, x, y, buttons)
-  }
-}
-
-/**
- * Shared init for synthetic presses. Deliberately omits `view`: a content script
- * and the page are different realms, so passing the page's window to the event
- * constructor fails its "view must be a Window" brand check and throws — which is
- * exactly what used to drop these to coordinate-less plain Events. `view` is not
- * needed for the geometry or pointer identity that dismiss layers read.
- */
-function pointerInit(x: number, y: number, buttons: number): MouseEventInit {
-  return {
-    bubbles: true,
-    cancelable: true,
-    composed: true,
-    clientX: x,
-    clientY: y,
-    screenX: x,
-    screenY: y,
-    button: 0,
-    buttons,
-  }
-}
-
-/** Yield a macrotask so framework state updates flush before we verify. */
-function settle(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
-}
-
 // --- DOM primitives -------------------------------------------------------
 
 function isToggle(el: Element): boolean {
@@ -1390,70 +1103,6 @@ function setNativeValue(el: Fillable, value: string): void {
 
 function dispatch(el: Element, type: 'input' | 'change' | 'blur'): void {
   el.dispatchEvent(new Event(type, { bubbles: true }))
-}
-
-/**
- * Prepend the scanner's stable per-element marker so resolution hits the exact
- * element that was detected. The marker is derived from the field id (the scanner
- * stamps `data-qf-id="<id>"`), never persisted into saved mappings — so it can't
- * pollute cross-scan matching. Falls back to the fuzzy candidates if the marker is
- * gone (e.g. the framework re-rendered the node between scan and fill).
- */
-function markedSelectors(detectedFieldId: string, candidates: string[]): string[] {
-  return [`[data-qf-id="${detectedFieldId}"]`, ...candidates]
-}
-
-/**
- * First element matching any selector candidate, searched across open shadow roots
- * AND same-origin iframes. Skips elements already claimed by an earlier instruction
- * in the same batch, so a non-unique fuzzy selector can never double-target one
- * element.
- */
-function findElement(root: FillRoot, selectors: string[], claimed?: Set<Element>): Fillable | null {
-  for (const selector of selectors) {
-    const found = deepQuery(root, selector, claimed)
-    if (found) return found
-  }
-  return null
-}
-
-/** The same-origin document of an iframe, or null when it's cross-origin/absent. */
-function frameDocument(el: Element): Document | null {
-  if (el.tagName.toLowerCase() !== 'iframe') return null
-  try {
-    return (el as HTMLIFrameElement).contentDocument ?? null
-  } catch {
-    return null // cross-origin — not accessible
-  }
-}
-
-function deepQuery(root: FillRoot, selector: string, claimed?: Set<Element>): Fillable | null {
-  let matches: Element[]
-  try {
-    matches = Array.from(root.querySelectorAll(selector))
-  } catch {
-    matches = [] // invalid/structural selector — skip
-  }
-  for (const match of matches) {
-    if (!claimed?.has(match)) return match as Fillable
-  }
-
-  // Descend into open shadow roots and same-origin iframes. The scanner stamps
-  // its data-qf-id marker (and detects fields) inside both, so the filler must
-  // resolve into both — otherwise a field scanned in an iframe is never filled.
-  for (const el of Array.from(root.querySelectorAll('*'))) {
-    const shadow = (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot
-    if (shadow) {
-      const inner = deepQuery(shadow, selector, claimed)
-      if (inner) return inner
-    }
-    const frameDoc = frameDocument(el)
-    if (frameDoc) {
-      const inner = deepQuery(frameDoc, selector, claimed)
-      if (inner) return inner
-    }
-  }
-  return null
 }
 
 const success = (detectedFieldId: string, acceptedValue: string | null): FillResult => ({

@@ -63,6 +63,15 @@ worker owns the api-client call, fails gracefully when the backend is offline).
   `DetectedField.autocompleteHint`) use the **`assistedAutocomplete`** strategy:
   type the value to surface the suggestion dropdown for the user to pick, never
   auto-completing them. Reported with the `assisted` fill-result status.
+- The overlay Fill flow runs a **scan-time probe** (`probeFields`) before the AI
+  call: each on-demand custom select is briefly opened, its REAL options are
+  harvested (ARIA → structural → mutation-diff tiers), and it is closed again.
+  Custom selects are then picked **locally at random** from the harvested set —
+  they never go to the AI; a list that renders no options (async/remote) is
+  marked `remoteOptions` and left blank. Text inputs that open a calendar gain a
+  `datepicker` widget descriptor plus the calendar's proven `min`/`max`, which
+  ARE sent to the AI so its proposed date lands inside the picker's range (the
+  filler types first, then falls back to clicking the nearest enabled day).
 
 The **UI design-system pass** is also done: popup, side panel, and options are
 rebuilt against the shared tokens + `@quikfill/ui` to match the dashboard. The

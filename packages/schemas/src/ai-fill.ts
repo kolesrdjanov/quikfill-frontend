@@ -30,6 +30,13 @@ export const aiFillFieldSchema = z.object({
   required: z.boolean().default(false),
   pattern: z.string().optional(),
   options: z.array(z.string()).optional(),
+  /**
+   * Raw `min`/`max` constraints (numeric, date, or time depending on the field).
+   * For probed datepickers these carry the calendar's allowed range, so the model
+   * proposes a date the widget will actually accept.
+   */
+  min: z.string().optional(),
+  max: z.string().optional(),
 })
 export type AiFillField = z.infer<typeof aiFillFieldSchema>
 

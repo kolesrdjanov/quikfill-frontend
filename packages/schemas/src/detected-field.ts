@@ -53,6 +53,17 @@ export const customWidgetSchema = z.object({
   isSearchable: z.boolean().default(false),
   /** Whether the option list is virtualized (only visible rows are rendered). */
   isVirtualized: z.boolean().default(false),
+  /**
+   * The scan-time probe opened this widget and harvested its options into
+   * `DetectedField.options`. Such options are trusted as the complete value set
+   * (the filler may fall back to a random open-list option when re-matching fails).
+   */
+  optionsProbed: z.boolean().optional(),
+  /**
+   * The probe opened this widget but no options ever rendered (async/remote list,
+   * or an empty/spinner state). The field is left blank — never guessed at.
+   */
+  remoteOptions: z.boolean().optional(),
 })
 export type CustomWidget = z.infer<typeof customWidgetSchema>
 

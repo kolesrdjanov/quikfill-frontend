@@ -1,4 +1,9 @@
-import { buildAiFillRequest, isFillableField, valuesToFillInstructions } from '@quikfill/ai'
+import {
+  buildAiFillRequest,
+  isFillableField,
+  localPickInstructions,
+  valuesToFillInstructions,
+} from '@quikfill/ai'
 import {
   onEntitlementsChange,
   refreshEntitlements,
@@ -9,6 +14,7 @@ import {
 import {
   applyFill,
   isOccludingHit,
+  probeFields,
   qualifiesForFill,
   scanFormsGrouped,
 } from '@quikfill/form-scanner'
@@ -124,6 +130,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   }
 
   function scan(): void {
+    // A debounce armed BEFORE a fill started can fire mid-probe — re-stamping the
+    // data-qf-id markers the in-flight fill resolves by. Skip; the fill schedules
+    // a fresh scan when it completes.
+    if (busy) return
     if (overQuota) {
       removeAllButtons()
       return
@@ -210,7 +220,20 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   async function onFill(button: FormButton): Promise<void> {
     if (button.status === 'loading') return
     setStatus(button, 'loading')
+    // The probe (and the fill itself) churns the DOM — dropdowns open, option
+    // lists mount/unmount — and every mutation/focus would otherwise schedule a
+    // re-scan that re-stamps data-qf-id markers MID-FLIGHT, breaking the very
+    // ids the probe/fill resolve by. Hold re-scans until this fill completes.
+    busy = true
+    try {
+      await runFill(button)
+    } finally {
+      busy = false
+      scheduleScan()
+    }
+  }
 
+  async function runFill(button: FormButton): Promise<void> {
     // Re-scan for fresh fields (the DOM may have changed since injection).
     let result: ReturnType<typeof scanFormsGrouped>
     try {
@@ -236,7 +259,21 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       return
     }
 
+    // Probe phase: briefly open each on-demand custom select to harvest its REAL
+    // options (and each datepicker input to read its calendar's min/max), so
+    // dropdowns are picked from values that exist and dates land inside the
+    // picker's range. Enriches `fields` in place; never throws.
+    await probeFields(fields, doc)
+
+    // Custom selects are picked locally (random, from the probed options) — only
+    // the remaining fields (text inputs, native selects, datepickers) need the AI.
+    const localPicks = localPickInstructions(fields)
     const request = buildAiFillRequest(pageGlobals(doc), fields)
+    if (!request) {
+      // Nothing for the AI (a form of only dropdowns) — apply the local picks.
+      await applyInstructions(button, localPicks)
+      return
+    }
     const reply = await requestAiFill(request)
     if (!reply.ok) {
       // A dead extension context (the tab predates an update/reload) makes every
@@ -263,7 +300,15 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       return
     }
 
-    const instructions = valuesToFillInstructions(reply.response.values, fields)
+    const instructions = [...valuesToFillInstructions(reply.response.values, fields), ...localPicks]
+    await applyInstructions(button, instructions)
+  }
+
+  /** Apply a merged instruction batch and reflect the outcome on the button. */
+  async function applyInstructions(
+    button: FormButton,
+    instructions: Parameters<typeof applyFill>[0],
+  ): Promise<void> {
     if (instructions.length === 0) {
       setStatus(button, 'error')
       return
@@ -354,8 +399,13 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
 
   // Debounced re-scan on DOM changes. childList+subtree only (NOT attributes) so
   // the scanner's own data-qf-id / data-qf-form stamping can't feed the loop.
+  // While a fill is in flight (`busy`), re-scans are held entirely — the probe's
+  // DOM churn must not re-stamp the data-qf-id markers the fill resolves by; the
+  // fill schedules one final scan itself when it finishes.
+  let busy = false
   let debounce: number | undefined
   const scheduleScan = (): void => {
+    if (busy) return
     if (debounce) win.clearTimeout(debounce)
     debounce = win.setTimeout(scan, RESCAN_DEBOUNCE_MS)
   }

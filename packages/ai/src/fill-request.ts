@@ -30,24 +30,36 @@ function redactText(raw: string | undefined | null): string | undefined {
 
 /**
  * A truly native fillable input (text / select / checkbox / radio / …). A custom
- * widget (a `<div>`-based dropdown) is NOT native — see {@link isFillableField},
- * which the in-page flow uses so it also fills detected custom selects.
+ * widget (a `<div>`-based dropdown, or a probed datepicker input) is NOT native —
+ * see {@link isFillableField}, which the in-page flow uses so it also fills
+ * detected custom widgets.
  */
 export function isNativeFillable(field: DetectedField): boolean {
   return !field.customWidget && field.inputType !== 'customSelect'
 }
 
 /**
- * A field the in-page flow can fill end-to-end: any native input, PLUS a detected
- * custom select that carries a click-driving `customWidget` descriptor. For the
- * latter the filler opens the dropdown, value-matches the option to the proposed
- * value, clicks it, and verifies — degrading to `assisted` (list left open for the
- * user) when nothing matches. A custom select with no descriptor can't be driven,
- * so it stays excluded.
+ * A field the in-page flow can fill end-to-end: any native input, PLUS any field
+ * carrying a click-driving `customWidget` descriptor (a custom select the filler
+ * opens and picks from, or a probed datepicker it types/clicks a date into). A
+ * custom select with no descriptor can't be driven, so it stays excluded.
  */
 export function isFillableField(field: DetectedField): boolean {
   if (isNativeFillable(field)) return true
-  return field.inputType === 'customSelect' && !!field.customWidget
+  return !!field.customWidget
+}
+
+/**
+ * Whether a field's VALUE comes from the AI. Custom selects (single and multi)
+ * don't: their value set is harvested by the scan-time probe and picked locally
+ * (see {@link localPickInstructions}) — sending them to the model just invites a
+ * label that doesn't exist. Datepicker widgets DO go to the AI (it proposes a
+ * date honoring the probed min/max); so does every native input.
+ */
+export function isAiFillableField(field: DetectedField): boolean {
+  if (!isFillableField(field)) return false
+  const kind = field.customWidget?.kind
+  return kind !== 'select' && kind !== 'multiselect'
 }
 
 /** DetectedField → redacted AiFillField. NEVER carries the current value or raw HTML. */
@@ -71,18 +83,26 @@ function toAiFillField(field: DetectedField): AiFillField {
     ...(ariaLabel !== undefined ? { ariaLabel } : {}),
     ...(field.pattern ? { pattern: field.pattern.slice(0, MAX_SUMMARY_TEXT) } : {}),
     ...(options && options.length ? { options } : {}),
+    ...(field.min ? { min: field.min.slice(0, MAX_SUMMARY_TEXT) } : {}),
+    ...(field.max ? { max: field.max.slice(0, MAX_SUMMARY_TEXT) } : {}),
   })
 }
 
 /**
  * Build the redacted `/ai/fill` request from page globals + detected fields.
- * Native inputs plus detected custom selects (see {@link isFillableField}); every
- * text field is HTML-stripped and length-capped, and the current value is never
- * included — the same privacy guarantee as classify. Throws if no fillable fields
- * remain (an empty request is meaningless).
+ * Native inputs plus probed datepickers (see {@link isAiFillableField}; custom
+ * selects are picked locally instead — {@link localPickInstructions}); every text
+ * field is HTML-stripped and length-capped, and the current value is never
+ * included — the same privacy guarantee as classify. Returns null when nothing
+ * AI-fillable remains (e.g. a form of only dropdowns) — the caller skips the AI
+ * round-trip entirely.
  */
-export function buildAiFillRequest(page: AiFillPageInput, fields: DetectedField[]): AiFillRequest {
-  const fillable = fields.filter(isFillableField)
+export function buildAiFillRequest(
+  page: AiFillPageInput,
+  fields: DetectedField[],
+): AiFillRequest | null {
+  const fillable = fields.filter(isAiFillableField)
+  if (fillable.length === 0) return null
   return aiFillRequestSchema.parse({
     page: {
       lang: page.lang?.slice(0, MAX_SUMMARY_TEXT) ?? '',
@@ -93,20 +113,60 @@ export function buildAiFillRequest(page: AiFillPageInput, fields: DetectedField[
   })
 }
 
-function strategyFor(inputType: string): FillStrategy {
-  if (inputType === 'customSelect') return 'customSelect'
-  if (inputType === 'select') return 'select'
-  if (inputType === 'checkbox' || inputType === 'radio') return 'clickToggle'
+function strategyFor(field: DetectedField): FillStrategy {
+  // Any field with a widget descriptor is click-driven — including a probed
+  // datepicker whose element is a native `<input>` (the descriptor's kind routes
+  // it to the type-or-click-a-date path inside the filler).
+  if (field.customWidget || field.inputType === 'customSelect') return 'customSelect'
+  if (field.inputType === 'select') return 'select'
+  if (field.inputType === 'checkbox' || field.inputType === 'radio') return 'clickToggle'
   return 'nativeInput'
+}
+
+/** Build one fill instruction for a field + proposed value. */
+function toInstruction(field: DetectedField, value: string): FillInstruction {
+  return fillInstructionSchema.parse({
+    detectedFieldId: field.id,
+    selectorCandidates: field.selectorCandidates,
+    frame: field.frame,
+    shadow: field.shadow,
+    tagName: field.tagName,
+    inputType: field.inputType,
+    fillStrategy: strategyFor(field),
+    ...(field.customWidget ? { customWidget: field.customWidget } : {}),
+    proposedValue: value,
+  })
+}
+
+/**
+ * Local (no-AI) instructions for custom selects whose options the probe harvested:
+ * pick a RANDOM option from the real value set and click-drive it. Remote selects
+ * (options never rendered — `remoteOptions`) and widgets with nothing harvested
+ * yield no instruction: they are left blank, never guessed at. Datepickers are
+ * excluded — their value comes from the AI (see {@link isAiFillableField}).
+ */
+export function localPickInstructions(fields: DetectedField[]): FillInstruction[] {
+  const instructions: FillInstruction[] = []
+  for (const field of fields) {
+    const widget = field.customWidget
+    if (!widget || (widget.kind !== 'select' && widget.kind !== 'multiselect')) continue
+    if (widget.remoteOptions) continue
+    const labels = (field.options ?? []).map((o) => o.label).filter((l) => l.trim() !== '')
+    if (labels.length === 0) continue
+    const pick = labels[Math.floor(Math.random() * labels.length)]
+    instructions.push(toInstruction(field, pick))
+  }
+  return instructions
 }
 
 /**
  * Map AI fill values back to fill instructions, keyed by the `fieldId` the request
- * sent (= scanner `data-qf-id`). Drops values for unknown ids or non-fillable fields,
- * so a hallucinated id can never target an element. The picked strategy lets the
- * filler value-match native selects, toggle checkboxes/radios, and — for a custom
- * select — open the dropdown and click the matching option (its `customWidget`
- * descriptor is carried through so the filler knows how to drive it).
+ * sent (= scanner `data-qf-id`). Drops values for unknown ids or non-AI-fillable
+ * fields, so a hallucinated id can never target an element (custom selects are
+ * locally picked — an AI value for one is ignored). The picked strategy lets the
+ * filler value-match native selects, toggle checkboxes/radios, and — for a probed
+ * datepicker — type or calendar-click the date (its `customWidget` descriptor is
+ * carried through so the filler knows how to drive it).
  */
 export function valuesToFillInstructions(
   values: { fieldId: string; value: string }[],
@@ -116,20 +176,8 @@ export function valuesToFillInstructions(
   const instructions: FillInstruction[] = []
   for (const { fieldId, value } of values) {
     const field = byId.get(fieldId)
-    if (!field || !isFillableField(field)) continue
-    instructions.push(
-      fillInstructionSchema.parse({
-        detectedFieldId: field.id,
-        selectorCandidates: field.selectorCandidates,
-        frame: field.frame,
-        shadow: field.shadow,
-        tagName: field.tagName,
-        inputType: field.inputType,
-        fillStrategy: strategyFor(field.inputType),
-        ...(field.customWidget ? { customWidget: field.customWidget } : {}),
-        proposedValue: value,
-      }),
-    )
+    if (!field || !isAiFillableField(field)) continue
+    instructions.push(toInstruction(field, value))
   }
   return instructions
 }

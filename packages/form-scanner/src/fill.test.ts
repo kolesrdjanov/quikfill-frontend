@@ -1400,3 +1400,195 @@ describe('applyFill — custom select across framework patterns', () => {
     expect(results[0].status).toBe('success')
   })
 })
+
+describe('applyFill — probed custom select hardening', () => {
+  function widget(extra: Partial<CustomWidget> = {}): CustomWidget {
+    return {
+      kind: 'select',
+      triggerSelectorCandidates: ['#t'],
+      valueDisplaySelectorCandidates: ['.d'],
+      optionItemSelector: '[role="option"]',
+      optionsOpenOnDemand: true,
+      isSearchable: false,
+      isVirtualized: false,
+      ...extra,
+    }
+  }
+  function ins(value: string, w: CustomWidget): FillInstruction {
+    return {
+      detectedFieldId: 'w',
+      selectorCandidates: ['#w'],
+      frame: 'main',
+      shadow: false,
+      tagName: 'div',
+      inputType: 'customSelect',
+      fillStrategy: 'customSelect',
+      proposedValue: value,
+      customWidget: w,
+    }
+  }
+
+  it('does not press the trigger when the list is ALREADY open (a press would toggle it closed)', async () => {
+    // Models a widget the probe could not close: its list is open going into the fill.
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="fruit">
+        <div role="button" id="t" aria-expanded="true"><span class="d">—</span></div>
+        <div class="list">
+          <div role="option">Alpha</div>
+          <div role="option">Beta</div>
+        </div>
+      </div>`
+    const list = document.querySelector('.list') as HTMLElement
+    const display = document.querySelector('.d')!
+    // A trigger press TOGGLES: pressing now would close the list and lose the options.
+    document.getElementById('t')!.addEventListener('click', () => {
+      list.remove()
+    })
+    for (const opt of Array.from(document.querySelectorAll('[role="option"]'))) {
+      opt.addEventListener('mousedown', () => {
+        display.textContent = opt.textContent
+      })
+    }
+    const { results } = await applyFill([ins('Beta', widget())])
+    expect(display.textContent).toBe('Beta')
+    expect(results[0].status).toBe('success')
+  })
+
+  it('falls back to a RANDOM enabled option when a probed widget no longer matches the pick', async () => {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="role">
+        <div role="button" id="t" aria-expanded="false"><span class="d">—</span></div>
+      </div>`
+    const widgetEl = document.getElementById('w')!
+    const display = document.querySelector('.d')!
+    document.getElementById('t')!.addEventListener('click', () => {
+      if (widgetEl.querySelector('.list')) return
+      // The list re-rendered with DIFFERENT labels than the probe harvested.
+      widgetEl.insertAdjacentHTML(
+        'beforeend',
+        `<div class="list">
+          <div role="option" aria-disabled="true">Unavailable</div>
+          <div role="option">Fresh A</div>
+          <div role="option">Fresh B</div>
+        </div>`,
+      )
+      for (const opt of Array.from(widgetEl.querySelectorAll('[role="option"]'))) {
+        opt.addEventListener('mousedown', () => {
+          display.textContent = opt.textContent
+        })
+      }
+    })
+    const { results } = await applyFill([ins('Stale Label', widget({ optionsProbed: true }))])
+    expect(results[0].status).toBe('success')
+    expect(['Fresh A', 'Fresh B']).toContain(display.textContent) // never the disabled row
+  })
+
+  it('still reports assisted on no match when the widget was NOT probed (no random surprises)', async () => {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="role">
+        <div role="button" id="t" aria-expanded="false"><span class="d">—</span></div>
+        <div class="list"><div role="option">Alpha</div></div>
+      </div>`
+    const { results } = await applyFill([ins('Ghost', widget())])
+    expect(results[0].status).toBe('assisted')
+    expect(document.querySelector('.d')!.textContent).toBe('—')
+  })
+})
+
+describe('applyFill — datepicker hardening (constrained calendars)', () => {
+  function dpIns(value: string): FillInstruction {
+    return {
+      detectedFieldId: 'w',
+      selectorCandidates: ['#w'],
+      frame: 'main',
+      shadow: false,
+      tagName: 'div',
+      inputType: 'customSelect',
+      fillStrategy: 'customSelect',
+      proposedValue: value,
+      customWidget: {
+        kind: 'datepicker',
+        triggerSelectorCandidates: ['#t'],
+        valueDisplaySelectorCandidates: ['.d'],
+        optionItemSelector: '[role="option"], [role="gridcell"]',
+        optionsOpenOnDemand: true,
+        isSearchable: false,
+        isVirtualized: false,
+      },
+    }
+  }
+
+  /** A one-month calendar already in the DOM; clicking a cell records the pick. */
+  function mountCalendar(cells: { day: number; disabled?: boolean }[]): () => string {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="date">
+        <div role="button" id="t" aria-haspopup="dialog"><span class="d">—</span></div>
+        <div class="cal">
+          <div class="cal-header"><span class="cal-title">June 2032</span></div>
+          <div role="grid">
+            ${cells
+              .map(
+                (c) =>
+                  `<div role="gridcell"${c.disabled ? ' aria-disabled="true"' : ''}>${c.day}</div>`,
+              )
+              .join('')}
+          </div>
+        </div>
+      </div>`
+    const display = document.querySelector('.d')!
+    for (const cell of Array.from(document.querySelectorAll('[role="gridcell"]'))) {
+      cell.addEventListener('mousedown', () => {
+        if (cell.getAttribute('aria-disabled') !== 'true') display.textContent = cell.textContent
+      })
+    }
+    return () => display.textContent ?? ''
+  }
+
+  it('clicks the NEAREST enabled day when the target day is disabled (later wins ties)', async () => {
+    const picked = mountCalendar([
+      { day: 3 },
+      { day: 4, disabled: true },
+      { day: 5, disabled: true }, // the target
+      { day: 6, disabled: true },
+      { day: 7 },
+    ])
+    const { results } = await applyFill([dpIns('2032-06-05')])
+    expect(results[0].status).toBe('success')
+    expect(picked()).toBe('7') // 3 and 7 are equally near — the later day wins
+  })
+
+  it('lands a min-constrained picker on the first enabled day when the target is in the disabled past', async () => {
+    const picked = mountCalendar([
+      { day: 1, disabled: true },
+      { day: 2, disabled: true },
+      { day: 9 },
+      { day: 10 },
+    ])
+    const { results } = await applyFill([dpIns('2032-06-01')])
+    expect(results[0].status).toBe('success')
+    expect(picked()).toBe('9')
+  })
+
+  it('matches a day cell by an ORDINAL aria-label ("June 1st, 2032")', async () => {
+    document.body.innerHTML = `
+      <div id="w" data-test-id="w" name="date">
+        <div role="button" id="t" aria-haspopup="dialog"><span class="d">—</span></div>
+        <div class="cal">
+          <span class="cal-title">June 2032</span>
+          <div role="grid">
+            <div role="gridcell" aria-label="Choose Tuesday, June 1st, 2032">1</div>
+            <div role="gridcell" aria-label="Choose Tuesday, June 15th, 2032">15</div>
+          </div>
+        </div>
+      </div>`
+    const display = document.querySelector('.d')!
+    for (const cell of Array.from(document.querySelectorAll('[role="gridcell"]'))) {
+      cell.addEventListener('mousedown', () => {
+        display.textContent = cell.getAttribute('aria-label')
+      })
+    }
+    const { results } = await applyFill([dpIns('2032-06-01')])
+    expect(results[0].status).toBe('success')
+    expect(display.textContent).toBe('Choose Tuesday, June 1st, 2032')
+  })
+})
