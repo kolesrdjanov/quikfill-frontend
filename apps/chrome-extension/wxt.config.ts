@@ -23,7 +23,18 @@ export default defineConfig({
       // Lets the background worker reach the backend for (user-initiated) AI/auth/
       // sync. Tracks the API origin above so dev and production stay in sync.
       host_permissions: [`${apiOrigin}/*`],
-      action: {},
+      // WXT auto-discovers public/icon/{size}.png into manifest.icons (store +
+      // chrome://extensions), but it does NOT populate the toolbar button's
+      // icon — set default_icon explicitly so the action button always renders
+      // the brand mark instead of Chrome's generated letter monogram.
+      action: {
+        default_icon: {
+          16: 'icon/16.png',
+          32: 'icon/32.png',
+          48: 'icon/48.png',
+          128: 'icon/128.png',
+        },
+      },
     }
   },
   hooks: {

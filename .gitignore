@@ -5,8 +5,14 @@
 # Thumbnails
 ._*
 
-# Custom folder icons
+# Custom folder icons (the macOS `Icon\r` resource file). With
+# core.ignorecase=true (default on macOS) this pattern ALSO matches any
+# `icon/` directory case-insensitively, so re-include the Chrome extension's
+# bundled icon assets explicitly — otherwise the published build ships with no
+# toolbar/store icon and Chrome falls back to a generated letter monogram.
 Icon
+!apps/chrome-extension/public/icon/
+!apps/chrome-extension/public/icon/*
 
 # Volume root files
 .DocumentRevisions-V100
