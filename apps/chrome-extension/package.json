@@ -1,7 +1,7 @@
 {
   "name": "@quikfill/chrome-extension",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@quikfill/ai": "workspace:*",
-    "@quikfill/assets": "workspace:*",
     "@quikfill/api-client": "workspace:*",
+    "@quikfill/assets": "workspace:*",
     "@quikfill/autofill-core": "workspace:*",
     "@quikfill/browser-adapter": "workspace:*",
     "@quikfill/form-scanner": "workspace:*",
