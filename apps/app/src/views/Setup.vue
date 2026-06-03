@@ -137,7 +137,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="global-enabled">Enable QuikFill</Label>
-              <p class="text-muted-foreground text-sm">
+              <p class="text-muted-foreground text-xs">
                 Turn the extension on or off everywhere. When off, the Fill button never appears.
               </p>
             </div>
@@ -145,7 +145,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           </div>
           <div>
             <Label for="blocked-hostnames">Blocked sites</Label>
-            <p class="text-muted-foreground mb-2 text-sm">
+            <p class="text-muted-foreground mb-2 text-xs">
               QuikFill never runs on these sites. One hostname per line (e.g.
               <code>bank.example.com</code>).
             </p>
@@ -174,7 +174,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="fill-payment">Allow filling payment &amp; card fields</Label>
-              <p class="text-muted-foreground text-sm">Card number, expiry, CVV. Off by default.</p>
+              <p class="text-muted-foreground text-xs">Card number, expiry, CVV. Off by default.</p>
             </div>
             <Switch
               id="fill-payment"
@@ -185,7 +185,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="fill-govid">Allow filling government IDs</Label>
-              <p class="text-muted-foreground text-sm">SSN, tax ID, passport. Off by default.</p>
+              <p class="text-muted-foreground text-xs">SSN, tax ID, passport. Off by default.</p>
             </div>
             <Switch
               id="fill-govid"
@@ -203,7 +203,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
         <CardContent class="space-y-5">
           <div>
             <Label for="fill-source">Default data source</Label>
-            <p class="text-muted-foreground mb-2 text-sm">
+            <p class="text-muted-foreground mb-2 text-xs">
               What QuikFill proposes when no saved mapping exists for a field.
             </p>
             <Select id="fill-source" v-model="defaultFillSource">
@@ -216,7 +216,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="auto-match">Auto-match saved profiles</Label>
-              <p class="text-muted-foreground text-sm">
+              <p class="text-muted-foreground text-xs">
                 Apply fingerprint-matched field mappings automatically.
               </p>
             </div>
@@ -229,7 +229,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="ai-enabled">Use AI for ambiguous fields</Label>
-              <p class="text-muted-foreground text-sm">
+              <p class="text-muted-foreground text-xs">
                 Let QuikFill ask the AI to classify fields it can't map locally.
               </p>
             </div>
@@ -238,7 +238,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="skip-filled">Skip fields that already have a value</Label>
-              <p class="text-muted-foreground text-sm">Leave pre-filled inputs untouched.</p>
+              <p class="text-muted-foreground text-xs">Leave pre-filled inputs untouched.</p>
             </div>
             <Switch
               id="skip-filled"
@@ -256,7 +256,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
         <CardContent class="grid gap-4 sm:grid-cols-2">
           <div>
             <Label for="locale">Locale</Label>
-            <p class="text-muted-foreground mb-2 text-sm">
+            <p class="text-muted-foreground mb-2 text-xs">
               Drives generated names, addresses, phones.
             </p>
             <Select id="locale" v-model="locale">
@@ -267,7 +267,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           </div>
           <div>
             <Label for="date-format">Date format</Label>
-            <p class="text-muted-foreground mb-2 text-sm">Preferred format for proposed dates.</p>
+            <p class="text-muted-foreground mb-2 text-xs">Preferred format for proposed dates.</p>
             <Select id="date-format" v-model="dateFormat">
               <option value="auto">Automatic (by locale)</option>
               <option value="MM/DD/YYYY">MM/DD/YYYY</option>
@@ -286,7 +286,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="hide-values">Hide values by default</Label>
-              <p class="text-muted-foreground text-sm">
+              <p class="text-muted-foreground text-xs">
                 Mask proposed and filled values until revealed — handy when screen-sharing.
               </p>
             </div>
@@ -298,7 +298,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           </div>
           <div>
             <Label for="theme">Theme</Label>
-            <p class="text-muted-foreground mb-2 text-sm">
+            <p class="text-muted-foreground mb-2 text-xs">
               Appearance of the extension's surfaces.
             </p>
             <Select id="theme" v-model="theme">
@@ -318,7 +318,7 @@ const onSubmitConfig = handleSubmit(async (values) => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="show-button">Show the in-page Fill button</Label>
-              <p class="text-muted-foreground text-sm">
+              <p class="text-muted-foreground text-xs">
                 The floating button QuikFill shows on detected forms.
               </p>
             </div>
