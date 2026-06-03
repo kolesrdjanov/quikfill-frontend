@@ -30,6 +30,7 @@ function report(overrides: Partial<AnalyticsResponse> = {}): AnalyticsResponse {
       netMarginUsdCents: 1199.982,
     },
     byEndpoint: [{ endpoint: 'fill', requests: 1, tokens: 1200 }],
+    pagination: { page: 0, pageSize: 20, total: 1, totalPages: 1 },
     users: [],
     ...overrides,
   }
@@ -41,28 +42,72 @@ beforeEach(() => {
 })
 
 describe('analytics store', () => {
-  it('load fetches the report for the period and clears loading', async () => {
+  it('load fetches the report with the current params and clears loading', async () => {
     const data = report()
     analytics.mockResolvedValue(data)
     const store = useAnalyticsStore()
 
-    await store.load('current_month')
+    await store.load()
 
-    expect(analytics).toHaveBeenCalledWith('current_month')
+    expect(analytics).toHaveBeenCalledWith({
+      period: 'current_month',
+      page: 0,
+      pageSize: 20,
+      sort: 'tokens',
+      order: 'desc',
+    })
     expect(store.loading).toBe(false)
     expect(store.error).toBeNull()
     expect(store.data).toEqual(data)
-    expect(store.period).toBe('current_month')
   })
 
-  it('load records an error and clears loading on failure', async () => {
+  it('records an error and clears loading on failure', async () => {
     analytics.mockRejectedValue(new Error('boom'))
     const store = useAnalyticsStore()
 
-    await store.load('all_time')
+    await store.load()
 
     expect(store.loading).toBe(false)
     expect(store.error).toBe('boom')
     expect(store.data).toBeNull()
+  })
+
+  it('setPeriod switches window and resets to page 0', async () => {
+    analytics.mockResolvedValue(report())
+    const store = useAnalyticsStore()
+    store.page = 3
+
+    await store.setPeriod('all_time')
+
+    expect(store.period).toBe('all_time')
+    expect(store.page).toBe(0)
+    expect(analytics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ period: 'all_time', page: 0 }),
+    )
+  })
+
+  it('setSort flips order when reselecting the active column, resets page', async () => {
+    analytics.mockResolvedValue(report())
+    const store = useAnalyticsStore()
+    store.page = 2
+
+    await store.setSort('tokens') // already the active sort -> flips desc->asc
+    expect(store.sort).toBe('tokens')
+    expect(store.order).toBe('asc')
+    expect(store.page).toBe(0)
+
+    await store.setSort('email') // new column -> defaults to desc
+    expect(store.sort).toBe('email')
+    expect(store.order).toBe('desc')
+  })
+
+  it('setPage updates the page index and reloads', async () => {
+    analytics.mockResolvedValue(report())
+    const store = useAnalyticsStore()
+
+    await store.setPage(2)
+
+    expect(store.page).toBe(2)
+    expect(analytics).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }))
   })
 })

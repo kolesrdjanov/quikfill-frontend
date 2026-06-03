@@ -1,12 +1,29 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Activity, AlertTriangle, Coins, TrendingUp, Users } from 'lucide-vue-next'
-import type { AnalyticsPeriod, AnalyticsUserRow } from '@quikfill/schemas'
+import { computed, onMounted } from 'vue'
+import {
+  Activity,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Coins,
+  TrendingUp,
+  Users,
+} from 'lucide-vue-next'
+import type { AnalyticsPeriod, AnalyticsSort } from '@quikfill/schemas'
 import {
   Alert,
   Badge,
+  Button,
   Card,
   CardContent,
+  Pagination,
+  PaginationEllipsis,
+  PaginationFirst,
+  PaginationLast,
+  PaginationList,
+  PaginationListItem,
+  PaginationNext,
+  PaginationPrev,
   Progress,
   Skeleton,
   Table,
@@ -27,41 +44,38 @@ import { formatCompactNumber, formatPercent, formatUsdCents } from '@/lib/format
 const store = useAnalyticsStore()
 const { handleError } = useApiError()
 
-type SortKey = 'tokens' | 'requests' | 'estCostUsdCents' | 'utilizationPercent' | 'marginUsdCents'
-const sortKey = ref<SortKey>('tokens')
-
-function setPeriod(period: AnalyticsPeriod): void {
-  void store.load(period).catch(handleError)
-}
-
-onMounted(() => setPeriod('current_month'))
+onMounted(() => void store.load().catch(handleError))
 
 const isMonth = computed(() => store.period === 'current_month')
 const overview = computed(() => store.data?.overview ?? null)
 const pricing = computed(() => store.data?.pricing ?? null)
 const byEndpoint = computed(() => store.data?.byEndpoint ?? [])
+const pagination = computed(() => store.data?.pagination ?? null)
+const users = computed(() => store.data?.users ?? [])
 const totalTokens = computed(() => store.data?.overview.totalTokens ?? 0)
 
-const sortedUsers = computed<AnalyticsUserRow[]>(() => {
-  const users = store.data?.users ?? []
-  const key = sortKey.value
-  return [...users].sort((a, b) => (b[key] ?? -Infinity) - (a[key] ?? -Infinity))
-})
+function changePeriod(period: AnalyticsPeriod): void {
+  void store.setPeriod(period).catch(handleError)
+}
+function changeSort(key: AnalyticsSort): void {
+  void store.setSort(key).catch(handleError)
+}
+function changePage(uiPage: number): void {
+  void store.setPage(uiPage - 1).catch(handleError)
+}
 
 function endpointShare(tokens: number): number {
   return totalTokens.value > 0 ? (tokens / totalTokens.value) * 100 : 0
 }
-
-function utilizationTint(row: AnalyticsUserRow): string {
-  const pct = row.utilizationPercent ?? 0
-  if (pct >= 90) return 'bg-destructive'
-  if (pct >= 60) return 'bg-warning'
+function utilizationTint(pct: number | undefined): string {
+  const value = pct ?? 0
+  if (value >= 90) return 'bg-destructive'
+  if (value >= 60) return 'bg-warning'
   return 'bg-primary'
 }
-
-function marginVariant(row: AnalyticsUserRow): 'success' | 'danger' | 'gray' {
-  if (row.marginUsdCents === undefined) return 'gray'
-  return row.marginUsdCents >= 0 ? 'success' : 'danger'
+function marginVariant(margin: number | undefined): 'success' | 'danger' | 'gray' {
+  if (margin === undefined) return 'gray'
+  return margin >= 0 ? 'success' : 'danger'
 }
 </script>
 
@@ -79,7 +93,7 @@ function marginVariant(row: AnalyticsUserRow): 'success' | 'danger' | 'gray' {
       </p>
       <Tabs
         :model-value="store.period"
-        @update:model-value="(v) => setPeriod(v as AnalyticsPeriod)"
+        @update:model-value="(v) => changePeriod(v as AnalyticsPeriod)"
       >
         <TabsList>
           <TabsTrigger value="current_month">This month</TabsTrigger>
@@ -88,7 +102,7 @@ function marginVariant(row: AnalyticsUserRow): 'success' | 'danger' | 'gray' {
       </Tabs>
     </div>
 
-    <div v-if="store.loading" class="space-y-4">
+    <div v-if="store.loading && !store.data" class="space-y-4">
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Skeleton v-for="n in 4" :key="n" class="h-24 w-full" />
       </div>
@@ -103,7 +117,11 @@ function marginVariant(row: AnalyticsUserRow): 'success' | 'danger' | 'gray' {
       </div>
     </Alert>
 
-    <template v-else-if="overview">
+    <div
+      v-else-if="overview"
+      class="space-y-5"
+      :class="store.loading ? 'pointer-events-none opacity-60 transition-opacity' : ''"
+    >
       <!-- Overview stat cards -->
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card>
@@ -171,7 +189,7 @@ function marginVariant(row: AnalyticsUserRow): 'success' | 'danger' | 'gray' {
       </Card>
 
       <!-- Per-user table -->
-      <Alert v-if="sortedUsers.length === 0" variant="info">
+      <Alert v-if="users.length === 0" variant="info">
         <Users />
         <div>
           <p class="font-semibold">No users yet</p>
@@ -179,62 +197,136 @@ function marginVariant(row: AnalyticsUserRow): 'success' | 'danger' | 'gray' {
         </div>
       </Alert>
 
-      <TableContainer v-else>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead class="cursor-pointer" @click="sortKey = 'requests'">Requests</TableHead>
-              <TableHead class="cursor-pointer" @click="sortKey = 'tokens'">Tokens</TableHead>
-              <TableHead class="w-40">Utilization</TableHead>
-              <TableHead class="cursor-pointer" @click="sortKey = 'estCostUsdCents'"
-                >Est. cost</TableHead
-              >
-              <TableHead class="cursor-pointer" @click="sortKey = 'marginUsdCents'"
-                >Margin</TableHead
-              >
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-for="row in sortedUsers" :key="row.userId">
-              <TableCell class="font-medium">{{ row.email }}</TableCell>
-              <TableCell
-                ><Badge variant="gray">{{ row.planDisplayName }}</Badge></TableCell
-              >
-              <TableCell>{{ formatCompactNumber(row.requests) }}</TableCell>
-              <TableCell>
-                {{ formatCompactNumber(row.tokens) }}
-                <span class="text-muted-foreground text-xs">
-                  / {{ row.planTokenLimit === 0 ? '∞' : formatCompactNumber(row.planTokenLimit) }}
-                </span>
-              </TableCell>
-              <TableCell>
-                <div v-if="isMonth && row.utilizationPercent !== undefined" class="space-y-1">
-                  <Progress
-                    :model-value="row.utilizationPercent"
-                    :indicator-class="utilizationTint(row)"
-                  />
-                  <div class="text-muted-foreground text-xs">
-                    {{ formatPercent(row.utilizationPercent) }}
-                  </div>
-                </div>
-                <span v-else class="text-muted-foreground text-xs">—</span>
-              </TableCell>
-              <TableCell>{{ formatUsdCents(row.estCostUsdCents) }}</TableCell>
-              <TableCell>
-                <Badge
-                  v-if="isMonth && row.marginUsdCents !== undefined"
-                  :variant="marginVariant(row)"
+      <template v-else>
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead class="cursor-pointer select-none" @click="changeSort('requests')">
+                  <span class="inline-flex items-center gap-1">
+                    Requests
+                    <component
+                      :is="store.order === 'desc' ? ChevronDown : ChevronUp"
+                      v-if="store.sort === 'requests'"
+                      class="size-3"
+                    />
+                  </span>
+                </TableHead>
+                <TableHead class="cursor-pointer select-none" @click="changeSort('tokens')">
+                  <span class="inline-flex items-center gap-1">
+                    Tokens
+                    <component
+                      :is="store.order === 'desc' ? ChevronDown : ChevronUp"
+                      v-if="store.sort === 'tokens'"
+                      class="size-3"
+                    />
+                  </span>
+                </TableHead>
+                <TableHead class="w-40">Utilization</TableHead>
+                <TableHead
+                  class="cursor-pointer select-none"
+                  @click="changeSort('estCostUsdCents')"
                 >
-                  {{ formatUsdCents(row.marginUsdCents) }}
-                </Badge>
-                <span v-else class="text-muted-foreground text-xs">—</span>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </template>
+                  <span class="inline-flex items-center gap-1">
+                    Est. cost
+                    <component
+                      :is="store.order === 'desc' ? ChevronDown : ChevronUp"
+                      v-if="store.sort === 'estCostUsdCents'"
+                      class="size-3"
+                    />
+                  </span>
+                </TableHead>
+                <TableHead class="cursor-pointer select-none" @click="changeSort('marginUsdCents')">
+                  <span class="inline-flex items-center gap-1">
+                    Margin
+                    <component
+                      :is="store.order === 'desc' ? ChevronDown : ChevronUp"
+                      v-if="store.sort === 'marginUsdCents'"
+                      class="size-3"
+                    />
+                  </span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-for="row in users" :key="row.userId">
+                <TableCell class="font-medium">{{ row.email }}</TableCell>
+                <TableCell
+                  ><Badge variant="gray">{{ row.planDisplayName }}</Badge></TableCell
+                >
+                <TableCell>{{ formatCompactNumber(row.requests) }}</TableCell>
+                <TableCell>
+                  {{ formatCompactNumber(row.tokens) }}
+                  <span class="text-muted-foreground text-xs">
+                    / {{ row.planTokenLimit === 0 ? '∞' : formatCompactNumber(row.planTokenLimit) }}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div v-if="isMonth && row.utilizationPercent !== undefined" class="space-y-1">
+                    <Progress
+                      :model-value="row.utilizationPercent"
+                      :indicator-class="utilizationTint(row.utilizationPercent)"
+                    />
+                    <div class="text-muted-foreground text-xs">
+                      {{ formatPercent(row.utilizationPercent) }}
+                    </div>
+                  </div>
+                  <span v-else class="text-muted-foreground text-xs">—</span>
+                </TableCell>
+                <TableCell>{{ formatUsdCents(row.estCostUsdCents) }}</TableCell>
+                <TableCell>
+                  <Badge
+                    v-if="isMonth && row.marginUsdCents !== undefined"
+                    :variant="marginVariant(row.marginUsdCents)"
+                  >
+                    {{ formatUsdCents(row.marginUsdCents) }}
+                  </Badge>
+                  <span v-else class="text-muted-foreground text-xs">—</span>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <!-- Pagination -->
+        <div
+          v-if="pagination && pagination.totalPages > 1"
+          class="flex flex-wrap items-center justify-between gap-3"
+        >
+          <p class="text-muted-foreground text-xs">
+            {{ pagination.total }} users · page {{ pagination.page + 1 }} of
+            {{ pagination.totalPages }}
+          </p>
+          <Pagination
+            :total="pagination.total"
+            :items-per-page="pagination.pageSize"
+            :page="pagination.page + 1"
+            :sibling-count="1"
+            show-edges
+            @update:page="changePage"
+          >
+            <PaginationList v-slot="{ items }" class="flex items-center gap-1">
+              <PaginationFirst />
+              <PaginationPrev />
+              <template v-for="(item, index) in items" :key="index">
+                <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
+                  <Button
+                    :variant="item.value === pagination.page + 1 ? 'default' : 'outline'"
+                    size="icon"
+                  >
+                    {{ item.value }}
+                  </Button>
+                </PaginationListItem>
+                <PaginationEllipsis v-else :index="index" />
+              </template>
+              <PaginationNext />
+              <PaginationLast />
+            </PaginationList>
+          </Pagination>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
