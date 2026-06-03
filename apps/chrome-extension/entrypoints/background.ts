@@ -17,6 +17,7 @@ import {
   onFillRunRecordRequest,
   onProfileSyncRequest,
   reinjectContentScripts,
+  writeExtensionSettings,
 } from '@quikfill/browser-adapter'
 import { generatorKindSchema, type AuthState } from '@quikfill/schemas'
 
@@ -148,13 +149,28 @@ export default defineBackground(() => {
   // (re)fetch entitlements the moment the user signs in, and drop the snapshot on
   // sign-out; writing the store wakes every surface (popup + overlay) via
   // storage.onChanged.
+  // Pull the dashboard-managed settings into chrome.storage.local so every surface
+  // (incl. the content overlay) reads the synced config. The dashboard is the
+  // source of truth; this is a one-way pull on sign-in/refresh, best-effort — a
+  // failed fetch leaves the last-synced (or default) settings in place.
+  async function hydrateSettings(): Promise<void> {
+    try {
+      const me = await api.users.me()
+      if (me.extensionSettings) await writeExtensionSettings(me.extensionSettings)
+    } catch {
+      // Ignore — settings stay at their last-known value.
+    }
+  }
+
   let lastAuthStatus: AuthState['status'] | null = null
   function onAuthState(state: AuthState): void {
     reflectBadge(state)
     if (state.status === lastAuthStatus) return
     lastAuthStatus = state.status
-    if (state.status === 'signed-in') void entitlements.refresh()
-    else if (state.status === 'signed-out') void entitlements.clear()
+    if (state.status === 'signed-in') {
+      void entitlements.refresh()
+      void hydrateSettings()
+    } else if (state.status === 'signed-out') void entitlements.clear()
   }
   void Promise.resolve(auth.handlers.getState()).then(onAuthState)
   browser.storage.onChanged.addListener((changes, area) => {

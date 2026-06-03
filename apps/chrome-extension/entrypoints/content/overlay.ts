@@ -6,11 +6,14 @@ import {
 } from '@quikfill/ai'
 import {
   onEntitlementsChange,
+  onExtensionSettingsChange,
+  readExtensionSettings,
   refreshEntitlements,
   requestAiFill,
   requestEntitlements,
   type AiClassifyReason,
 } from '@quikfill/browser-adapter'
+import { classifySensitive } from '@quikfill/autofill-core'
 import {
   applyFill,
   isOccludingHit,
@@ -19,11 +22,14 @@ import {
   scanFormsGrouped,
 } from '@quikfill/form-scanner'
 import {
+  DEFAULT_EXTENSION_SETTINGS,
   isOverQuota,
   type DetectedField,
   type DetectedForm,
   type Entitlements,
+  type ExtensionSettings,
 } from '@quikfill/schemas'
+import { buttonDiameter, isFieldAllowed, shouldShowOverlay } from '../../lib/overlay-gate'
 
 /**
  * User-facing copy per AI failure cause (mirrors lib/display-maps `AI_REASON_MESSAGE`;
@@ -124,6 +130,18 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     overQuota = e !== null && isOverQuota(e.tokensUsed, e.tokenLimit)
   }
 
+  // Dashboard-managed settings, synced into chrome.storage.local by the background
+  // worker. Defaults until the first read resolves; the overlay reads them to gate
+  // visibility (enable / blocklist / show-button), size + position the button, and
+  // filter sensitive / already-filled fields out of a fill.
+  let settings: ExtensionSettings = DEFAULT_EXTENSION_SETTINGS
+  const applySettings = (s: ExtensionSettings): void => {
+    settings = s
+    // Custom property inherits through the shadow boundary onto `.qf-fill-btn`.
+    host.style.setProperty('--qf-d', `${buttonDiameter(s.buttonSize)}px`)
+  }
+  const pageHostname = (): string => doc.defaultView?.location?.hostname ?? ''
+
   function removeAllButtons(): void {
     for (const [root, button] of buttons) {
       button.el.remove()
@@ -136,7 +154,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // data-qf-id markers the in-flight fill resolves by. Skip; the fill schedules
     // a fresh scan when it completes.
     if (busy) return
-    if (overQuota) {
+    // Gate: disabled globally, hidden by preference, on a blocked host, or over
+    // the AI budget → no buttons (the side panel surfaces any budget detail).
+    if (!shouldShowOverlay(settings, pageHostname(), overQuota)) {
       removeAllButtons()
       return
     }
@@ -249,11 +269,27 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       return
     }
 
-    const fields = form.fieldIds
+    const detected = form.fieldIds
       .map((id) => fieldById.get(id))
       .filter((f): f is DetectedField => !!f && isFillableField(f))
-    if (fields.length === 0) {
+    if (detected.length === 0) {
       setStatus(button, 'error')
+      return
+    }
+
+    // Safety + behaviour filter (settings-driven, applied BEFORE the AI sees
+    // anything): passwords and one-time codes are never filled; payment and
+    // government-ID fields need their opt-in; already-filled fields are skipped
+    // when the user asked. Sensitive fields are dropped here so they never reach
+    // the AI request at all.
+    const fields = detected.filter((f) =>
+      isFieldAllowed(settings, classifySensitive(f), (f.currentValue ?? '').trim() !== ''),
+    )
+    if (fields.length === 0) {
+      setStatus(button, 'error', {
+        label: 'Nothing to fill',
+        title: 'Every field here is skipped by your QuikFill settings.',
+      })
       return
     }
 
@@ -383,17 +419,22 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         continue
       }
       button.el.style.display = ''
-      // Pin the button's bottom-right corner just inside the form's bottom-right
-      // edge, anchored by `right`/`bottom` (not left/top) so the resting circle
-      // never moves and the label unfurls leftwards on hover. `position: fixed`
+      // Pin the button just inside the form's chosen corner. `position: fixed`
       // uses viewport coordinates, so re-anchoring on scroll/resize keeps it glued
       // whether the form lives in normal flow or a fixed modal. Clamp so it stays
-      // on-screen when the form runs past the viewport edge.
+      // on-screen when the form runs past the viewport edge. The default
+      // bottom-right anchors by `right`/`bottom`, so the resting circle never
+      // moves and the label unfurls leftwards on hover.
       const INSET = 12
-      button.el.style.right = `${Math.max(8, vw - rect.right + INSET)}px`
-      button.el.style.bottom = `${Math.max(8, vh - rect.bottom + INSET)}px`
-      button.el.style.left = 'auto'
-      button.el.style.top = 'auto'
+      const pos = settings.buttonPosition
+      button.el.style.left = pos.endsWith('left') ? `${Math.max(8, rect.left + INSET)}px` : 'auto'
+      button.el.style.right = pos.endsWith('right')
+        ? `${Math.max(8, vw - rect.right + INSET)}px`
+        : 'auto'
+      button.el.style.top = pos.startsWith('top') ? `${Math.max(8, rect.top + INSET)}px` : 'auto'
+      button.el.style.bottom = pos.startsWith('bottom')
+        ? `${Math.max(8, vh - rect.bottom + INSET)}px`
+        : 'auto'
     }
   }
 
@@ -458,6 +499,18 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     scan()
   })
 
+  // Seed + stay in sync with the dashboard-managed settings: a save in the
+  // dashboard is synced down by the background, flips the gate / appearance /
+  // field filters, and re-scans without a page reload.
+  void readExtensionSettings().then((s) => {
+    applySettings(s)
+    scan()
+  })
+  const unsubscribeSettings = onExtensionSettingsChange((s) => {
+    applySettings(s)
+    scan()
+  })
+
   scan()
 
   return {
@@ -470,6 +523,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       win.removeEventListener('scroll', onScrollResize, { capture: true } as EventListenerOptions)
       win.removeEventListener('resize', onScrollResize)
       unsubscribeEntitlements()
+      unsubscribeSettings()
       host.remove()
       buttons.clear()
     },
@@ -518,13 +572,16 @@ const OVERLAY_CSS = `
   flex-direction: row-reverse;
   align-items: center;
   justify-content: center;
-  height: 46px;
-  min-width: 46px;
-  /* 11 + 24px glyph + 11 = 46 → the glyph sits dead-centre in the resting circle.
-     padding-right stays fixed so the glyph keeps its place when the pill opens. */
-  padding: 0 11px;
+  /* Diameter is driven by the user's buttonSize setting via the --qf-d custom
+     property (set on the host element, inherited across the shadow boundary);
+     defaults to 46px. */
+  height: var(--qf-d, 46px);
+  min-width: var(--qf-d, 46px);
+  /* (d - 24px glyph) / 2 on each side → the glyph sits dead-centre in the resting
+     circle. padding-right stays fixed so the glyph keeps its place when the pill opens. */
+  padding: 0 calc((var(--qf-d, 46px) - 24px) / 2);
   border: none;
-  border-radius: 23px; /* = height / 2: a circle at 46x46, a pill once the label opens */
+  border-radius: calc(var(--qf-d, 46px) / 2); /* = d/2: a circle when resting, a pill once the label opens */
   background: linear-gradient(135deg, #3f66e0, #2544c0);
   color: #ffffff;
   font: 600 14px/1 system-ui, -apple-system, Segoe UI, sans-serif;
@@ -556,7 +613,7 @@ const OVERLAY_CSS = `
 .qf-fill-btn.is-loading,
 .qf-fill-btn.is-success,
 .qf-fill-btn.is-error {
-  padding-left: 18px;
+  padding-left: calc((var(--qf-d, 46px) - 24px) / 2 + 7px);
   box-shadow: 0 8px 22px rgba(37, 68, 192, 0.45);
   animation: none;
 }

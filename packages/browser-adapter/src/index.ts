@@ -87,6 +87,12 @@ export {
   type BackgroundEntitlements,
 } from './background-entitlements'
 export { createChromeStorageAdapter } from './storage'
+export {
+  EXTENSION_SETTINGS_KEY,
+  readExtensionSettings,
+  writeExtensionSettings,
+  onExtensionSettingsChange,
+} from './extension-settings-store'
 export { createProfileStore, type ProfileBundle, type ProfileStore } from './profile-store'
 export {
   PROFILE_SYNC,
