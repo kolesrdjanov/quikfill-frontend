@@ -1,15 +1,16 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-// NOTE: This deployment is intentionally trimmed to a **billing-only** surface
-// (app.quikfill.io) — sign-in + the subscription screen. The full dashboard
-// routes below are commented out (not deleted) so they can be restored later by
-// un-commenting and re-adding their nav entries in `layouts/AppLayout.vue`.
+// NOTE: This deployment is intentionally trimmed (app.quikfill.io) — sign-in
+// plus a small Settings area (Billing, Account, Configuration). The full
+// dashboard routes below (Home, Data, Generators, …) are commented out (not
+// deleted) so they can be restored later by un-commenting and re-adding their
+// nav entries in `layouts/AppLayout.vue`.
 const routes: RouteRecordRaw[] = [
   {
-    // Root redirects to the only authenticated screen we expose right now.
+    // Root redirects to the billing screen (the primary authenticated surface).
     path: '/',
-    redirect: '/billing',
+    redirect: '/settings/billing',
   },
   // --- Dashboard routes (disabled for the billing-only deployment) ----------
   // {
@@ -54,18 +55,35 @@ const routes: RouteRecordRaw[] = [
   //   meta: { layout: 'app', requiresAuth: true, title: 'Fill History' },
   //   component: () => import('@/views/FillHistory.vue'),
   // },
-  // {
-  //   path: '/settings',
-  //   name: 'settings',
-  //   meta: { layout: 'app', requiresAuth: true, title: 'Settings' },
-  //   component: () => import('@/views/Settings.vue'),
-  // },
   // --------------------------------------------------------------------------
+  // Settings area — Billing keeps the route name `billing` so existing
+  // `{ name: 'billing' }` navigations and the guard fallbacks still resolve.
   {
-    path: '/billing',
+    path: '/settings',
+    redirect: '/settings/account',
+  },
+  {
+    path: '/settings/billing',
     name: 'billing',
     meta: { layout: 'app', requiresAuth: true, title: 'Billing' },
     component: () => import('@/views/Billing.vue'),
+  },
+  {
+    path: '/settings/account',
+    name: 'settings-account',
+    meta: { layout: 'app', requiresAuth: true, title: 'Account' },
+    component: () => import('@/views/Account.vue'),
+  },
+  {
+    path: '/settings/config',
+    name: 'settings-config',
+    meta: { layout: 'app', requiresAuth: true, title: 'Configuration' },
+    component: () => import('@/views/Configuration.vue'),
+  },
+  // Back-compat: old bookmarks / links to /billing.
+  {
+    path: '/billing',
+    redirect: '/settings/billing',
   },
   {
     path: '/billing/success',
@@ -115,10 +133,10 @@ router.beforeEach(async (to) => {
   }
   // Admin-only routes fall back to billing for signed-in non-admins.
   if (to.meta.requiresAdmin && !auth.user?.isAdmin) {
-    return { path: '/billing' }
+    return { path: '/settings/billing' }
   }
   if (to.name === 'sign-in' && auth.isAuthenticated) {
-    return { path: '/billing' }
+    return { path: '/settings/billing' }
   }
   return true
 })

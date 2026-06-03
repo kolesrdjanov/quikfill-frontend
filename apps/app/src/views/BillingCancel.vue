@@ -7,7 +7,7 @@ const router = useRouter()
 
 onMounted(async () => {
   toast('Checkout canceled — no changes were made.')
-  await router.replace('/billing')
+  await router.replace('/settings/billing')
 })
 </script>
 

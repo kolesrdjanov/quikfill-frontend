@@ -1,7 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { CreditCard, LogOut, Moon, Sun, Users } from 'lucide-vue-next'
+import {
+  ChevronDown,
+  CreditCard,
+  LogOut,
+  Moon,
+  Settings,
+  SlidersHorizontal,
+  Sun,
+  User,
+  Users,
+} from 'lucide-vue-next'
 import { Avatar, Button } from '@quikfill/ui'
 import logoUrl from '@quikfill/assets/logos/quikfill-icon.svg?url'
 import { useAuthStore } from '@/stores/auth'
@@ -12,14 +22,25 @@ const router = useRouter()
 const auth = useAuthStore()
 const { isDark, toggle } = useTheme()
 
-// Trimmed to the billing-only surface. The full dashboard nav (Home, Data,
-// Generators, Apps, Form Profiles, Fill History, Settings) is disabled alongside
-// its routes in `router/index.ts`; restore both together to bring it back.
-const nav = [{ label: 'Billing', to: '/billing', icon: CreditCard }]
-
 // Admin-only nav, rendered in its own section when the user has admin rights.
 // Add future admin screens (e.g. Analytics) here.
 const adminNav = [{ label: 'Beta Users', to: '/admin/beta-users', icon: Users }]
+
+// Settings group, pinned to the bottom block — Billing lives here now. The full
+// dashboard nav (Home, Data, Generators, …) stays disabled alongside its routes
+// in `router/index.ts`; restore both together to bring it back. The group
+// auto-expands while the user is anywhere under /settings/*.
+const settingsNav = [
+  { label: 'Billing', to: '/settings/billing', icon: CreditCard },
+  { label: 'Account', to: '/settings/account', icon: User },
+  { label: 'Configuration', to: '/settings/config', icon: SlidersHorizontal },
+]
+
+const inSettings = computed(() => route.path.startsWith('/settings'))
+const settingsOpen = ref(inSettings.value)
+watch(inSettings, (active) => {
+  if (active) settingsOpen.value = true
+})
 
 function isActive(to: string): boolean {
   if (to === '/') return route.path === '/'
@@ -53,22 +74,6 @@ async function signOut(): Promise<void> {
       </RouterLink>
 
       <nav class="flex flex-col gap-0.5">
-        <RouterLink
-          v-for="item in nav"
-          :key="item.to"
-          :to="item.to"
-          :aria-current="isActive(item.to) ? 'page' : undefined"
-          :class="[
-            'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-            isActive(item.to)
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
-          ]"
-        >
-          <component :is="item.icon" class="size-[18px]" />
-          {{ item.label }}
-        </RouterLink>
-
         <template v-if="auth.user?.isAdmin">
           <div
             class="text-muted-foreground mt-4 mb-1 px-3 text-[11px] font-semibold tracking-wider uppercase"
@@ -94,6 +99,44 @@ async function signOut(): Promise<void> {
       </nav>
 
       <div class="mt-auto flex flex-col gap-0.5 border-t pt-3">
+        <button
+          type="button"
+          :aria-expanded="settingsOpen"
+          aria-controls="settings-subnav"
+          :class="[
+            'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+            inSettings
+              ? 'text-foreground'
+              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+          ]"
+          @click="settingsOpen = !settingsOpen"
+        >
+          <Settings class="size-[18px]" />
+          <span>Settings</span>
+          <ChevronDown
+            class="ml-auto size-4 transition-transform"
+            :class="settingsOpen ? 'rotate-180' : ''"
+          />
+        </button>
+
+        <div v-show="settingsOpen" id="settings-subnav" class="flex flex-col gap-0.5">
+          <RouterLink
+            v-for="item in settingsNav"
+            :key="item.to"
+            :to="item.to"
+            :aria-current="isActive(item.to) ? 'page' : undefined"
+            :class="[
+              'flex items-center gap-3 rounded-lg py-2 pr-3 pl-9 text-sm font-medium transition-colors',
+              isActive(item.to)
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+            ]"
+          >
+            <component :is="item.icon" class="size-[18px]" />
+            {{ item.label }}
+          </RouterLink>
+        </div>
+
         <div class="mt-1 flex items-center gap-2.5 px-1 py-1.5">
           <Avatar :name="displayName" class="size-9" />
           <div class="min-w-0">

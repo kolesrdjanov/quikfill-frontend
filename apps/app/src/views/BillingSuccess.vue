@@ -20,7 +20,7 @@ onMounted(async () => {
   } catch (error) {
     handleError(error)
   } finally {
-    await router.replace('/billing')
+    await router.replace('/settings/billing')
   }
 })
 </script>
