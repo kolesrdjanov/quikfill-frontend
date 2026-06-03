@@ -34,7 +34,7 @@ import { useFormProfilesStore } from '@/stores/formProfiles'
 import { useDomainsStore } from '@/stores/domains'
 import { useApiError } from '@/composables/useApiError'
 import { useFormValidation } from '@/composables/useFormValidation'
-import { formProfileFormSchema, listToLines } from '@/schemas/forms'
+import { formProfileFormSchema, linesToList, listToLines } from '@/schemas/forms'
 import { relativeTime } from '@/lib/format'
 
 const store = useFormProfilesStore()
@@ -108,16 +108,16 @@ const onSubmit = handleSubmit(async (values) => {
     if (editing.value) {
       await store.update(editing.value.id, {
         name: values.name,
-        urlPatterns: values.urlPatterns,
-        pageTitlePatterns: values.pageTitlePatterns,
+        urlPatterns: linesToList(values.urlPatterns),
+        pageTitlePatterns: linesToList(values.pageTitlePatterns),
       })
       toast.success('Profile updated')
     } else {
       await store.create({
         domainId: values.domainId,
         name: values.name,
-        urlPatterns: values.urlPatterns,
-        pageTitlePatterns: values.pageTitlePatterns,
+        urlPatterns: linesToList(values.urlPatterns),
+        pageTitlePatterns: linesToList(values.pageTitlePatterns),
       })
       toast.success('Profile created')
     }

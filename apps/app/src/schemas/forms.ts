@@ -15,26 +15,35 @@ import {
 export const signInEmailSchema = requestMagicLinkInputSchema
 export type SignInEmailValues = z.input<typeof signInEmailSchema>
 
-/** Split a textarea of newline/comma-separated values into a trimmed list. */
-const linesToList = z
-  .string()
-  .optional()
-  .default('')
-  .transform((value) =>
-    value
-      .split(/[\n,]/)
-      .map((entry) => entry.trim())
-      .filter(Boolean),
-  )
-
 /** Join a stored list back into textarea text for editing. */
 export function listToLines(list: string[] | undefined): string {
   return (list ?? []).join('\n')
 }
 
+/**
+ * Split a textarea of newline/comma-separated values into a trimmed, non-empty
+ * list — the inverse of {@link listToLines}, applied in a form's submit handler.
+ *
+ * Deliberately a plain function, NOT a Zod `.transform()` on the form field:
+ * VeeValidate writes a schema's transformed OUTPUT back into the form state and
+ * then re-validates it as INPUT, so a string→array transform fails the second
+ * pass ("Expected string, received array"), leaving the form permanently invalid
+ * and silently blocking submit. Textarea fields therefore stay plain strings in
+ * the form schema and are split here when the form is submitted.
+ */
+export function linesToList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(/[\n,]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+/** A textarea field holding newline/comma-separated values (split via {@link linesToList}). */
+const linesTextarea = z.string().optional().default('')
+
 export const domainFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  hostnames: linesToList,
+  hostnames: linesTextarea,
   description: z.string().optional(),
 })
 export type DomainFormValues = z.input<typeof domainFormSchema>
@@ -42,8 +51,8 @@ export type DomainFormValues = z.input<typeof domainFormSchema>
 export const formProfileFormSchema = z.object({
   domainId: z.string().uuid('Choose an app'),
   name: z.string().min(1, 'Name is required'),
-  urlPatterns: linesToList,
-  pageTitlePatterns: linesToList,
+  urlPatterns: linesTextarea,
+  pageTitlePatterns: linesTextarea,
 })
 export type FormProfileFormValues = z.input<typeof formProfileFormSchema>
 
@@ -68,12 +77,12 @@ export type ProfileFormValues = z.input<typeof profileFormSchema>
 /**
  * Extension-customization form. Mirrors the shared `extensionSettingsSchema`
  * contract, but edits `blockedHostnames` as a newline/comma-separated textarea
- * (the `linesToList` transform splits it back into a trimmed list on submit).
- * The parsed output equals `ExtensionSettings`, so `auth.updateSettings` takes
- * the submitted values directly.
+ * STRING. The submit handler splits it back into a trimmed list with
+ * {@link linesToList} before calling `auth.updateSettings`, so the persisted
+ * value still equals `ExtensionSettings`.
  */
 export const extensionSettingsFormSchema = extensionSettingsSchema.extend({
-  blockedHostnames: linesToList,
+  blockedHostnames: linesTextarea,
 })
 export type ExtensionSettingsFormValues = z.input<typeof extensionSettingsFormSchema>
 

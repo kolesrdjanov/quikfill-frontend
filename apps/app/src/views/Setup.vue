@@ -23,7 +23,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useApiError } from '@/composables/useApiError'
 import { useFormValidation } from '@/composables/useFormValidation'
-import { extensionSettingsFormSchema, listToLines } from '@/schemas/forms'
+import { extensionSettingsFormSchema, linesToList, listToLines } from '@/schemas/forms'
 
 // --- Extension download (manifest-driven) ---
 const manifest = ref<ExtensionManifest | null>(null)
@@ -82,7 +82,7 @@ onMounted(seedConfig)
 
 const onSubmitConfig = handleSubmit(async (values) => {
   try {
-    await auth.updateSettings(values)
+    await auth.updateSettings({ ...values, blockedHostnames: linesToList(values.blockedHostnames) })
     toast.success('Configuration saved')
   } catch (error) {
     handleError(error)

@@ -32,7 +32,7 @@ import {
 import { useDomainsStore } from '@/stores/domains'
 import { useApiError } from '@/composables/useApiError'
 import { useFormValidation } from '@/composables/useFormValidation'
-import { domainFormSchema, listToLines } from '@/schemas/forms'
+import { domainFormSchema, linesToList, listToLines } from '@/schemas/forms'
 
 const store = useDomainsStore()
 const { handleError } = useApiError()
@@ -72,7 +72,7 @@ function openEdit(domain: Domain): void {
 const onSubmit = handleSubmit(async (values) => {
   const input = {
     name: values.name,
-    hostnames: values.hostnames,
+    hostnames: linesToList(values.hostnames),
     description: values.description || undefined,
   }
   try {
