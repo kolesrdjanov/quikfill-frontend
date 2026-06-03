@@ -184,6 +184,29 @@ describe('buildAiFillRequest', () => {
     expect('preferences' in withAuto!).toBe(false)
     expect('preferences' in without!).toBe(false)
   })
+
+  it('forwards the locale preference', () => {
+    const req = buildAiFillRequest({}, [field({ id: 'qf-0', labelText: 'Name' })], {
+      locale: 'en-GB',
+    })
+    expect(req!.preferences).toEqual({ locale: 'en-GB' })
+  })
+
+  it('forwards locale alongside a non-auto dateFormat', () => {
+    const req = buildAiFillRequest({}, [field({ id: 'qf-0', labelText: 'Birthday' })], {
+      locale: 'sr-RS',
+      dateFormat: 'DD/MM/YYYY',
+    })
+    expect(req!.preferences).toEqual({ locale: 'sr-RS', dateFormat: 'DD/MM/YYYY' })
+  })
+
+  it("keeps locale even when dateFormat is 'auto'", () => {
+    const req = buildAiFillRequest({}, [field({ id: 'qf-0', labelText: 'Birthday' })], {
+      locale: 'en-US',
+      dateFormat: 'auto',
+    })
+    expect(req!.preferences).toEqual({ locale: 'en-US' })
+  })
 })
 
 describe('localPickInstructions', () => {

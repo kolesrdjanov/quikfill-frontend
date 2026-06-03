@@ -99,8 +99,8 @@ function toAiFillField(field: DetectedField): AiFillField {
  * round-trip entirely.
  *
  * `preferences` is forwarded only when it carries something the model should act
- * on: a `dateFormat` of `'auto'` (or none) is omitted, so the default wire shape
- * is unchanged and the model keeps deciding the date format itself.
+ * on: the chosen `locale` is always forwarded, while a `dateFormat` of `'auto'`
+ * (or none) is omitted, so callers that pass neither keep the default wire shape.
  */
 export function buildAiFillRequest(
   page: AiFillPageInput,
@@ -110,6 +110,13 @@ export function buildAiFillRequest(
   const fillable = fields.filter(isAiFillableField)
   if (fillable.length === 0) return null
   const dateFormat = preferences?.dateFormat
+  // Forward only the preferences the model should act on: a chosen `locale`, and a
+  // non-`auto` `dateFormat`. Omit `preferences` entirely when neither applies, so
+  // the default wire shape (and existing callers) stay unchanged.
+  const prefs = {
+    ...(preferences?.locale ? { locale: preferences.locale } : {}),
+    ...(dateFormat && dateFormat !== 'auto' ? { dateFormat } : {}),
+  }
   return aiFillRequestSchema.parse({
     page: {
       lang: page.lang?.slice(0, MAX_SUMMARY_TEXT) ?? '',
@@ -117,7 +124,7 @@ export function buildAiFillRequest(
       description: redactText(page.description) ?? '',
     },
     fields: fillable.map(toAiFillField),
-    ...(dateFormat && dateFormat !== 'auto' ? { preferences: { dateFormat } } : {}),
+    ...(Object.keys(prefs).length > 0 ? { preferences: prefs } : {}),
   })
 }
 
