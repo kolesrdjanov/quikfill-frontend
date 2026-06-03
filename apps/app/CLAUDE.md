@@ -62,13 +62,20 @@ Checkout/Portal via `api.subscriptions`. Deferred to a follow-up: the
 
 ## Billing-only deployment (current shape)
 
-This surface is intentionally trimmed to **sign-in + the subscription screen**
-for the `app.quikfill.io` deployment:
+This surface is intentionally trimmed to **sign-in + a small Settings area**
+(Billing, Account, Configuration) for the `app.quikfill.io` deployment:
 
-- The dashboard routes (Home, Data, Generators, Apps, Form Profiles, Fill
-  History, Settings) are **commented out** in [`src/router/index.ts`](src/router/index.ts)
+- The full dashboard routes (Home, Data, Generators, Apps, Form Profiles, Fill
+  History) are **commented out** in [`src/router/index.ts`](src/router/index.ts)
   (not deleted) and dropped from the [`AppLayout`](src/layouts/AppLayout.vue) nav.
-  `/` redirects to `/billing`. Restore by un-commenting both together.
+  Restore by un-commenting both together.
+- **Settings** is a collapsible sidebar group (bottom of `AppLayout`) over
+  `/settings/billing` ([`Billing.vue`](src/views/Billing.vue)),
+  `/settings/account` ([`Account.vue`](src/views/Account.vue), first/last-name
+  form), and `/settings/config` ([`Configuration.vue`](src/views/Configuration.vue),
+  placeholder for CE customization). `/` and the guard fallbacks redirect to
+  `/settings/billing`; `/billing` is kept as a back-compat redirect and the Stripe
+  `/billing/success` · `/billing/cancel` paths are unchanged.
 - **Sign-in access (beta gate):** access control is **backend-enforced** in
   `quikfill-services` — `POST /auth/magic-link` returns `403` for any email that
   isn't an admin (`ADMIN_EMAILS`) or in the `beta_users` allowlist; the sign-in
