@@ -86,7 +86,7 @@ function useDifferentEmail(): void {
 <template>
   <Card>
     <CardHeader class="flex-col items-start gap-1 border-b-0 pb-0">
-      <CardTitle class="text-2xl">Sign in to QuikFill</CardTitle>
+      <CardTitle class="text-2xl">Sign in</CardTitle>
       <CardDescription>
         <template v-if="step === 'email'">
           We'll email you sign-in code — no password required.
