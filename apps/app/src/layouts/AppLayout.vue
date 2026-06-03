@@ -37,7 +37,7 @@ const adminNav = [
 const settingsNav = [
   { label: 'Billing', to: '/settings/billing', icon: CreditCard },
   { label: 'Account', to: '/settings/account', icon: User },
-  { label: 'Configuration', to: '/settings/config', icon: SlidersHorizontal },
+  { label: 'Setup', to: '/settings/setup', icon: SlidersHorizontal },
 ]
 
 const inSettings = computed(() => route.path.startsWith('/settings'))

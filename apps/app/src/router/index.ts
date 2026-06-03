@@ -75,10 +75,15 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Account.vue'),
   },
   {
+    path: '/settings/setup',
+    name: 'settings-setup',
+    meta: { layout: 'app', requiresAuth: true, title: 'Setup' },
+    component: () => import('@/views/Setup.vue'),
+  },
+  // Back-compat: old bookmarks / links to /settings/config.
+  {
     path: '/settings/config',
-    name: 'settings-config',
-    meta: { layout: 'app', requiresAuth: true, title: 'Configuration' },
-    component: () => import('@/views/Configuration.vue'),
+    redirect: '/settings/setup',
   },
   // Back-compat: old bookmarks / links to /billing.
   {
