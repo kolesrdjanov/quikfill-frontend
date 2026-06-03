@@ -451,9 +451,22 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   const onFocusIn = (): void => scheduleScan()
   doc.addEventListener('focusin', onFocusIn, true)
 
-  const onScrollResize = (): void => reposition()
-  win.addEventListener('scroll', onScrollResize, { passive: true, capture: true })
-  win.addEventListener('resize', onScrollResize, { passive: true })
+  // Reposition on scroll/resize, COALESCED to one layout pass per frame. A scroll
+  // fires many events per frame and reposition() reads layout (getBoundingClientRect
+  // + elementFromPoint) per button, so running it raw would force repeated synchronous
+  // layout and could jank a heavy page. requestAnimationFrame collapses a burst into a
+  // single read aligned with the browser's own paint. Both listeners stay `passive`
+  // so they never block scrolling.
+  let repositionRaf: number | undefined
+  const scheduleReposition = (): void => {
+    if (repositionRaf !== undefined) return
+    repositionRaf = win.requestAnimationFrame(() => {
+      repositionRaf = undefined
+      reposition()
+    })
+  }
+  win.addEventListener('scroll', scheduleReposition, { passive: true, capture: true })
+  win.addEventListener('resize', scheduleReposition, { passive: true })
 
   // Modals/drawers that "close on outside click" treat an event on our button —
   // which lives in a host on <html>, outside their subtree — as an outside click
@@ -510,8 +523,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       if (debounce) win.clearTimeout(debounce)
       doc.removeEventListener('focusin', onFocusIn, true)
       for (const type of SWALLOWED) win.removeEventListener(type, swallowFromHost, true)
-      win.removeEventListener('scroll', onScrollResize, { capture: true } as EventListenerOptions)
-      win.removeEventListener('resize', onScrollResize)
+      if (repositionRaf !== undefined) win.cancelAnimationFrame(repositionRaf)
+      win.removeEventListener('scroll', scheduleReposition, {
+        capture: true,
+      } as EventListenerOptions)
+      win.removeEventListener('resize', scheduleReposition)
       unsubscribeEntitlements()
       unsubscribeSettings()
       host.remove()
