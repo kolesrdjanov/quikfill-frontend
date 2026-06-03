@@ -69,8 +69,6 @@ const summary = computed(() => {
         ? `${SIZE_LABEL[s.buttonSize]} · ${POSITION_LABEL[s.buttonPosition]}`
         : 'Hidden',
     },
-    { label: 'Payment fields', value: s.fillPaymentFields ? 'Allowed' : 'Skipped' },
-    { label: 'Government IDs', value: s.fillGovernmentIdFields ? 'Allowed' : 'Skipped' },
     { label: 'Blocked sites', value: String(s.blockedHostnames.length) },
   ]
 })

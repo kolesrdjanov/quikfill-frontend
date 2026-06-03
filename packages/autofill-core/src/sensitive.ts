@@ -1,10 +1,10 @@
 import type { DetectedField } from '@quikfill/schemas'
 
 /**
- * Sensitive field categories the extension gates on. `password` and `otp` are
- * **never** filled (no user setting — QuikFill is not a password manager).
- * `payment` and `governmentId` are filled only when the user opts in
- * (`fillPaymentFields` / `fillGovernmentIdFields`).
+ * Sensitive field categories: `password` / `otp` (most sensitive) and `payment` /
+ * `governmentId` (card / government-ID fields). The in-page overlay no longer
+ * gates on these (every field is sent); kept as a pure classifier for reuse if
+ * field-level gating is reintroduced.
  */
 export type SensitiveCategory = 'password' | 'otp' | 'payment' | 'governmentId'
 

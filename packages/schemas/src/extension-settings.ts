@@ -38,9 +38,6 @@ export const extensionSettingsSchema = z.object({
   // Activation
   globalEnabled: z.boolean(),
   blockedHostnames: z.array(z.string()),
-  // Safety — sensitive fields (passwords/OTP are always skipped, no toggle)
-  fillPaymentFields: z.boolean(),
-  fillGovernmentIdFields: z.boolean(),
   // Generated-data preferences
   locale: extensionLocaleSchema,
   dateFormat: dateFormatSchema,
@@ -57,8 +54,6 @@ export type ExtensionSettings = z.infer<typeof extensionSettingsSchema>
 export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
   globalEnabled: true,
   blockedHostnames: [],
-  fillPaymentFields: false,
-  fillGovernmentIdFields: false,
   locale: 'en-US',
   dateFormat: 'auto',
   hideValuesByDefault: false,

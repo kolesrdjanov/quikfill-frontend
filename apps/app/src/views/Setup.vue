@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Download, ShieldCheck } from 'lucide-vue-next'
+import { Download } from 'lucide-vue-next'
 import {
   Badge,
   Button,
@@ -53,8 +53,6 @@ const { handleSubmit, defineField, errors, isSubmitting, resetForm } = useFormVa
 
 const [globalEnabled] = defineField('globalEnabled')
 const [blockedHostnames, blockedHostnamesAttrs] = defineField('blockedHostnames')
-const [fillPaymentFields] = defineField('fillPaymentFields')
-const [fillGovernmentIdFields] = defineField('fillGovernmentIdFields')
 const [locale] = defineField('locale')
 const [dateFormat] = defineField('dateFormat')
 const [hideValuesByDefault] = defineField('hideValuesByDefault')
@@ -170,50 +168,6 @@ const onSubmitConfig = handleSubmit(
             <p v-if="errors.blockedHostnames" class="text-destructive mt-1.5 text-xs">
               {{ errors.blockedHostnames }}
             </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Sensitive fields</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-5">
-          <p
-            class="bg-muted/50 text-muted-foreground flex items-start gap-2 rounded-lg p-3 text-sm"
-          >
-            <ShieldCheck class="text-primary mt-0.5 size-4 shrink-0" />
-            <span>Passwords and one-time / 2FA codes are <strong>never</strong> filled.</span>
-          </p>
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <Label for="fill-payment">Allow filling payment &amp; card fields</Label>
-              <p class="text-muted-foreground text-xs">Card number, expiry, CVV. Off by default.</p>
-              <p v-if="errors.fillPaymentFields" class="text-destructive mt-1.5 text-xs">
-                {{ errors.fillPaymentFields }}
-              </p>
-            </div>
-            <Switch
-              id="fill-payment"
-              v-model="fillPaymentFields"
-              aria-label="Allow filling payment and card fields"
-              :aria-invalid="!!errors.fillPaymentFields"
-            />
-          </div>
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <Label for="fill-govid">Allow filling government IDs</Label>
-              <p class="text-muted-foreground text-xs">SSN, tax ID, passport. Off by default.</p>
-              <p v-if="errors.fillGovernmentIdFields" class="text-destructive mt-1.5 text-xs">
-                {{ errors.fillGovernmentIdFields }}
-              </p>
-            </div>
-            <Switch
-              id="fill-govid"
-              v-model="fillGovernmentIdFields"
-              aria-label="Allow filling government ID fields"
-              :aria-invalid="!!errors.fillGovernmentIdFields"
-            />
           </div>
         </CardContent>
       </Card>
