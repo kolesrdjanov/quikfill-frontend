@@ -34,7 +34,7 @@ import MessageScreen from './MessageScreen.vue'
 import OtpInput from './OtpInput.vue'
 import AuthStatusBadge from './AuthStatusBadge.vue'
 import { useAuthGate } from '../../lib/useAuthGate'
-import { DASHBOARD_URL, WEB_STORE_URL } from '../../lib/external-urls'
+import { DASHBOARD_URL, SUPPORT_MAILTO, WEB_STORE_URL } from '../../lib/external-urls'
 
 // External recovery destinations. The dashboard origin is build-time (prod →
 // deployed app, dev → local Vite) via lib/external-urls, so a prod build never
@@ -437,7 +437,7 @@ function closePanel(): void {
           <RotateCw class="size-4" />
           Try again
         </Button>
-        <Button variant="ghost" size="sm" class="w-full" @click="openTab(HELP_URL)">
+        <Button variant="ghost" size="sm" class="w-full" @click="openTab(SUPPORT_MAILTO)">
           <LifeBuoy class="size-4" />
           Contact support
         </Button>

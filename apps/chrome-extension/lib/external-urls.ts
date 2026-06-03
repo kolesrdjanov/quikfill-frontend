@@ -11,3 +11,7 @@ export const DASHBOARD_URL = import.meta.env.PROD
 
 /** Chrome Web Store listing (stable across environments). */
 export const WEB_STORE_URL = 'https://chrome.google.com/webstore'
+
+/** Support inbox, surfaced as a `mailto:` deep-link across the extension UI. */
+export const SUPPORT_EMAIL = 'support@quikfill.io'
+export const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`

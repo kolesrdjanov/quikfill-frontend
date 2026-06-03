@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
-import { ArrowUpRight, LogOut } from 'lucide-vue-next'
+import { ArrowUpRight, LogOut, Mail } from 'lucide-vue-next'
 import { Badge, Button } from '@quikfill/ui'
 import BrandLockup from '../../components/BrandLockup.vue'
 import AuthPanel from '../../components/auth/AuthPanel.vue'
+import { SUPPORT_MAILTO } from '../../lib/external-urls'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
 import { useEntitlements } from '../../lib/useEntitlements'
@@ -109,6 +110,14 @@ function openDashboard() {
       <p class="text-muted-foreground px-1 text-center text-[11px] leading-snug">
         Fill happens on the page — look for the QuikFill button near each form.
       </p>
+
+      <a
+        :href="SUPPORT_MAILTO"
+        class="text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 text-[11px] transition-colors"
+      >
+        <Mail class="size-3.5" />
+        Contact support
+      </a>
     </div>
   </div>
 </template>

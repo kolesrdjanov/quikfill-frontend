@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CreditCard,
   LogOut,
+  Mail,
   Moon,
   Settings,
   SlidersHorizontal,
@@ -139,6 +140,14 @@ async function signOut(): Promise<void> {
             {{ item.label }}
           </RouterLink>
         </div>
+
+        <a
+          href="mailto:support@quikfill.io"
+          class="text-sidebar-foreground hover:bg-muted hover:text-foreground flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
+        >
+          <Mail class="size-[18px]" />
+          Contact support
+        </a>
 
         <div class="mt-1 flex items-center gap-2.5 px-1 py-1.5">
           <Avatar :name="displayName" class="size-9" />
