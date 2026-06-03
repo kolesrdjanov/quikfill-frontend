@@ -14,6 +14,8 @@ export const userAccountSchema = z.object({
   lastName: z.string().nullable().optional(),
   emailVerifiedAt: isoDateTime.nullable().optional(),
   createdAt: isoDateTime.optional(),
+  /** Admin rights (from backend ADMIN_EMAILS). Absent for pre-auth local accounts. */
+  isAdmin: z.boolean().optional(),
 })
 
 export type UserAccount = z.infer<typeof userAccountSchema>

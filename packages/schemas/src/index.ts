@@ -1,5 +1,6 @@
 export * from './common'
 export * from './user'
+export * from './beta-user'
 export * from './auth'
 export * from './subscription'
 export * from './plan-catalog'

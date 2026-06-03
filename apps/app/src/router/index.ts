@@ -80,6 +80,14 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/BillingCancel.vue'),
   },
   {
+    // Admin-only. The full admin area (analytics, etc.) hangs off /admin/*; only
+    // Beta Users exists today. Guarded by requiresAdmin in the navigation guard.
+    path: '/admin/beta-users',
+    name: 'admin-beta-users',
+    meta: { layout: 'app', requiresAuth: true, requiresAdmin: true, title: 'Beta Users' },
+    component: () => import('@/views/AdminBetaUsers.vue'),
+  },
+  {
     path: '/sign-in',
     name: 'sign-in',
     meta: { layout: 'auth', title: 'Sign in' },
@@ -104,6 +112,10 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'sign-in', query: to.fullPath === '/' ? undefined : { redirect: to.fullPath } }
+  }
+  // Admin-only routes fall back to billing for signed-in non-admins.
+  if (to.meta.requiresAdmin && !auth.user?.isAdmin) {
+    return { path: '/billing' }
   }
   if (to.name === 'sign-in' && auth.isAuthenticated) {
     return { path: '/billing' }

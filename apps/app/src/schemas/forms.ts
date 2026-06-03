@@ -5,18 +5,13 @@ import {
   requestMagicLinkInputSchema,
   seedModeSchema,
 } from '@quikfill/schemas'
-import { isEmailAllowed } from '@/lib/allowed-users'
 
 /**
- * Sign-in email step — the shared magic-link contract plus a soft allowlist gate
- * (see `lib/allowed-users.ts`). The refinement targets the `email` path so the
- * message renders inline under the field. When no allowlist is configured the
- * refinement is a no-op.
+ * Sign-in email step — just the shared magic-link contract. Access is enforced by
+ * the backend beta gate (quikfill-services), which returns a 403 with a message
+ * the sign-in screen surfaces via `useApiError`; there is no client-side allowlist.
  */
-export const signInEmailSchema = requestMagicLinkInputSchema.refine(
-  (values) => isEmailAllowed(values.email),
-  { path: ['email'], message: "This email doesn't have access yet." },
-)
+export const signInEmailSchema = requestMagicLinkInputSchema
 export type SignInEmailValues = z.input<typeof signInEmailSchema>
 
 /** Split a textarea of newline/comma-separated values into a trimmed list. */

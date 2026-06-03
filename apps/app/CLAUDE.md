@@ -69,11 +69,13 @@ for the `app.quikfill.io` deployment:
   History, Settings) are **commented out** in [`src/router/index.ts`](src/router/index.ts)
   (not deleted) and dropped from the [`AppLayout`](src/layouts/AppLayout.vue) nav.
   `/` redirects to `/billing`. Restore by un-commenting both together.
-- **Sign-in allowlist:** the email step is gated by `ALLOWED_USERS` (semicolon-
-  separated, [`src/lib/allowed-users.ts`](src/lib/allowed-users.ts) +
-  `signInEmailSchema`). It's a **soft UX gate only** — the list ships in the
-  bundle and the backend still serves any valid session, so real access control
-  must live in `quikfill-services`. Empty/unset => open.
+- **Sign-in access (beta gate):** access control is **backend-enforced** in
+  `quikfill-services` — `POST /auth/magic-link` returns `403` for any email that
+  isn't an admin (`ADMIN_EMAILS`) or in the `beta_users` allowlist; the sign-in
+  screen surfaces that message via `useApiError`. Admins manage the allowlist from
+  **Admin → Beta Users** (`/admin/beta-users`, see [`views/AdminBetaUsers.vue`](src/views/AdminBetaUsers.vue)).
+  The old client-side `ALLOWED_USERS` allowlist has been removed. `isAdmin` comes
+  from `GET /users/me` and gates the admin route + nav (`requiresAdmin`).
 
 ## Deploying (Cloudflare Worker — `app-quikfill`)
 
@@ -103,9 +105,8 @@ pnpm --filter @quikfill/app run deploy:dry-run  # validate config + bundle, no u
 ```
 
 - **Build env:** baked in at build time from committed [`.env.production`](.env.production)
-  (`vite build` always runs in production mode) — `VITE_QF_API_BASE_URL` +
-  `ALLOWED_USERS`. Only `VITE_*` and `ALLOWED_USERS` reach the bundle (see
-  `vite.config.ts` `envPrefix`).
+  (`vite build` always runs in production mode) — `VITE_QF_API_BASE_URL`. Only
+  `VITE_*` vars reach the bundle (see `vite.config.ts` `envPrefix`).
 - **SPA routing:** `assets.not_found_handling: "single-page-application"` in
   `wrangler.jsonc` serves `index.html` for non-asset paths (deep links / reloads).
   Security headers (CSP) ship via [`public/_headers`](public/_headers) — Workers

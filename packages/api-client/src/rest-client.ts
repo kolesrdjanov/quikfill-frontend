@@ -1,5 +1,7 @@
 import {
   authTokensSchema,
+  betaUserSchema,
+  inviteBetaUserInputSchema,
   createDomainInputSchema,
   createEntityRecordInputSchema,
   createEntityTypeInputSchema,
@@ -25,6 +27,8 @@ import {
 } from '@quikfill/schemas'
 import type {
   AuthTokens,
+  BetaUser,
+  InviteBetaUserInput,
   CreateDomainInput,
   CreateEntityRecordInput,
   CreateEntityTypeInput,
@@ -69,6 +73,14 @@ export interface ApiClient {
   users: {
     me(signal?: AbortSignal): Promise<UserAccount>
     updateMe(input: UpdateProfileInput, signal?: AbortSignal): Promise<UserAccount>
+  }
+  admin: {
+    /** List the beta-access allowlist (admin only). */
+    listBetaUsers(signal?: AbortSignal): Promise<BetaUser[]>
+    /** Invite an email to the beta (admin only). Idempotent. */
+    inviteBetaUser(input: InviteBetaUserInput, signal?: AbortSignal): Promise<BetaUser>
+    /** Remove an email from the beta allowlist (admin only). */
+    removeBetaUser(id: string, signal?: AbortSignal): Promise<void>
   }
   entityTypes: {
     list(signal?: AbortSignal): Promise<EntityType[]>
@@ -175,6 +187,17 @@ export function createApiClient(config: RestClientConfig): ApiClient {
       me: (signal) => rest.get('/users/me', { schema: userAccountSchema, signal }),
       updateMe: (input, signal) =>
         rest.patch('/users/me', input, { schema: userAccountSchema, signal }),
+    },
+
+    admin: {
+      listBetaUsers: (signal) =>
+        rest.get('/admin/beta-users', { schema: betaUserSchema.array(), signal }),
+      inviteBetaUser: (input, signal) =>
+        rest.post('/admin/beta-users', inviteBetaUserInputSchema.parse(input), {
+          schema: betaUserSchema,
+          signal,
+        }),
+      removeBetaUser: (id, signal) => rest.del(`/admin/beta-users/${id}`, { signal }),
     },
 
     entityTypes: {

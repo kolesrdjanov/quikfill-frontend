@@ -6,11 +6,10 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
-  // Expose `VITE_*` (e.g. VITE_QF_API_BASE_URL) plus the literal `ALLOWED_USERS`
-  // var to client code via `import.meta.env`. `ALLOWED_USERS` is a soft sign-in
-  // allowlist (see src/lib/allowed-users.ts) — non-secret, so shipping it in the
-  // bundle is acceptable.
-  envPrefix: ['VITE_', 'ALLOWED_USERS'],
+  // Expose `VITE_*` (e.g. VITE_QF_API_BASE_URL) to client code via
+  // `import.meta.env`. Sign-in access control lives in the backend beta gate, so
+  // there is no longer a client-side allowlist env var to expose.
+  envPrefix: ['VITE_'],
   server: {
     // Pinned to 5173: the backend only allows this origin via CORS. `/api/*` is
     // proxied to the NestJS app (global prefix `/api/v1`), which sidesteps CORS
