@@ -73,8 +73,7 @@ function utilizationTint(pct: number | undefined): string {
   if (value >= 60) return 'bg-warning'
   return 'bg-primary'
 }
-function marginVariant(margin: number | undefined): 'success' | 'danger' | 'gray' {
-  if (margin === undefined) return 'gray'
+function marginVariant(margin: number): 'success' | 'danger' {
   return margin >= 0 ? 'success' : 'danger'
 }
 </script>
@@ -163,10 +162,10 @@ function marginVariant(margin: number | undefined): 'success' | 'danger' | 'gray
             <div class="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
               <TrendingUp class="size-3.5" /> Net margin
             </div>
-            <div class="text-2xl font-bold">
-              {{ isMonth ? formatUsdCents(overview.netMarginUsdCents) : '—' }}
+            <div class="text-2xl font-bold">{{ formatUsdCents(overview.netMarginUsdCents) }}</div>
+            <div class="text-muted-foreground text-xs">
+              {{ isMonth ? 'revenue − est. cost' : 'MRR − lifetime cost' }}
             </div>
-            <div class="text-muted-foreground text-xs">revenue − est. cost</div>
           </CardContent>
         </Card>
       </div>
@@ -277,13 +276,9 @@ function marginVariant(margin: number | undefined): 'success' | 'danger' | 'gray
                 </TableCell>
                 <TableCell>{{ formatUsdCents(row.estCostUsdCents) }}</TableCell>
                 <TableCell>
-                  <Badge
-                    v-if="isMonth && row.marginUsdCents !== undefined"
-                    :variant="marginVariant(row.marginUsdCents)"
-                  >
+                  <Badge :variant="marginVariant(row.marginUsdCents)">
                     {{ formatUsdCents(row.marginUsdCents) }}
                   </Badge>
-                  <span v-else class="text-muted-foreground text-xs">—</span>
                 </TableCell>
               </TableRow>
             </TableBody>

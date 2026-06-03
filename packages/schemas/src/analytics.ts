@@ -50,7 +50,7 @@ export const analyticsOverviewSchema = z.object({
   totalTokens: z.number(),
   estCostUsdCents: z.number(),
   monthlyRevenueUsdCents: z.number(),
-  netMarginUsdCents: nullableOptional(z.number()),
+  netMarginUsdCents: z.number(),
 })
 
 export const analyticsEndpointSchema = z.object({
@@ -72,7 +72,7 @@ export const analyticsUserRowSchema = z.object({
   tokens: z.number(),
   estCostUsdCents: z.number(),
   utilizationPercent: nullableOptional(z.number()),
-  marginUsdCents: nullableOptional(z.number()),
+  marginUsdCents: z.number(),
   createdAt: isoDateTime,
 })
 

@@ -46,18 +46,19 @@ describe('analyticsResponseSchema', () => {
     expect(analyticsResponseSchema.parse(valid).users).toHaveLength(1)
   })
 
-  it('normalizes null nullable fields to undefined (all_time)', () => {
+  it('normalizes null nullable fields to undefined (all_time) but keeps margin', () => {
     const allTime = {
       ...valid,
       period: 'all_time',
       periodStart: null,
-      overview: { ...valid.overview, netMarginUsdCents: null },
-      users: [{ ...valid.users[0], utilizationPercent: null, marginUsdCents: null }],
+      // margin is present in both windows; only periodStart + utilization go null
+      users: [{ ...valid.users[0], utilizationPercent: null }],
     }
     const parsed = analyticsResponseSchema.parse(allTime)
     expect(parsed.periodStart).toBeUndefined()
-    expect(parsed.overview.netMarginUsdCents).toBeUndefined()
     expect(parsed.users[0].utilizationPercent).toBeUndefined()
+    expect(parsed.overview.netMarginUsdCents).toBe(valid.overview.netMarginUsdCents)
+    expect(parsed.users[0].marginUsdCents).toBe(valid.users[0].marginUsdCents)
   })
 
   it('rejects a malformed response', () => {
