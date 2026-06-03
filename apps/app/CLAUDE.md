@@ -83,6 +83,11 @@ This surface is intentionally trimmed to **sign-in + a small Settings area**
   **Admin → Beta Users** (`/admin/beta-users`, see [`views/AdminBetaUsers.vue`](src/views/AdminBetaUsers.vue)).
   The old client-side `ALLOWED_USERS` allowlist has been removed. `isAdmin` comes
   from `GET /users/me` and gates the admin route + nav (`requiresAdmin`).
+- **Admin → Analytics** (`/admin/analytics`, see [`views/AdminAnalytics.vue`](src/views/AdminAnalytics.vue)):
+  usage/tokens/estimated-cost/margin across all users (overall + sortable per-user
+  table, This month / All time), backed by `GET /admin/analytics` and the
+  `useAnalyticsStore`. Cost is an estimate; the backend prices tokens at the
+  configured Gemini model's env-overridable rate.
 
 ## Deploying (Cloudflare Worker — `app-quikfill`)
 

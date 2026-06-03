@@ -98,8 +98,14 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/BillingCancel.vue'),
   },
   {
-    // Admin-only. The full admin area (analytics, etc.) hangs off /admin/*; only
-    // Beta Users exists today. Guarded by requiresAdmin in the navigation guard.
+    // Admin-only. The admin area hangs off /admin/*. Guarded by requiresAdmin in
+    // the navigation guard.
+    path: '/admin/analytics',
+    name: 'admin-analytics',
+    meta: { layout: 'app', requiresAuth: true, requiresAdmin: true, title: 'Analytics' },
+    component: () => import('@/views/AdminAnalytics.vue'),
+  },
+  {
     path: '/admin/beta-users',
     name: 'admin-beta-users',
     meta: { layout: 'app', requiresAuth: true, requiresAdmin: true, title: 'Beta Users' },

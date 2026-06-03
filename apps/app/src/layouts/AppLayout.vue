@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
+  BarChart3,
   ChevronDown,
   CreditCard,
   LogOut,
@@ -23,8 +24,10 @@ const auth = useAuthStore()
 const { isDark, toggle } = useTheme()
 
 // Admin-only nav, rendered in its own section when the user has admin rights.
-// Add future admin screens (e.g. Analytics) here.
-const adminNav = [{ label: 'Beta Users', to: '/admin/beta-users', icon: Users }]
+const adminNav = [
+  { label: 'Analytics', to: '/admin/analytics', icon: BarChart3 },
+  { label: 'Beta Users', to: '/admin/beta-users', icon: Users },
+]
 
 // Settings group, pinned to the bottom block — Billing lives here now. The full
 // dashboard nav (Home, Data, Generators, …) stays disabled alongside its routes
