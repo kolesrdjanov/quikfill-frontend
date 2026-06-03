@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { dateFormatSchema } from './extension-settings'
+import { dateFormatSchema, extensionLocaleSchema } from './extension-settings'
 
 /**
  * Page-level globals sent with an `/ai/fill` request. Minimal, non-identifying
@@ -49,6 +49,8 @@ export type AiFillField = z.infer<typeof aiFillFieldSchema>
 export const aiFillPreferencesSchema = z.object({
   /** Preferred format for free-text date fields. Omit (or 'auto') to let the model decide. */
   dateFormat: dateFormatSchema.optional(),
+  /** Locale that drives generated data language + regional shape. Backend defaults to en-US. */
+  locale: extensionLocaleSchema.optional(),
 })
 export type AiFillPreferences = z.infer<typeof aiFillPreferencesSchema>
 
