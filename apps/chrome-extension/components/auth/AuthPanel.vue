@@ -446,7 +446,7 @@ function closePanel(): void {
       <template v-else-if="gate.screen.value === 'subscription'">
         <Button class="w-full" @click="openTab(DASHBOARD_BILLING_URL)">
           <ExternalLink class="size-4" />
-          Manage subscription
+          Go to Dashboard
         </Button>
         <Button variant="outline" size="sm" class="w-full" @click="gate.showSignIn()">
           <RefreshCw class="size-4" />
