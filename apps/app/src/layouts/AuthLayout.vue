@@ -6,7 +6,7 @@ import logoUrl from '@quikfill/assets/logos/quikfill-icon.svg?url'
 <template>
   <div class="bg-surface flex min-h-screen flex-col items-center justify-center px-4 py-10">
     <RouterLink
-      to="/"
+      to="https://quikfill.io"
       class="mb-8 flex items-center gap-2.5 text-[19px] font-extrabold tracking-tight"
     >
       <img :src="logoUrl" alt="" class="size-8" />
