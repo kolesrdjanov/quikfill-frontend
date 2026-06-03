@@ -16,7 +16,7 @@ const model = defineModel<T>()
       v-model="model"
       :class="
         cn(
-          'border-input bg-card text-foreground focus:border-primary aria-[invalid=true]:border-destructive h-11 w-full appearance-none rounded-lg border pr-9 pl-3.5 text-sm transition-colors focus:shadow-[var(--shadow-focus)] focus:outline-none',
+          'border-input bg-card text-foreground focus:border-primary aria-[invalid=true]:border-destructive h-9 w-full appearance-none rounded-lg border pr-9 pl-3.5 text-sm transition-colors focus:shadow-[var(--shadow-focus)] focus:outline-none',
           props.class,
         )
       "

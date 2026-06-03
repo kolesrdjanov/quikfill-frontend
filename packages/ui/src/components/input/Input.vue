@@ -10,7 +10,7 @@ const model = defineModel<T>()
 const slots = useSlots()
 
 const base =
-  'h-11 w-full rounded-lg border border-input bg-card px-3.5 text-sm text-foreground transition-colors placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:shadow-[var(--shadow-focus)] disabled:cursor-not-allowed disabled:bg-muted aria-[invalid=true]:border-destructive'
+  'h-9 w-full rounded-lg border border-input bg-card px-3.5 text-sm text-foreground transition-colors placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:shadow-[var(--shadow-focus)] disabled:cursor-not-allowed disabled:bg-muted aria-[invalid=true]:border-destructive'
 </script>
 
 <template>

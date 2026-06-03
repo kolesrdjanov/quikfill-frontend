@@ -18,10 +18,10 @@ export const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        // default matches the Input control height (h-11) so an input + button
-        // sit flush in the same row. sm/icon stay compact for dense table rows
-        // and toolbars; lg stays one step above the default.
-        default: 'h-11 px-4 py-2 has-[>svg]:px-3',
+        // default matches the Input/Select control height (h-9) — and the icon
+        // size — so an input + button sit flush in the same row. sm stays
+        // compact for dense table rows and toolbars; lg is for prominent CTAs.
+        default: 'h-9 px-4 py-2 has-[>svg]:px-3',
         sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5',
         lg: 'h-12 rounded-md px-6 has-[>svg]:px-4',
         icon: 'size-9',
