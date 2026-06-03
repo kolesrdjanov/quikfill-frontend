@@ -293,11 +293,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // Custom selects are picked locally (random, from the probed options) — only
     // the remaining fields (text inputs, native selects, datepickers) need the AI.
     const localPicks = localPickInstructions(fields)
-    const request = buildAiFillRequest(
-      pageGlobals(doc),
-      fields,
-      settings.dateFormat === 'auto' ? undefined : { dateFormat: settings.dateFormat },
-    )
+    const request = buildAiFillRequest(pageGlobals(doc), fields, {
+      locale: settings.locale,
+      dateFormat: settings.dateFormat,
+    })
     if (!request) {
       // Nothing for the AI (a form of only dropdowns) — apply the local picks.
       await applyInstructions(button, localPicks)

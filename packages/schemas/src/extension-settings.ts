@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-/** Value-generator locale. Drives generated names/addresses/phones. */
+/** Value-generator locale. Sent with /ai/fill; drives generated language, names, addresses, phones. */
 export const extensionLocaleSchema = z.enum(['en-US', 'en-GB', 'sr-RS'])
 export type ExtensionLocale = z.infer<typeof extensionLocaleSchema>
 
