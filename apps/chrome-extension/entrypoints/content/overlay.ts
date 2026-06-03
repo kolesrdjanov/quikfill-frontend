@@ -172,8 +172,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       if (!groupRoot) continue
       // Fillable fields = native inputs + detected custom selects. A form must clear
       // the MIN_FILLABLE_FIELDS floor (qualifiesForFill) to earn a button: this skips
-      // button-only forms (0), single-input search boxes (1), and 2-input forms
-      // (incl. email+password logins) so we only decorate substantial forms.
+      // button-only forms (0) and single-input search boxes (1). The floor is 2, so a
+      // multi-step / accordion form whose first open step shows just two inputs still
+      // earns a button (email+password logins qualify too — accepted tradeoff).
       const fillableIds = form.fieldIds.filter((id) => {
         const f = fieldById.get(id)
         return f ? isFillableField(f) : false

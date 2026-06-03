@@ -8,9 +8,11 @@
  */
 
 /** Minimum fillable fields (native inputs + driveable custom selects) a grouped form
- * needs before it earns an action. Floors out button-only (0), single-input search
- * boxes (1), and 2-input forms incl. email+password logins. */
-export const MIN_FILLABLE_FIELDS = 3
+ * needs before it earns an action. Floors out button-only (0) and single-input
+ * search boxes (1). Set to 2 so multi-step / accordion forms whose first visible
+ * step exposes only two inputs still earn a button (the tradeoff: 2-input forms
+ * such as email+password logins now qualify too). */
+export const MIN_FILLABLE_FIELDS = 2
 
 /** True when a form has enough fillable fields to be worth offering a fill. */
 export function qualifiesForFill(fillableFieldCount: number): boolean {

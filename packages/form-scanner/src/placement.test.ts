@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { isOccludingHit, MIN_FILLABLE_FIELDS, qualifiesForFill } from './placement'
 
 describe('qualifiesForFill', () => {
-  it('rejects forms with fewer than 3 fillable fields', () => {
+  it('rejects forms with fewer than 2 fillable fields', () => {
     expect(qualifiesForFill(0)).toBe(false)
     expect(qualifiesForFill(1)).toBe(false)
-    expect(qualifiesForFill(2)).toBe(false)
   })
 
-  it('accepts forms with 3 or more fillable fields', () => {
+  it('accepts forms with 2 or more fillable fields', () => {
+    expect(qualifiesForFill(2)).toBe(true)
     expect(qualifiesForFill(3)).toBe(true)
     expect(qualifiesForFill(4)).toBe(true)
     expect(qualifiesForFill(MIN_FILLABLE_FIELDS)).toBe(true)
