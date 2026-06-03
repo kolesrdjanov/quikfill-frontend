@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isoDateTime, uuid } from './common'
+import { DEFAULT_EXTENSION_SETTINGS, extensionSettingsSchema } from './extension-settings'
 
 /**
  * A user account. Pre-auth, the extension/app use an implicit local account
@@ -16,6 +17,12 @@ export const userAccountSchema = z.object({
   createdAt: isoDateTime.optional(),
   /** Admin rights (from backend ADMIN_EMAILS). Absent for pre-auth local accounts. */
   isAdmin: z.boolean().optional(),
+  /**
+   * Dashboard-managed extension customization. The backend always sends a full,
+   * defaulted object; `.catch` keeps older sessions / pre-auth local accounts
+   * resilient by falling back to the canonical defaults.
+   */
+  extensionSettings: extensionSettingsSchema.catch(DEFAULT_EXTENSION_SETTINGS).optional(),
 })
 
 export type UserAccount = z.infer<typeof userAccountSchema>

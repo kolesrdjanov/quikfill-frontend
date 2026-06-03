@@ -29,25 +29,70 @@ export const themePrefSchema = z.enum(['light', 'auto', 'dark'])
 export type ThemePref = z.infer<typeof themePrefSchema>
 
 /**
- * User-controlled extension preferences. Persisted local-first behind the
- * `StorageAdapter`; parse untrusted storage through this schema before trusting
- * it (`.catch(DEFAULT_EXTENSION_SETTINGS)` on hydration).
+ * Preferred date format for AI-proposed / generated dates. `auto` lets the
+ * locale + the field's own picker decide (the existing behaviour).
+ */
+export const dateFormatSchema = z.enum(['auto', 'MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'])
+export type DateFormatPref = z.infer<typeof dateFormatSchema>
+
+/** Resting size of the in-page Fill button. */
+export const buttonSizeSchema = z.enum(['sm', 'md', 'lg'])
+export type ButtonSizePref = z.infer<typeof buttonSizeSchema>
+
+/** Corner the in-page Fill button anchors to, relative to each form. */
+export const buttonPositionSchema = z.enum(['bottom-right', 'bottom-left', 'top-right', 'top-left'])
+export type ButtonPositionPref = z.infer<typeof buttonPositionSchema>
+
+/**
+ * User-controlled extension preferences. The dashboard is the source of truth:
+ * the extension hydrates these from the backend (via `GET /users/me`) into the
+ * local `StorageAdapter`, and reads them here. Parse untrusted storage through
+ * this schema before trusting it (`.catch(DEFAULT_EXTENSION_SETTINGS)` on
+ * hydration). All fields are kept **flat** so the shallow `{...DEFAULT, ...raw}`
+ * merge in `useSettings` still upgrades older/partial payloads correctly.
+ *
+ * Passwords and one-time codes are intentionally **never** fillable and carry no
+ * field — see `classifySensitive` in `@quikfill/autofill-core`.
  */
 export const extensionSettingsSchema = z.object({
+  // Activation
+  globalEnabled: z.boolean(),
+  blockedHostnames: z.array(z.string()),
+  // Safety — sensitive fields (passwords/OTP are always skipped, no toggle)
+  fillPaymentFields: z.boolean(),
+  fillGovernmentIdFields: z.boolean(),
+  // Fill behaviour
   defaultFillSource: defaultFillSourceSchema,
   autoMatchProfiles: z.boolean(),
-  hideValuesByDefault: z.boolean(),
   aiEnabled: z.boolean(),
+  skipFilledFields: z.boolean(),
+  // Generated-data preferences
   locale: extensionLocaleSchema,
+  dateFormat: dateFormatSchema,
+  // Privacy & display
+  hideValuesByDefault: z.boolean(),
   theme: themePrefSchema,
+  // Appearance — the in-page Fill button
+  showFillButton: z.boolean(),
+  buttonSize: buttonSizeSchema,
+  buttonPosition: buttonPositionSchema,
 })
 export type ExtensionSettings = z.infer<typeof extensionSettingsSchema>
 
 export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
+  globalEnabled: true,
+  blockedHostnames: [],
+  fillPaymentFields: false,
+  fillGovernmentIdFields: false,
   defaultFillSource: 'hybrid',
   autoMatchProfiles: true,
-  hideValuesByDefault: false,
   aiEnabled: true,
+  skipFilledFields: false,
   locale: 'en-US',
+  dateFormat: 'auto',
+  hideValuesByDefault: false,
   theme: 'auto',
+  showFillButton: true,
+  buttonSize: 'md',
+  buttonPosition: 'bottom-right',
 }

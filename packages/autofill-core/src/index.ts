@@ -38,3 +38,4 @@ export {
   SENSITIVE_SEMANTIC_TYPES,
   type SourcePolicyInput,
 } from './source-policy'
+export { classifySensitive, type SensitiveCategory } from './sensitive'
