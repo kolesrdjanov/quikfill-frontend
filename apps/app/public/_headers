@@ -17,3 +17,12 @@
   X-Frame-Options: DENY
   Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+# The extension download + its version manifest are overwritten on every deploy
+# (see scripts/deploy-chrome.mjs). Force the CDN/browser to revalidate by ETag so
+# beta users always pull the latest build (the Setup page also appends
+# ?v=<version> to the download link as a second cache-buster).
+/quikfill-extension.zip
+  Cache-Control: no-cache
+/extension.json
+  Cache-Control: no-cache
