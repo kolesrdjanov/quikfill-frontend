@@ -30,7 +30,7 @@ import type {
   AuthTokens,
   BetaUser,
   AnalyticsResponse,
-  AnalyticsPeriod,
+  AnalyticsQueryParams,
   InviteBetaUserInput,
   CreateDomainInput,
   CreateEntityRecordInput,
@@ -85,7 +85,7 @@ export interface ApiClient {
     /** Remove an email from the beta allowlist (admin only). */
     removeBetaUser(id: string, signal?: AbortSignal): Promise<void>
     /** Usage / token / cost / margin analytics across all users (admin only). */
-    analytics(period: AnalyticsPeriod, signal?: AbortSignal): Promise<AnalyticsResponse>
+    analytics(params: AnalyticsQueryParams, signal?: AbortSignal): Promise<AnalyticsResponse>
   }
   entityTypes: {
     list(signal?: AbortSignal): Promise<EntityType[]>
@@ -203,9 +203,15 @@ export function createApiClient(config: RestClientConfig): ApiClient {
           signal,
         }),
       removeBetaUser: (id, signal) => rest.del(`/admin/beta-users/${id}`, { signal }),
-      analytics: (period, signal) =>
+      analytics: (params, signal) =>
         rest.get('/admin/analytics', {
-          query: { period },
+          query: {
+            period: params.period,
+            page: params.page,
+            pageSize: params.pageSize,
+            sort: params.sort,
+            order: params.order,
+          },
           schema: analyticsResponseSchema,
           signal,
         }),

@@ -20,6 +20,7 @@ const valid = {
     netMarginUsdCents: 1199.982,
   },
   byEndpoint: [{ endpoint: 'fill', requests: 4, tokens: 1200 }],
+  pagination: { page: 0, pageSize: 20, total: 1, totalPages: 1 },
   users: [
     {
       userId: '11111111-1111-4111-8111-111111111111',

@@ -4,6 +4,38 @@ import { isoDateTime, nullableOptional, uuid } from './common'
 export const analyticsPeriodSchema = z.enum(['current_month', 'all_time'])
 export type AnalyticsPeriod = z.infer<typeof analyticsPeriodSchema>
 
+/** Sortable columns of the per-user table (server-side sort). */
+export const analyticsSortSchema = z.enum([
+  'tokens',
+  'requests',
+  'estCostUsdCents',
+  'utilizationPercent',
+  'marginUsdCents',
+  'email',
+  'createdAt',
+])
+export type AnalyticsSort = z.infer<typeof analyticsSortSchema>
+
+export const analyticsOrderSchema = z.enum(['asc', 'desc'])
+export type AnalyticsOrder = z.infer<typeof analyticsOrderSchema>
+
+export const analyticsPaginationSchema = z.object({
+  page: z.number(),
+  pageSize: z.number(),
+  total: z.number(),
+  totalPages: z.number(),
+})
+export type AnalyticsPaginationMeta = z.infer<typeof analyticsPaginationSchema>
+
+/** Query params for `GET /admin/analytics`. */
+export interface AnalyticsQueryParams {
+  period: AnalyticsPeriod
+  page: number
+  pageSize: number
+  sort?: AnalyticsSort
+  order?: AnalyticsOrder
+}
+
 export const analyticsPricingSchema = z.object({
   inputUsdPerMTok: z.number(),
   outputUsdPerMTok: z.number(),
@@ -54,6 +86,7 @@ export const analyticsResponseSchema = z.object({
   pricing: analyticsPricingSchema,
   overview: analyticsOverviewSchema,
   byEndpoint: z.array(analyticsEndpointSchema),
+  pagination: analyticsPaginationSchema,
   users: z.array(analyticsUserRowSchema),
 })
 
