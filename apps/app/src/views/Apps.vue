@@ -69,25 +69,28 @@ function openEdit(domain: Domain): void {
   dialogOpen.value = true
 }
 
-const onSubmit = handleSubmit(async (values) => {
-  const input = {
-    name: values.name,
-    hostnames: linesToList(values.hostnames),
-    description: values.description || undefined,
-  }
-  try {
-    if (editing.value) {
-      await store.update(editing.value.id, input)
-      toast.success('App updated')
-    } else {
-      await store.create(input)
-      toast.success('App created')
+const onSubmit = handleSubmit(
+  async (values) => {
+    const input = {
+      name: values.name,
+      hostnames: linesToList(values.hostnames),
+      description: values.description || undefined,
     }
-    dialogOpen.value = false
-  } catch (error) {
-    handleError(error)
-  }
-})
+    try {
+      if (editing.value) {
+        await store.update(editing.value.id, input)
+        toast.success('App updated')
+      } else {
+        await store.create(input)
+        toast.success('App created')
+      }
+      dialogOpen.value = false
+    } catch (error) {
+      handleError(error)
+    }
+  },
+  () => toast.error('Please fix the highlighted fields'),
+)
 
 function askDelete(domain: Domain): void {
   deleteTarget.value = domain
@@ -216,7 +219,11 @@ async function confirmDelete(): Promise<void> {
               v-model="hostnames"
               v-bind="hostnamesAttrs"
               placeholder="acme.com&#10;shop.acme.com"
+              :aria-invalid="!!errors.hostnames"
             />
+            <p v-if="errors.hostnames" class="text-destructive mt-1.5 text-xs">
+              {{ errors.hostnames }}
+            </p>
             <p class="text-muted-foreground mt-1.5 text-xs">One hostname per line.</p>
           </div>
           <div>
@@ -226,7 +233,11 @@ async function confirmDelete(): Promise<void> {
               v-model="description"
               v-bind="descriptionAttrs"
               placeholder="Optional"
+              :aria-invalid="!!errors.description"
             />
+            <p v-if="errors.description" class="text-destructive mt-1.5 text-xs">
+              {{ errors.description }}
+            </p>
           </div>
           <div class="flex justify-end gap-2 pt-1">
             <Button type="button" variant="ghost" @click="dialogOpen = false">Cancel</Button>

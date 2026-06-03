@@ -103,29 +103,32 @@ function openEdit(profile: FormProfile): void {
   dialogOpen.value = true
 }
 
-const onSubmit = handleSubmit(async (values) => {
-  try {
-    if (editing.value) {
-      await store.update(editing.value.id, {
-        name: values.name,
-        urlPatterns: linesToList(values.urlPatterns),
-        pageTitlePatterns: linesToList(values.pageTitlePatterns),
-      })
-      toast.success('Profile updated')
-    } else {
-      await store.create({
-        domainId: values.domainId,
-        name: values.name,
-        urlPatterns: linesToList(values.urlPatterns),
-        pageTitlePatterns: linesToList(values.pageTitlePatterns),
-      })
-      toast.success('Profile created')
+const onSubmit = handleSubmit(
+  async (values) => {
+    try {
+      if (editing.value) {
+        await store.update(editing.value.id, {
+          name: values.name,
+          urlPatterns: linesToList(values.urlPatterns),
+          pageTitlePatterns: linesToList(values.pageTitlePatterns),
+        })
+        toast.success('Profile updated')
+      } else {
+        await store.create({
+          domainId: values.domainId,
+          name: values.name,
+          urlPatterns: linesToList(values.urlPatterns),
+          pageTitlePatterns: linesToList(values.pageTitlePatterns),
+        })
+        toast.success('Profile created')
+      }
+      dialogOpen.value = false
+    } catch (error) {
+      handleError(error)
     }
-    dialogOpen.value = false
-  } catch (error) {
-    handleError(error)
-  }
-})
+  },
+  () => toast.error('Please fix the highlighted fields'),
+)
 
 function askDelete(profile: FormProfile): void {
   deleteTarget.value = profile
@@ -271,7 +274,11 @@ async function confirmDelete(): Promise<void> {
               v-model="urlPatterns"
               v-bind="urlPatternsAttrs"
               placeholder="https://careers.example.com/apply/*"
+              :aria-invalid="!!errors.urlPatterns"
             />
+            <p v-if="errors.urlPatterns" class="text-destructive mt-1.5 text-xs">
+              {{ errors.urlPatterns }}
+            </p>
             <p class="text-muted-foreground mt-1.5 text-xs">One pattern per line.</p>
           </div>
           <div>
@@ -281,7 +288,11 @@ async function confirmDelete(): Promise<void> {
               v-model="pageTitlePatterns"
               v-bind="pageTitlePatternsAttrs"
               placeholder="Apply for*"
+              :aria-invalid="!!errors.pageTitlePatterns"
             />
+            <p v-if="errors.pageTitlePatterns" class="text-destructive mt-1.5 text-xs">
+              {{ errors.pageTitlePatterns }}
+            </p>
           </div>
           <div class="flex justify-end gap-2 pt-1">
             <Button type="button" variant="ghost" @click="dialogOpen = false">Cancel</Button>
