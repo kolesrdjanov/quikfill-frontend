@@ -19,7 +19,9 @@ export default defineConfig({
       name: 'QuikFill',
       description: 'Scan, map, and fill any web form.',
       // Minimal permissions; the content script injects via its declared matches.
-      permissions: ['scripting', 'storage'],
+      // `alarms` drives the periodic pull of dashboard-managed settings so a
+      // signed-in extension stays in sync without waiting for a sign-in / SW recycle.
+      permissions: ['scripting', 'storage', 'alarms'],
       // Lets the background worker reach the backend for (user-initiated) AI/auth/
       // sync. Tracks the API origin above so dev and production stay in sync.
       host_permissions: [`${apiOrigin}/*`],

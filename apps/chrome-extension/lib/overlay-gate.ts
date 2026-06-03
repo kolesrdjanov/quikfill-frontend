@@ -1,4 +1,4 @@
-import type { ExtensionSettings } from '@quikfill/schemas'
+import { normalizeHostname, type ExtensionSettings } from '@quikfill/schemas'
 
 /**
  * Pure decision helpers for the in-page overlay, extracted so the gating logic
@@ -18,14 +18,17 @@ export function shouldShowOverlay(
   return !isHostBlocked(settings.blockedHostnames, hostname)
 }
 
-/** Hostname match against the blocklist: exact, or any subdomain of an entry (www-insensitive). */
+/**
+ * Hostname match against the blocklist: exact, or any subdomain of an entry.
+ * Both sides are run through {@link normalizeHostname}, so a list entry pasted as
+ * a full URL (`https://app.quikfill.io/`) still matches the page's bare
+ * `location.hostname`, and `www.`/scheme/port differences never block a match.
+ */
 export function isHostBlocked(blocked: readonly string[], hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^www\./, '')
+  const host = normalizeHostname(hostname)
+  if (host === '') return false
   return blocked.some((entry) => {
-    const e = entry
-      .trim()
-      .toLowerCase()
-      .replace(/^www\./, '')
+    const e = normalizeHostname(entry)
     return e !== '' && (host === e || host.endsWith(`.${e}`))
   })
 }

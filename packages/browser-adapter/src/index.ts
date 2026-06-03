@@ -93,6 +93,13 @@ export {
   writeExtensionSettings,
   onExtensionSettingsChange,
 } from './extension-settings-store'
+export {
+  SETTINGS_SYNC_REQUEST,
+  isSettingsSyncRequest,
+  requestSettingsSync,
+  onSettingsSyncRequest,
+  type SettingsSyncRequestMessage,
+} from './settings-sync-messaging'
 export { createProfileStore, type ProfileBundle, type ProfileStore } from './profile-store'
 export {
   PROFILE_SYNC,

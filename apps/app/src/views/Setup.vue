@@ -14,7 +14,7 @@ import {
   Textarea,
   toast,
 } from '@quikfill/ui'
-import { DEFAULT_EXTENSION_SETTINGS } from '@quikfill/schemas'
+import { DEFAULT_EXTENSION_SETTINGS, normalizeHostname } from '@quikfill/schemas'
 import {
   buildDownloadHref,
   extensionManifestSchema,
@@ -79,7 +79,12 @@ const onSubmitConfig = handleSubmit(
     try {
       await auth.updateSettings({
         ...values,
-        blockedHostnames: linesToList(values.blockedHostnames),
+        // Canonicalize each entry to a bare hostname (strip scheme/path/port/www)
+        // and dedupe, so a pasted URL like `https://app.quikfill.io/` is stored as
+        // `app.quikfill.io` and reliably matches the extension's `location.hostname`.
+        blockedHostnames: [
+          ...new Set(linesToList(values.blockedHostnames).map(normalizeHostname).filter(Boolean)),
+        ],
       })
       toast.success('Configuration saved')
     } catch (error) {

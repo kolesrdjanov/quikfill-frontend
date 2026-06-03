@@ -45,6 +45,16 @@ describe('isHostBlocked', () => {
   it('ignores blank entries', () => {
     expect(isHostBlocked(['', '  '], 'example.com')).toBe(false)
   })
+  it('matches an entry pasted as a full URL (scheme/path/query)', () => {
+    expect(isHostBlocked(['https://app.quikfill.io'], 'app.quikfill.io')).toBe(true)
+    expect(isHostBlocked(['https://bank.example/login?x=1'], 'login.bank.example')).toBe(true)
+  })
+  it('matches an entry carrying a port or trailing slash', () => {
+    expect(isHostBlocked(['bank.example:8080/'], 'bank.example')).toBe(true)
+  })
+  it('normalizes a hostname argument that arrives as a URL too', () => {
+    expect(isHostBlocked(['bank.example'], 'https://bank.example/')).toBe(true)
+  })
 })
 
 describe('buttonDiameter', () => {

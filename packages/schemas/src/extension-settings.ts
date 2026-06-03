@@ -51,6 +51,34 @@ export const extensionSettingsSchema = z.object({
 })
 export type ExtensionSettings = z.infer<typeof extensionSettingsSchema>
 
+/**
+ * Reduce an arbitrary blocklist entry (or a raw `location.hostname`) to a bare,
+ * comparable hostname: lower-cased, with any scheme, userinfo, port, and
+ * path/query/hash stripped, and a leading `www.` removed. Users naturally paste
+ * full URLs (`https://app.quikfill.io/`) into the blocklist textarea; without
+ * this they would never match the page's bare `location.hostname`. Returns `''`
+ * for blank input. Shared by the dashboard (normalize-on-save) and the extension
+ * overlay gate (normalize-on-compare) so both sides agree.
+ */
+export function normalizeHostname(value: string): string {
+  const raw = value.trim().toLowerCase()
+  if (raw === '') return ''
+  try {
+    // A bare hostname has no scheme; give `URL` one so it parses, then take the
+    // host it isolates (drops userinfo/port/path/query/hash for free).
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`)
+    return url.hostname.replace(/^www\./, '')
+  } catch {
+    // Unparseable (e.g. stray characters) — best-effort manual strip.
+    return raw
+      .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+      .replace(/[/?#].*$/, '')
+      .replace(/^[^@]*@/, '')
+      .replace(/:\d+$/, '')
+      .replace(/^www\./, '')
+  }
+}
+
 export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
   globalEnabled: true,
   blockedHostnames: [],

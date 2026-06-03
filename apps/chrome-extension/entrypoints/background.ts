@@ -16,10 +16,15 @@ import {
   onEntityDataRequest,
   onFillRunRecordRequest,
   onProfileSyncRequest,
+  onSettingsSyncRequest,
   reinjectContentScripts,
   writeExtensionSettings,
 } from '@quikfill/browser-adapter'
-import { generatorKindSchema, type AuthState } from '@quikfill/schemas'
+import { generatorKindSchema, type AuthState, type ExtensionSettings } from '@quikfill/schemas'
+
+/** Alarm that periodically re-pulls dashboard-managed settings while signed in. */
+const SETTINGS_SYNC_ALARM = 'qf-settings-sync'
+const SETTINGS_SYNC_PERIOD_MIN = 5
 
 /**
  * Reflect the session onto the toolbar icon: an amber badge when the account
@@ -151,16 +156,28 @@ export default defineBackground(() => {
   // storage.onChanged.
   // Pull the dashboard-managed settings into chrome.storage.local so every surface
   // (incl. the content overlay) reads the synced config. The dashboard is the
-  // source of truth; this is a one-way pull on sign-in/refresh, best-effort — a
-  // failed fetch leaves the last-synced (or default) settings in place.
-  async function hydrateSettings(): Promise<void> {
+  // source of truth; this is a one-way pull, best-effort — a failed fetch leaves
+  // the last-synced (or default) settings in place. Writing storage wakes every
+  // open surface (popup + overlay) via storage.onChanged, so a dashboard change
+  // takes effect live, with no page reload. Returns the synced settings (or null
+  // on failure) so a surface-initiated sync can reflect the result immediately.
+  // Triggered three ways: on sign-in (below), on a periodic alarm, and on demand
+  // from the popup (open / manual "Sync settings"). Without the latter two,
+  // settings only ever refreshed on a sign-in transition.
+  async function hydrateSettings(): Promise<ExtensionSettings | null> {
     try {
       const me = await api.users.me()
-      if (me.extensionSettings) await writeExtensionSettings(me.extensionSettings)
+      if (me.extensionSettings) {
+        await writeExtensionSettings(me.extensionSettings)
+        return me.extensionSettings
+      }
     } catch {
       // Ignore — settings stay at their last-known value.
     }
+    return null
   }
+  // On-demand pull from a surface (popup open / manual "Sync settings" button).
+  onSettingsSyncRequest(() => hydrateSettings())
 
   let lastAuthStatus: AuthState['status'] | null = null
   function onAuthState(state: AuthState): void {
@@ -177,6 +194,19 @@ export default defineBackground(() => {
     if (area !== 'local') return
     const change = changes[AUTH_STATE_KEY]
     if (change?.newValue) onAuthState(change.newValue as AuthState)
+  })
+
+  // Keep settings fresh without any user action: a periodic alarm re-pulls them
+  // while a session exists. The alarm wakes the (MV3-ephemeral) worker even when
+  // it is otherwise idle, so a dashboard change lands within the period instead of
+  // only after the next sign-in / accidental SW recycle. The pull is authenticated,
+  // so skip it when signed out (a 401 there is harmless but pointless).
+  browser.alarms.create(SETTINGS_SYNC_ALARM, { periodInMinutes: SETTINGS_SYNC_PERIOD_MIN })
+  browser.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name !== SETTINGS_SYNC_ALARM) return
+    void store.hasSession().then((signedIn) => {
+      if (signedIn) void hydrateSettings()
+    })
   })
 
   // Heal orphaned content scripts after an install / update / reload. Chrome leaves
