@@ -43,12 +43,6 @@ const planUsage = computed(() => {
   return `${entitlements.usagePercent.value}% of this month's AI used.`
 })
 
-const FILL_SOURCE_LABEL = {
-  recordField: 'Only my saved data',
-  hybrid: 'My saved data, then sample',
-  generatorRule: 'Sample data',
-  aiGenerated: 'Leave it for me',
-} as const
 const LOCALE_LABEL = {
   'en-US': 'English (US)',
   'en-GB': 'English (UK)',
@@ -67,8 +61,6 @@ const summary = computed(() => {
   const s = settings.value
   return [
     { label: 'Status', value: s.globalEnabled ? 'On' : 'Off' },
-    { label: 'Default fill source', value: FILL_SOURCE_LABEL[s.defaultFillSource] },
-    { label: 'AI assistance', value: s.aiEnabled ? 'On' : 'Off' },
     { label: 'Locale', value: LOCALE_LABEL[s.locale] },
     { label: 'Theme', value: THEME_LABEL[s.theme] },
     {
@@ -79,7 +71,6 @@ const summary = computed(() => {
     },
     { label: 'Payment fields', value: s.fillPaymentFields ? 'Allowed' : 'Skipped' },
     { label: 'Government IDs', value: s.fillGovernmentIdFields ? 'Allowed' : 'Skipped' },
-    { label: 'Skip filled fields', value: s.skipFilledFields ? 'Yes' : 'No' },
     { label: 'Blocked sites', value: String(s.blockedHostnames.length) },
   ]
 })

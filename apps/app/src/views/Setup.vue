@@ -47,7 +47,7 @@ const downloadHref = computed(() => buildDownloadHref(manifest.value))
 // extension syncs + applies these on sign-in/refresh) ---
 const auth = useAuthStore()
 const { handleError } = useApiError()
-const { handleSubmit, defineField, isSubmitting, resetForm } = useFormValidation(
+const { handleSubmit, defineField, errors, isSubmitting, resetForm } = useFormValidation(
   extensionSettingsFormSchema,
 )
 
@@ -55,10 +55,6 @@ const [globalEnabled] = defineField('globalEnabled')
 const [blockedHostnames, blockedHostnamesAttrs] = defineField('blockedHostnames')
 const [fillPaymentFields] = defineField('fillPaymentFields')
 const [fillGovernmentIdFields] = defineField('fillGovernmentIdFields')
-const [defaultFillSource] = defineField('defaultFillSource')
-const [autoMatchProfiles] = defineField('autoMatchProfiles')
-const [aiEnabled] = defineField('aiEnabled')
-const [skipFilledFields] = defineField('skipFilledFields')
 const [locale] = defineField('locale')
 const [dateFormat] = defineField('dateFormat')
 const [hideValuesByDefault] = defineField('hideValuesByDefault')
@@ -80,14 +76,20 @@ function seedConfig(): void {
 
 onMounted(seedConfig)
 
-const onSubmitConfig = handleSubmit(async (values) => {
-  try {
-    await auth.updateSettings({ ...values, blockedHostnames: linesToList(values.blockedHostnames) })
-    toast.success('Configuration saved')
-  } catch (error) {
-    handleError(error)
-  }
-})
+const onSubmitConfig = handleSubmit(
+  async (values) => {
+    try {
+      await auth.updateSettings({
+        ...values,
+        blockedHostnames: linesToList(values.blockedHostnames),
+      })
+      toast.success('Configuration saved')
+    } catch (error) {
+      handleError(error)
+    }
+  },
+  () => toast.error('Please fix the highlighted fields'),
+)
 </script>
 
 <template>
@@ -140,8 +142,16 @@ const onSubmitConfig = handleSubmit(async (values) => {
               <p class="text-muted-foreground text-xs">
                 Turn the extension on or off everywhere. When off, the Fill button never appears.
               </p>
+              <p v-if="errors.globalEnabled" class="text-destructive mt-1.5 text-xs">
+                {{ errors.globalEnabled }}
+              </p>
             </div>
-            <Switch id="global-enabled" v-model="globalEnabled" aria-label="Enable QuikFill" />
+            <Switch
+              id="global-enabled"
+              v-model="globalEnabled"
+              aria-label="Enable QuikFill"
+              :aria-invalid="!!errors.globalEnabled"
+            />
           </div>
           <div>
             <Label for="blocked-hostnames">Blocked sites</Label>
@@ -155,7 +165,11 @@ const onSubmitConfig = handleSubmit(async (values) => {
               v-bind="blockedHostnamesAttrs"
               rows="4"
               placeholder="bank.example.com&#10;admin.work.example"
+              :aria-invalid="!!errors.blockedHostnames"
             />
+            <p v-if="errors.blockedHostnames" class="text-destructive mt-1.5 text-xs">
+              {{ errors.blockedHostnames }}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -175,75 +189,30 @@ const onSubmitConfig = handleSubmit(async (values) => {
             <div>
               <Label for="fill-payment">Allow filling payment &amp; card fields</Label>
               <p class="text-muted-foreground text-xs">Card number, expiry, CVV. Off by default.</p>
+              <p v-if="errors.fillPaymentFields" class="text-destructive mt-1.5 text-xs">
+                {{ errors.fillPaymentFields }}
+              </p>
             </div>
             <Switch
               id="fill-payment"
               v-model="fillPaymentFields"
               aria-label="Allow filling payment and card fields"
+              :aria-invalid="!!errors.fillPaymentFields"
             />
           </div>
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label for="fill-govid">Allow filling government IDs</Label>
               <p class="text-muted-foreground text-xs">SSN, tax ID, passport. Off by default.</p>
+              <p v-if="errors.fillGovernmentIdFields" class="text-destructive mt-1.5 text-xs">
+                {{ errors.fillGovernmentIdFields }}
+              </p>
             </div>
             <Switch
               id="fill-govid"
               v-model="fillGovernmentIdFields"
               aria-label="Allow filling government ID fields"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Fill behavior</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-5">
-          <div>
-            <Label for="fill-source">Default data source</Label>
-            <p class="text-muted-foreground mb-2 text-xs">
-              What QuikFill proposes when no saved mapping exists for a field.
-            </p>
-            <Select id="fill-source" v-model="defaultFillSource">
-              <option value="recordField">Only my saved data</option>
-              <option value="hybrid">My saved data, then sample data</option>
-              <option value="generatorRule">Sample data</option>
-              <option value="aiGenerated">Leave it for me to fill</option>
-            </Select>
-          </div>
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <Label for="auto-match">Auto-match saved profiles</Label>
-              <p class="text-muted-foreground text-xs">
-                Apply fingerprint-matched field mappings automatically.
-              </p>
-            </div>
-            <Switch
-              id="auto-match"
-              v-model="autoMatchProfiles"
-              aria-label="Auto-match saved profiles"
-            />
-          </div>
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <Label for="ai-enabled">Use AI for ambiguous fields</Label>
-              <p class="text-muted-foreground text-xs">
-                Let QuikFill ask the AI to classify fields it can't map locally.
-              </p>
-            </div>
-            <Switch id="ai-enabled" v-model="aiEnabled" aria-label="Use AI for ambiguous fields" />
-          </div>
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <Label for="skip-filled">Skip fields that already have a value</Label>
-              <p class="text-muted-foreground text-xs">Leave pre-filled inputs untouched.</p>
-            </div>
-            <Switch
-              id="skip-filled"
-              v-model="skipFilledFields"
-              aria-label="Skip fields that already have a value"
+              :aria-invalid="!!errors.fillGovernmentIdFields"
             />
           </div>
         </CardContent>
@@ -259,21 +228,25 @@ const onSubmitConfig = handleSubmit(async (values) => {
             <p class="text-muted-foreground mb-2 text-xs">
               Drives generated names, addresses, phones.
             </p>
-            <Select id="locale" v-model="locale">
+            <Select id="locale" v-model="locale" :aria-invalid="!!errors.locale">
               <option value="en-US">English (US)</option>
               <option value="en-GB">English (UK)</option>
               <option value="sr-RS">Srpski (RS)</option>
             </Select>
+            <p v-if="errors.locale" class="text-destructive mt-1.5 text-xs">{{ errors.locale }}</p>
           </div>
           <div>
             <Label for="date-format">Date format</Label>
             <p class="text-muted-foreground mb-2 text-xs">Preferred format for proposed dates.</p>
-            <Select id="date-format" v-model="dateFormat">
+            <Select id="date-format" v-model="dateFormat" :aria-invalid="!!errors.dateFormat">
               <option value="auto">Automatic (by locale)</option>
               <option value="MM/DD/YYYY">MM/DD/YYYY</option>
               <option value="DD/MM/YYYY">DD/MM/YYYY</option>
               <option value="YYYY-MM-DD">YYYY-MM-DD</option>
             </Select>
+            <p v-if="errors.dateFormat" class="text-destructive mt-1.5 text-xs">
+              {{ errors.dateFormat }}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -289,11 +262,15 @@ const onSubmitConfig = handleSubmit(async (values) => {
               <p class="text-muted-foreground text-xs">
                 Mask proposed and filled values until revealed — handy when screen-sharing.
               </p>
+              <p v-if="errors.hideValuesByDefault" class="text-destructive mt-1.5 text-xs">
+                {{ errors.hideValuesByDefault }}
+              </p>
             </div>
             <Switch
               id="hide-values"
               v-model="hideValuesByDefault"
               aria-label="Hide values by default"
+              :aria-invalid="!!errors.hideValuesByDefault"
             />
           </div>
           <div>
@@ -301,11 +278,12 @@ const onSubmitConfig = handleSubmit(async (values) => {
             <p class="text-muted-foreground mb-2 text-xs">
               Appearance of the extension's surfaces.
             </p>
-            <Select id="theme" v-model="theme">
+            <Select id="theme" v-model="theme" :aria-invalid="!!errors.theme">
               <option value="light">Light</option>
               <option value="auto">Automatic (system)</option>
               <option value="dark">Dark</option>
             </Select>
+            <p v-if="errors.theme" class="text-destructive mt-1.5 text-xs">{{ errors.theme }}</p>
           </div>
         </CardContent>
       </Card>
@@ -321,30 +299,50 @@ const onSubmitConfig = handleSubmit(async (values) => {
               <p class="text-muted-foreground text-xs">
                 The floating button QuikFill shows on detected forms.
               </p>
+              <p v-if="errors.showFillButton" class="text-destructive mt-1.5 text-xs">
+                {{ errors.showFillButton }}
+              </p>
             </div>
             <Switch
               id="show-button"
               v-model="showFillButton"
               aria-label="Show the in-page Fill button"
+              :aria-invalid="!!errors.showFillButton"
             />
           </div>
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
               <Label for="button-size">Button size</Label>
-              <Select id="button-size" v-model="buttonSize" class="mt-2">
+              <Select
+                id="button-size"
+                v-model="buttonSize"
+                class="mt-2"
+                :aria-invalid="!!errors.buttonSize"
+              >
                 <option value="sm">Small</option>
                 <option value="md">Medium</option>
                 <option value="lg">Large</option>
               </Select>
+              <p v-if="errors.buttonSize" class="text-destructive mt-1.5 text-xs">
+                {{ errors.buttonSize }}
+              </p>
             </div>
             <div>
               <Label for="button-position">Button position</Label>
-              <Select id="button-position" v-model="buttonPosition" class="mt-2">
+              <Select
+                id="button-position"
+                v-model="buttonPosition"
+                class="mt-2"
+                :aria-invalid="!!errors.buttonPosition"
+              >
                 <option value="bottom-right">Bottom right</option>
                 <option value="bottom-left">Bottom left</option>
                 <option value="top-right">Top right</option>
                 <option value="top-left">Top left</option>
               </Select>
+              <p v-if="errors.buttonPosition" class="text-destructive mt-1.5 text-xs">
+                {{ errors.buttonPosition }}
+              </p>
             </div>
           </div>
         </CardContent>

@@ -1,25 +1,5 @@
 import { z } from 'zod'
 
-/**
- * Default proposed-source policy when no saved mapping exists for a field, and
- * the gate for AI-suggested values. QuikFill is a real-info filler, so the
- * default is `recordField` (only the user's own saved data). `hybrid` /
- * `generatorRule` opt into clearly-labeled synthetic **sample** data as a
- * fallback; `aiGenerated` leaves the field for the user to fill.
- */
-export const defaultFillSourceSchema = z.enum([
-  'recordField', // only my saved data (real-info-first default)
-  'hybrid', // saved data, then sample-data fallback
-  'generatorRule', // sample data
-  'aiGenerated', // leave it for me to fill
-])
-export type DefaultFillSourcePref = z.infer<typeof defaultFillSourceSchema>
-
-/** Whether a fill-source preference permits synthetic sample-data generation. */
-export function allowsSampleData(pref: DefaultFillSourcePref): boolean {
-  return pref === 'hybrid' || pref === 'generatorRule'
-}
-
 /** Value-generator locale. Drives generated names/addresses/phones. */
 export const extensionLocaleSchema = z.enum(['en-US', 'en-GB', 'sr-RS'])
 export type ExtensionLocale = z.infer<typeof extensionLocaleSchema>
@@ -61,11 +41,6 @@ export const extensionSettingsSchema = z.object({
   // Safety — sensitive fields (passwords/OTP are always skipped, no toggle)
   fillPaymentFields: z.boolean(),
   fillGovernmentIdFields: z.boolean(),
-  // Fill behaviour
-  defaultFillSource: defaultFillSourceSchema,
-  autoMatchProfiles: z.boolean(),
-  aiEnabled: z.boolean(),
-  skipFilledFields: z.boolean(),
   // Generated-data preferences
   locale: extensionLocaleSchema,
   dateFormat: dateFormatSchema,
@@ -84,10 +59,6 @@ export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
   blockedHostnames: [],
   fillPaymentFields: false,
   fillGovernmentIdFields: false,
-  defaultFillSource: 'hybrid',
-  autoMatchProfiles: true,
-  aiEnabled: true,
-  skipFilledFields: false,
   locale: 'en-US',
   dateFormat: 'auto',
   hideValuesByDefault: false,

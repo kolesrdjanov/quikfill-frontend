@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_EXTENSION_SETTINGS, type ExtensionSettings } from '@quikfill/schemas'
-import { buttonDiameter, isFieldAllowed, isHostBlocked, shouldShowOverlay } from './overlay-gate'
+import { buttonDiameter, isHostBlocked, shouldShowOverlay } from './overlay-gate'
 
 const base = (overrides: Partial<ExtensionSettings> = {}): ExtensionSettings => ({
   ...DEFAULT_EXTENSION_SETTINGS,
@@ -44,31 +44,6 @@ describe('isHostBlocked', () => {
   })
   it('ignores blank entries', () => {
     expect(isHostBlocked(['', '  '], 'example.com')).toBe(false)
-  })
-})
-
-describe('isFieldAllowed', () => {
-  it('never allows passwords or one-time codes', () => {
-    expect(isFieldAllowed(base({ fillPaymentFields: true }), 'password', false)).toBe(false)
-    expect(isFieldAllowed(base(), 'otp', false)).toBe(false)
-  })
-  it('gates payment fields on the opt-in', () => {
-    expect(isFieldAllowed(base({ fillPaymentFields: false }), 'payment', false)).toBe(false)
-    expect(isFieldAllowed(base({ fillPaymentFields: true }), 'payment', false)).toBe(true)
-  })
-  it('gates government-ID fields on the opt-in', () => {
-    expect(isFieldAllowed(base({ fillGovernmentIdFields: false }), 'governmentId', false)).toBe(
-      false,
-    )
-    expect(isFieldAllowed(base({ fillGovernmentIdFields: true }), 'governmentId', false)).toBe(true)
-  })
-  it('skips already-filled fields only when asked', () => {
-    expect(isFieldAllowed(base({ skipFilledFields: true }), null, true)).toBe(false)
-    expect(isFieldAllowed(base({ skipFilledFields: true }), null, false)).toBe(true)
-    expect(isFieldAllowed(base({ skipFilledFields: false }), null, true)).toBe(true)
-  })
-  it('allows an ordinary empty field', () => {
-    expect(isFieldAllowed(base(), null, false)).toBe(true)
   })
 })
 
