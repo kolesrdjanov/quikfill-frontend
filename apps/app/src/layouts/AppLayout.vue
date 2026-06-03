@@ -67,8 +67,8 @@ async function signOut(): Promise<void> {
 </script>
 
 <template>
-  <div class="bg-surface flex min-h-screen">
-    <aside class="bg-sidebar flex w-60 shrink-0 flex-col border-r px-3.5 py-4">
+  <div class="bg-surface flex h-screen">
+    <aside class="bg-sidebar flex w-60 shrink-0 flex-col overflow-y-auto border-r px-3.5 py-4">
       <RouterLink
         to="/"
         class="flex items-center gap-2.5 px-2 pb-4 text-base font-extrabold tracking-tight"
