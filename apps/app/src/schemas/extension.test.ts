@@ -27,6 +27,15 @@ describe('buildDownloadHref', () => {
     expect(href).toBe('/quikfill-extension.zip?v=1.0.3')
   })
 
+  it('links to the version-stamped filename the deploy publishes', () => {
+    const href = buildDownloadHref({
+      version: '1.0.6',
+      filename: 'quikfill-extension-1.0.6.zip',
+      builtAt: '2026-06-03T12:00:00.000Z',
+    })
+    expect(href).toBe('/quikfill-extension-1.0.6.zip?v=1.0.6')
+  })
+
   it('falls back to the fixed URL when the manifest is null', () => {
     expect(buildDownloadHref(null)).toBe('/quikfill-extension.zip')
   })

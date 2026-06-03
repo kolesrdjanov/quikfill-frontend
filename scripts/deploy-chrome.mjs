@@ -5,8 +5,8 @@
  *   1. Bump the extension PATCH version (1.0.2 -> 1.0.3) so every deploy is a
  *      distinct build (baked into the manifest + zip name by `wxt zip`).
  *   2. Production build + zip (`pnpm --filter @quikfill/chrome-extension zip`).
- *   3. Copy the newest *-chrome.zip into apps/app/public/quikfill-extension.zip
- *      (fixed name) and write apps/app/public/extension.json {version,filename,builtAt}.
+ *   3. Copy the newest *-chrome.zip into apps/app/public/quikfill-extension-<version>.zip
+ *      (version-stamped name) and write apps/app/public/extension.json {version,filename,builtAt}.
  *   4. Commit ONLY those files + the version bump and push, so the app-quikfill
  *      Cloudflare Workers Build redeploys app.quikfill.io with the fresh download.
  *
@@ -23,8 +23,6 @@ const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const extDir = join(frontendRoot, 'apps', 'chrome-extension')
 const ceOutputDir = join(extDir, '.output')
 const appPublicDir = join(frontendRoot, 'apps', 'app', 'public')
-const destZipName = 'quikfill-extension.zip'
-const destZip = join(appPublicDir, destZipName)
 const manifestPath = join(appPublicDir, 'extension.json')
 const EXT_PKG_PATH = 'apps/chrome-extension/package.json'
 
@@ -63,6 +61,13 @@ if (chromeZips.length === 0) {
 }
 const newest = chromeZips[0].f
 const version = /(\d+\.\d+\.\d+)/.exec(newest)?.[1] ?? nextVersion
+
+// Publish under a version-stamped filename so every build is a distinct,
+// identifiable download (e.g. quikfill-extension-1.0.6.zip). extension.json
+// records this exact name and the Setup page links to it; the stale-zip sweep
+// below keeps the public folder to exactly the current build.
+const destZipName = `quikfill-extension-${version}.zip`
+const destZip = join(appPublicDir, destZipName)
 
 // 4. Refresh the app's public assets. Delete any existing *.zip first so the
 //    folder always holds exactly one current zip (robust against stray names).
