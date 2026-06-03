@@ -143,6 +143,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   function removeAllButtons(): void {
     for (const [root, button] of buttons) {
       button.el.remove()
+      if (button.anchorEl) anchorResize?.unobserve(button.anchorEl)
       buttons.delete(root)
     }
   }
@@ -198,6 +199,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     for (const [root, button] of buttons) {
       if (!seen.has(root) || !root.isConnected) {
         button.el.remove()
+        if (button.anchorEl) anchorResize?.unobserve(button.anchorEl)
         buttons.delete(root)
       }
     }
@@ -231,6 +233,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       void onFill(button)
     })
     shadowRoot.appendChild(el)
+    // Track this form's box so the button follows its edge the instant the form
+    // grows/shrinks (see the ResizeObserver note below). Unobserved on removal.
+    anchorResize?.observe(anchorEl)
     return button
   }
 
@@ -481,6 +486,20 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   win.addEventListener('scroll', scheduleReposition, { passive: true, capture: true })
   win.addEventListener('resize', scheduleReposition, { passive: true })
 
+  // A form changing height — a toggle/accordion expanding, a conditional section or
+  // validation message appearing — moves the edge the button is pinned to, but fires
+  // neither a window `resize` (that's only the window, not an element) nor, for a
+  // CSS-only show/hide of pre-rendered nodes, a childList mutation. So neither the
+  // scroll/resize path nor the debounced scan would reposition it, and the button
+  // strands at the old edge until some unrelated event nudges it. Observe each
+  // anchor's box directly and feed the SAME rAF-coalesced reposition, so the button
+  // tracks the form's corner in lockstep with the resize. Guarded: jsdom and older
+  // runtimes may not implement ResizeObserver.
+  const anchorResize: ResizeObserver | null =
+    typeof win.ResizeObserver === 'function'
+      ? new win.ResizeObserver(() => scheduleReposition())
+      : null
+
   // Modals/drawers that "close on outside click" treat an event on our button —
   // which lives in a host on <html>, outside their subtree — as an outside click
   // and dismiss themselves. The overlay mounts at document_idle, BEFORE any modal
@@ -537,6 +556,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       doc.removeEventListener('focusin', onFocusIn, true)
       for (const type of SWALLOWED) win.removeEventListener(type, swallowFromHost, true)
       if (repositionRaf !== undefined) win.cancelAnimationFrame(repositionRaf)
+      anchorResize?.disconnect()
       win.removeEventListener('scroll', scheduleReposition, {
         capture: true,
       } as EventListenerOptions)
