@@ -13,7 +13,6 @@ import {
   requestEntitlements,
   type AiClassifyReason,
 } from '@quikfill/browser-adapter'
-import { classifySensitive } from '@quikfill/autofill-core'
 import {
   applyFill,
   isOccludingHit,
@@ -29,7 +28,7 @@ import {
   type Entitlements,
   type ExtensionSettings,
 } from '@quikfill/schemas'
-import { buttonDiameter, isFieldAllowed, shouldShowOverlay } from '../../lib/overlay-gate'
+import { buttonDiameter, shouldShowOverlay } from '../../lib/overlay-gate'
 
 /**
  * User-facing copy per AI failure cause (mirrors lib/display-maps `AI_REASON_MESSAGE`;
@@ -132,8 +131,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
 
   // Dashboard-managed settings, synced into chrome.storage.local by the background
   // worker. Defaults until the first read resolves; the overlay reads them to gate
-  // visibility (enable / blocklist / show-button), size + position the button, and
-  // filter sensitive / already-filled fields out of a fill.
+  // visibility (enable / blocklist / show-button) and size + position the button.
   let settings: ExtensionSettings = DEFAULT_EXTENSION_SETTINGS
   const applySettings = (s: ExtensionSettings): void => {
     settings = s
@@ -269,27 +267,14 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       return
     }
 
-    const detected = form.fieldIds
+    // Every fillable field in the form is always sent — no settings-driven
+    // skipping. (The previous behaviour filter dropped already-filled and
+    // "sensitive"-classified fields, which silently swallowed most of a form.)
+    const fields = form.fieldIds
       .map((id) => fieldById.get(id))
       .filter((f): f is DetectedField => !!f && isFillableField(f))
-    if (detected.length === 0) {
-      setStatus(button, 'error')
-      return
-    }
-
-    // Safety + behaviour filter (settings-driven, applied BEFORE the AI sees
-    // anything): passwords and one-time codes are never filled; payment and
-    // government-ID fields need their opt-in; already-filled fields are skipped
-    // when the user asked. Sensitive fields are dropped here so they never reach
-    // the AI request at all.
-    const fields = detected.filter((f) =>
-      isFieldAllowed(settings, classifySensitive(f), (f.currentValue ?? '').trim() !== ''),
-    )
     if (fields.length === 0) {
-      setStatus(button, 'error', {
-        label: 'Nothing to fill',
-        title: 'Every field here is skipped by your QuikFill settings.',
-      })
+      setStatus(button, 'error')
       return
     }
 
