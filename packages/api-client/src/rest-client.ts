@@ -22,6 +22,7 @@ import {
   generatorPresetSchema,
   magicLinkRequestedSchema,
   userAccountSchema,
+  extensionSettingsSchema,
   entitlementsResponseSchema,
   createCheckoutSessionInputSchema,
   sessionUrlResponseSchema,
@@ -57,6 +58,7 @@ import type {
   UpdateFormProfileInput,
   UpdateGeneratorPresetInput,
   UpdateProfileInput,
+  ExtensionSettings,
   UserAccount,
   Entitlements,
   CreateCheckoutSessionInput,
@@ -76,6 +78,8 @@ export interface ApiClient {
   users: {
     me(signal?: AbortSignal): Promise<UserAccount>
     updateMe(input: UpdateProfileInput, signal?: AbortSignal): Promise<UserAccount>
+    /** Replace the dashboard-managed extension settings (full object). */
+    updateSettings(input: ExtensionSettings, signal?: AbortSignal): Promise<UserAccount>
   }
   admin: {
     /** List the beta-access allowlist (admin only). */
@@ -192,6 +196,11 @@ export function createApiClient(config: RestClientConfig): ApiClient {
       me: (signal) => rest.get('/users/me', { schema: userAccountSchema, signal }),
       updateMe: (input, signal) =>
         rest.patch('/users/me', input, { schema: userAccountSchema, signal }),
+      updateSettings: (input, signal) =>
+        rest.patch('/users/me/settings', extensionSettingsSchema.parse(input), {
+          schema: userAccountSchema,
+          signal,
+        }),
     },
 
     admin: {

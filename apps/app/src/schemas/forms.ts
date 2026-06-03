@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   entityFieldTypeSchema,
+  extensionSettingsSchema,
   generatorKindSchema,
   requestMagicLinkInputSchema,
   seedModeSchema,
@@ -63,6 +64,18 @@ export const profileFormSchema = z.object({
   lastName: z.string().optional(),
 })
 export type ProfileFormValues = z.input<typeof profileFormSchema>
+
+/**
+ * Extension-customization form. Mirrors the shared `extensionSettingsSchema`
+ * contract, but edits `blockedHostnames` as a newline/comma-separated textarea
+ * (the `linesToList` transform splits it back into a trimmed list on submit).
+ * The parsed output equals `ExtensionSettings`, so `auth.updateSettings` takes
+ * the submitted values directly.
+ */
+export const extensionSettingsFormSchema = extensionSettingsSchema.extend({
+  blockedHostnames: linesToList,
+})
+export type ExtensionSettingsFormValues = z.input<typeof extensionSettingsFormSchema>
 
 export const generatorPresetFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
