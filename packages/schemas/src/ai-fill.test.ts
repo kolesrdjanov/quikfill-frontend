@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { aiFillFieldSchema, aiFillRequestSchema, aiFillResponseSchema } from './ai-fill'
+import {
+  aiFillFieldSchema,
+  aiFillPreferencesSchema,
+  aiFillRequestSchema,
+  aiFillResponseSchema,
+} from './ai-fill'
 
 describe('aiFillFieldSchema', () => {
   it('parses redacted field metadata and defaults required', () => {
@@ -52,6 +57,42 @@ describe('aiFillRequestSchema', () => {
 
   it('rejects an empty fields array', () => {
     expect(aiFillRequestSchema.safeParse({ page: {}, fields: [] }).success).toBe(false)
+  })
+
+  it('accepts an optional preferences block and round-trips dateFormat', () => {
+    const parsed = aiFillRequestSchema.parse({
+      page: {},
+      fields: [{ fieldId: 'qf-0', inputType: 'text' }],
+      preferences: { dateFormat: 'DD/MM/YYYY' },
+    })
+    expect(parsed.preferences).toEqual({ dateFormat: 'DD/MM/YYYY' })
+  })
+
+  it('parses a request with no preferences (the default wire shape)', () => {
+    const parsed = aiFillRequestSchema.parse({
+      page: {},
+      fields: [{ fieldId: 'qf-0', inputType: 'text' }],
+    })
+    expect(parsed.preferences).toBeUndefined()
+  })
+
+  it('rejects an unknown dateFormat', () => {
+    expect(
+      aiFillRequestSchema.safeParse({
+        page: {},
+        fields: [{ fieldId: 'qf-0', inputType: 'text' }],
+        preferences: { dateFormat: 'DD-MM' },
+      }).success,
+    ).toBe(false)
+  })
+})
+
+describe('aiFillPreferencesSchema', () => {
+  it('allows an empty object and a valid dateFormat', () => {
+    expect(aiFillPreferencesSchema.parse({}).dateFormat).toBeUndefined()
+    expect(aiFillPreferencesSchema.parse({ dateFormat: 'YYYY-MM-DD' }).dateFormat).toBe(
+      'YYYY-MM-DD',
+    )
   })
 })
 

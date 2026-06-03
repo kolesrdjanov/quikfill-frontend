@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { dateFormatSchema } from './extension-settings'
 
 /**
  * Page-level globals sent with an `/ai/fill` request. Minimal, non-identifying
@@ -41,6 +42,17 @@ export const aiFillFieldSchema = z.object({
 export type AiFillField = z.infer<typeof aiFillFieldSchema>
 
 /**
+ * Optional user preferences that shape generated values. The dashboard owns these
+ * (see `extensionSettingsSchema`); the overlay forwards only the ones that change
+ * model behaviour, so the default wire shape stays unchanged.
+ */
+export const aiFillPreferencesSchema = z.object({
+  /** Preferred format for free-text date fields. Omit (or 'auto') to let the model decide. */
+  dateFormat: dateFormatSchema.optional(),
+})
+export type AiFillPreferences = z.infer<typeof aiFillPreferencesSchema>
+
+/**
  * The `POST /ai/fill` request body. Redacted field metadata + page globals — the
  * single source of truth for the frontend builder, the backend DTO, and the dev
  * mock. The privacy guard rejects anything carrying raw HTML.
@@ -48,6 +60,7 @@ export type AiFillField = z.infer<typeof aiFillFieldSchema>
 export const aiFillRequestSchema = z.object({
   page: aiFillPageSchema,
   fields: z.array(aiFillFieldSchema).min(1),
+  preferences: aiFillPreferencesSchema.optional(),
 })
 export type AiFillRequest = z.infer<typeof aiFillRequestSchema>
 

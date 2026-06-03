@@ -3,6 +3,7 @@ import {
   aiFillRequestSchema,
   fillInstructionSchema,
   type AiFillField,
+  type AiFillPreferences,
   type AiFillRequest,
   type DetectedField,
   type FillInstruction,
@@ -96,13 +97,19 @@ function toAiFillField(field: DetectedField): AiFillField {
  * included — the same privacy guarantee as classify. Returns null when nothing
  * AI-fillable remains (e.g. a form of only dropdowns) — the caller skips the AI
  * round-trip entirely.
+ *
+ * `preferences` is forwarded only when it carries something the model should act
+ * on: a `dateFormat` of `'auto'` (or none) is omitted, so the default wire shape
+ * is unchanged and the model keeps deciding the date format itself.
  */
 export function buildAiFillRequest(
   page: AiFillPageInput,
   fields: DetectedField[],
+  preferences?: AiFillPreferences,
 ): AiFillRequest | null {
   const fillable = fields.filter(isAiFillableField)
   if (fillable.length === 0) return null
+  const dateFormat = preferences?.dateFormat
   return aiFillRequestSchema.parse({
     page: {
       lang: page.lang?.slice(0, MAX_SUMMARY_TEXT) ?? '',
@@ -110,6 +117,7 @@ export function buildAiFillRequest(
       description: redactText(page.description) ?? '',
     },
     fields: fillable.map(toAiFillField),
+    ...(dateFormat && dateFormat !== 'auto' ? { preferences: { dateFormat } } : {}),
   })
 }
 

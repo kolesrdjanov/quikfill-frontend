@@ -168,6 +168,22 @@ describe('buildAiFillRequest', () => {
     expect(buildAiFillRequest({}, [field({ id: 'qf-1', inputType: 'customSelect' })])).toBeNull()
     expect(buildAiFillRequest({}, [])).toBeNull()
   })
+
+  it('includes preferences.dateFormat when a non-auto format is given', () => {
+    const req = buildAiFillRequest({}, [field({ id: 'qf-0', labelText: 'Birthday' })], {
+      dateFormat: 'DD/MM/YYYY',
+    })
+    expect(req!.preferences).toEqual({ dateFormat: 'DD/MM/YYYY' })
+  })
+
+  it("omits preferences for 'auto' or when none is given (default wire shape unchanged)", () => {
+    const withAuto = buildAiFillRequest({}, [field({ id: 'qf-0', labelText: 'Birthday' })], {
+      dateFormat: 'auto',
+    })
+    const without = buildAiFillRequest({}, [field({ id: 'qf-0', labelText: 'Birthday' })])
+    expect('preferences' in withAuto!).toBe(false)
+    expect('preferences' in without!).toBe(false)
+  })
 })
 
 describe('localPickInstructions', () => {
