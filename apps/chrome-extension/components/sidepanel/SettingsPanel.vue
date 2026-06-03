@@ -36,7 +36,7 @@ const store = createProfileStore(adapter)
 
 // The dashboard origin is build-time (prod → deployed app, dev → local Vite) via
 // lib/external-urls — matches the other extension deep-links (see AuthPanel).
-const DASHBOARD_BILLING_URL = `${DASHBOARD_URL}/billing`
+const DASHBOARD_BILLING_URL = `${DASHBOARD_URL}/settings/billing`
 
 const planName = computed(() => entitlements.planName.value ?? 'Plan')
 const planUsage = computed(() => {

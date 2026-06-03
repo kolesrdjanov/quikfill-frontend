@@ -39,7 +39,7 @@ import { DASHBOARD_URL, WEB_STORE_URL } from '../../lib/external-urls'
 // External recovery destinations. The dashboard origin is build-time (prod →
 // deployed app, dev → local Vite) via lib/external-urls, so a prod build never
 // deep-links to localhost.
-const DASHBOARD_BILLING_URL = `${DASHBOARD_URL}/apps`
+const DASHBOARD_BILLING_URL = `${DASHBOARD_URL}/settings/billing`
 const HELP_URL = `${DASHBOARD_URL}/`
 
 const gate = useAuthGate()

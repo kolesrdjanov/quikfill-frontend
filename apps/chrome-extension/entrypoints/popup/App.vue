@@ -60,7 +60,7 @@ watch(
 )
 
 function openDashboard() {
-  void browser.tabs?.create({ url: DASHBOARD_URL })
+  void browser.tabs?.create({ url: `${DASHBOARD_URL}/settings/billing` })
   window.close()
 }
 </script>
