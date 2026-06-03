@@ -1,5 +1,5 @@
 import type { DetectedField, FieldOption } from '@quikfill/schemas'
-import { getSelectorCandidates } from './extract'
+import { getSelectorCandidates, looksLikeDatepickerInput } from './extract'
 import {
   calendarHeading,
   clickElement,
@@ -248,47 +248,22 @@ async function closeWidget(
 // --- Datepicker probing ------------------------------------------------------
 
 /**
- * A placeholder that spells out a date format: only d/m/y runs and separators,
- * with all three parts present (e.g. "mm / dd / yyyy", "DD.MM.YYYY", "yyyy-mm-dd").
+ * Static (field-metadata) pre-filter: a visible, enabled text `<input>` with no widget
+ * descriptor yet is worth probing. Read-only is allowed — calendar widgets make their
+ * input read-only (you pick from the popup, never type). The real date test (a
+ * date-format placeholder or a datepicker-ish container class) runs on the live element
+ * in the DOM phase, via `looksLikeDatepickerInput`.
  */
-const DATE_PLACEHOLDER_RE = /^[^a-z0-9]*[dmy]{1,4}([^a-z0-9]+[dmy]{1,4}){2}[^a-z0-9]*$/i
-
-/** Ancestor class names that mark a date widget's container. */
-const DATE_CONTAINER_RE = /datepicker|date-picker|date_picker|calendar/i
-
-/** Static (field-metadata) test — the DOM-level confirmation happens in the probe. */
 function isDatepickerCandidateField(field: DetectedField): boolean {
   if (field.customWidget || field.tagName !== 'input') return false
   if (field.inputType !== 'text') return false // native date inputs need no probe
-  if (field.readonly || field.disabled || !field.visible) return false
-  const placeholder = field.placeholder ?? ''
-  if (DATE_PLACEHOLDER_RE.test(placeholder)) {
-    const p = placeholder.toLowerCase()
-    if (p.includes('d') && p.includes('m') && p.includes('y')) return true
-  }
-  // No format placeholder — the container class may still mark it; checked on the
-  // live element (classNames here are the input's own, usually empty).
-  return true // defer the ancestor-class check to the DOM phase
-}
-
-/** DOM-level candidate check: a date placeholder, or a datepicker-ish ancestor (≤4 up). */
-function isDateCandidate(field: DetectedField, el: Element): boolean {
-  const placeholder = field.placeholder ?? ''
-  if (DATE_PLACEHOLDER_RE.test(placeholder)) {
-    const p = placeholder.toLowerCase()
-    if (p.includes('d') && p.includes('m') && p.includes('y')) return true
-  }
-  let node: Element | null = el.parentElement
-  for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
-    if (DATE_CONTAINER_RE.test(node.getAttribute('class') ?? '')) return true
-  }
-  return false
+  return !field.disabled && field.visible
 }
 
 async function probeDatepicker(field: DetectedField, root: FillRoot): Promise<void> {
   const el = findElement(root, markedSelectors(field.id, field.selectorCandidates))
   if (!el || el.tagName.toLowerCase() !== 'input') return
-  if (!isDateCandidate(field, el)) return
+  if (!looksLikeDatepickerInput(el)) return
   const doc = ownerDocOf(el)
 
   const added: Element[] = []

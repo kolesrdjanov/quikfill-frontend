@@ -40,6 +40,43 @@ export function getInputType(el: FormControl): string {
   return tag
 }
 
+/**
+ * A placeholder that spells out a full date format: d/m/y runs and separators with
+ * all three parts present (e.g. "MM/DD/YYYY", "DD.MM.YYYY", "yyyy-mm-dd").
+ */
+const DATE_FORMAT_PLACEHOLDER_RE = /^[^a-z0-9]*[dmy]{1,4}([^a-z0-9]+[dmy]{1,4}){2}[^a-z0-9]*$/i
+
+/** Class names that mark a date-widget container (vue-datepicker, react-datepicker, …). */
+const DATEPICKER_CONTAINER_RE = /datepicker|date-picker|date_picker|calendar/i
+
+/** True when a placeholder names a full date format (all of d, m, y present). */
+export function hasDateFormatPlaceholder(placeholder: string | null | undefined): boolean {
+  const p = (placeholder ?? '').toLowerCase()
+  return DATE_FORMAT_PLACEHOLDER_RE.test(p) && p.includes('d') && p.includes('m') && p.includes('y')
+}
+
+/**
+ * True for a text `<input>` that reads as a datepicker's trigger: a date-format
+ * placeholder, or a datepicker-ish container class on it or an ancestor (≤5 up).
+ * Calendar widgets (@vuepic/vue-datepicker, react-datepicker, …) make their visible
+ * input `readonly` because you pick from the calendar, not by typing — this predicate
+ * is what lets such an input survive the readonly skip in the scan so the probe can
+ * confirm it by opening the calendar. The probe (which actually clicks and watches for
+ * a calendar) is the real gate; a false positive here degrades to a harmless read-only
+ * skip at fill time.
+ */
+export function looksLikeDatepickerInput(el: Element): boolean {
+  if (el.tagName.toLowerCase() !== 'input') return false
+  const type = (el as HTMLInputElement).type.toLowerCase()
+  if (type && type !== 'text') return false
+  if (hasDateFormatPlaceholder(el.getAttribute('placeholder'))) return true
+  let node: Element | null = el
+  for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+    if (DATEPICKER_CONTAINER_RE.test(node.getAttribute('class') ?? '')) return true
+  }
+  return false
+}
+
 /** HTML5 constraint-validation attributes a model can use to produce a valid value. */
 export interface ValidationAttrs {
   pattern?: string

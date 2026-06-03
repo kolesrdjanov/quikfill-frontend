@@ -380,3 +380,89 @@ describe('probeFields — datepicker input (react-datepicker, min-constrained)',
     expect(field.min).toBeUndefined()
   })
 })
+
+/**
+ * @vuepic/vue-datepicker (captured, reduced): unlike react-datepicker, its visible
+ * `<input>` is READONLY — you pick from the calendar, you never type — and it carries
+ * no ARIA, so the scan must rescue it from the read-only skip on its date placeholder /
+ * `dp__`/`input--datepicker` container classes. Clicking the input mounts a
+ * `role="grid"` calendar of `dp__cell_inner` cells; a cell click writes the value.
+ */
+function mountVueDatepicker(): { input: HTMLInputElement } {
+  document.body.innerHTML = `
+    <div class="col-span-12 lg:col-span-6">
+      <div class="input--datepicker__wrapper relative">
+        <label class="fw-700 flex items-center">Birthday</label>
+        <div class="dp__main dp__theme_light" data-datepicker-instance data-test-id="subscriber_dob">
+          <div class="dp__input_wrap">
+            <div class="input--datepicker">
+              <input class="input-primary fs-unmask" placeholder="MM/DD/YYYY" readonly value="" />
+            </div>
+          </div>
+          <div class="dp--menu-wrapper dp__outer_menu_wrap"></div>
+        </div>
+      </div>
+    </div>`
+  const input = document.querySelector('input') as HTMLInputElement
+  const menuHost = document.querySelector('.dp--menu-wrapper') as HTMLElement
+  let menu: HTMLElement | null = null
+
+  const dayCell = (day: number): string =>
+    `<div class="dp__cell_inner" role="gridcell" aria-label="June ${day}, 2000">${day}</div>`
+  const open = (): void => {
+    if (menu) return
+    menuHost.insertAdjacentHTML(
+      'beforeend',
+      `<div class="dp__menu" role="dialog" aria-label="Calendar">
+        <div class="dp__month_year_row"><div class="dp__month_year_wrap">June 2000</div></div>
+        <div class="dp__calendar" role="grid">
+          ${Array.from({ length: 30 }, (_, i) => dayCell(i + 1)).join('')}
+        </div>
+      </div>`,
+    )
+    menu = menuHost.querySelector('.dp__menu') as HTMLElement
+    for (const cell of Array.from(menu.querySelectorAll('.dp__cell_inner'))) {
+      cell.addEventListener('click', () => {
+        input.value = `06/${String(cell.textContent).padStart(2, '0')}/2000`
+        close()
+      })
+    }
+  }
+  const close = (): void => {
+    menu?.remove()
+    menu = null
+  }
+  input.addEventListener('mousedown', open)
+  input.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Escape') close()
+  })
+  return { input }
+}
+
+describe('probeFields — readonly datepicker input (@vuepic/vue-datepicker)', () => {
+  it('survives the read-only skip at scan time and probes to a datepicker', async () => {
+    mountVueDatepicker()
+    const { fields } = scanForms(document.body)
+    const field = fields.find((f) => f.labelText === 'Birthday')
+    expect(field).toBeDefined() // not dropped by the readonly gate
+    expect(field!.readonly).toBe(true)
+    expect(field!.customWidget).toBeUndefined() // closed: just a readonly text input
+
+    await probeFields(fields)
+
+    expect(field!.customWidget?.kind).toBe('datepicker')
+    expect(document.querySelector('.dp__menu')).toBeNull() // Escape closed it
+  })
+
+  it('fills the readonly picker by clicking the day cell (typing is impossible)', async () => {
+    const { input } = mountVueDatepicker()
+    const { fields } = scanForms(document.body)
+    await probeFields(fields)
+    const field = fields.find((f) => f.labelText === 'Birthday')!
+
+    const { results } = await applyFill([toInstruction(field, '06/15/2000')])
+
+    expect(results[0].status).toBe('success')
+    expect(input.value).toBe('06/15/2000')
+  })
+})

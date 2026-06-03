@@ -98,6 +98,31 @@ describe('scanForms', () => {
     expect(fields.map((f) => f.name)).toEqual(['ok'])
   })
 
+  it('keeps a readonly datepicker input (vue-datepicker) but still drops a plain readonly field', () => {
+    setBody(`
+      <div class="input--datepicker__wrapper relative">
+        <label class="fw-700 flex items-center">Birthday</label>
+        <div class="dp__main dp__theme_light" data-datepicker-instance data-test-id="subscriber_dob">
+          <div class="dp__input_wrap">
+            <div class="input--datepicker">
+              <input class="input-primary fs-unmask" placeholder="MM/DD/YYYY" readonly value="" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <input name="total" readonly value="$0.00" />
+    `)
+    const { fields } = scanForms(document)
+    // The datepicker's <input> is readonly only because you pick from the calendar —
+    // it IS fillable (via the calendar), so it must survive the readonly skip and reach
+    // the probe (which confirms it by actually opening a calendar).
+    const birthday = fields.find((f) => f.labelText === 'Birthday')
+    expect(birthday).toBeDefined()
+    expect(birthday!.readonly).toBe(true)
+    // A genuinely read-only display field (no date signal) stays excluded.
+    expect(fields.some((f) => f.name === 'total')).toBe(false)
+  })
+
   it('includes and flags disabled/readonly state on request', () => {
     setBody(`
       <input name="a" disabled />
