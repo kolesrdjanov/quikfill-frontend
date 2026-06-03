@@ -300,6 +300,19 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     }
     const reply = await requestAiFill(request)
     if (!reply.ok) {
+      // The AI round-trip failed (quota / rate-limit / offline / a dead extension
+      // context after an update). Custom-select picks are LOCAL and need no AI, so
+      // still apply them — a failed AI call must not also abandon the dropdowns it
+      // never owned. applyFill is pure DOM and works even when messaging is dead; a
+      // truly dead context can still make DOM writes throw, so guard it. The button
+      // then reports the AI failure below.
+      if (localPicks.length > 0) {
+        try {
+          await applyFill(localPicks, doc)
+        } catch {
+          /* dead context — nothing to apply; surface the AI error instead */
+        }
+      }
       // A dead extension context (the tab predates an update/reload) makes every
       // message throw, which `requestAiFill` reports as `offline` — but that's not a
       // connectivity problem, so point the user at the real fix rather than a
