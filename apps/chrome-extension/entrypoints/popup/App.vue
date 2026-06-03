@@ -164,7 +164,7 @@ function openDashboard() {
       </p>
 
       <Button class="w-full" @click="openDashboard">
-        Manage subscription
+        Go to Dashboard
         <ArrowUpRight class="size-4" />
       </Button>
 
