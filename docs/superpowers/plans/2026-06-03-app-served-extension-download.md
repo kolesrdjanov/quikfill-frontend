@@ -23,6 +23,7 @@ NestJS/Express (services, removal only).
 ## File structure
 
 **Frontend — create:**
+
 - `frontend/scripts/deploy-chrome.mjs` — the new deploy pipeline.
 - `frontend/apps/app/src/schemas/extension.ts` — `extensionManifestSchema`,
   `ExtensionManifest`, `buildDownloadHref()`.
@@ -30,15 +31,18 @@ NestJS/Express (services, removal only).
 - `frontend/apps/app/src/views/Setup.vue` — the Setup page (renamed from `Configuration.vue`).
 
 **Frontend — modify:**
+
 - `frontend/package.json` — add `"deploy:chrome"` script.
 - `frontend/apps/app/public/_headers` — `no-cache` rule for the zip + manifest.
 - `frontend/apps/app/src/router/index.ts` — `/settings/config` → `/settings/setup` (+ back-compat redirect).
 - `frontend/apps/app/src/layouts/AppLayout.vue` — nav label/route `Configuration` → `Setup`.
 
 **Frontend — delete:**
+
 - `frontend/apps/app/src/views/Configuration.vue` (replaced by `Setup.vue`).
 
 **Services — modify/delete:**
+
 - `services/src/main.ts` — remove the `/ce` middleware + static mount + `safeEqual`.
 - `services/src/config/config.schema.ts` — remove `CE_DOWNLOAD_USERNAME`/`CE_DOWNLOAD_PASSWORD`.
 - `services/package.json` — remove the `deploy:chrome` script.
@@ -49,6 +53,7 @@ NestJS/Express (services, removal only).
 ## Task 1: New frontend `deploy:chrome` script
 
 **Files:**
+
 - Create: `frontend/scripts/deploy-chrome.mjs`
 - Modify: `frontend/package.json` (add script)
 
@@ -73,65 +78,68 @@ Create `frontend/scripts/deploy-chrome.mjs`:
  * apps/chrome-extension/.env.production to set WXT_QF_API_BASE_URL (the build
  * fails otherwise).
  */
-import { execSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process'
+import { copyFileSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const extDir = join(frontendRoot, 'apps', 'chrome-extension');
-const ceOutputDir = join(extDir, '.output');
-const appPublicDir = join(frontendRoot, 'apps', 'app', 'public');
-const destZipName = 'quikfill-extension.zip';
-const destZip = join(appPublicDir, destZipName);
-const manifestPath = join(appPublicDir, 'extension.json');
-const EXT_PKG_PATH = 'apps/chrome-extension/package.json';
+const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const extDir = join(frontendRoot, 'apps', 'chrome-extension')
+const ceOutputDir = join(extDir, '.output')
+const appPublicDir = join(frontendRoot, 'apps', 'app', 'public')
+const destZipName = 'quikfill-extension.zip'
+const destZip = join(appPublicDir, destZipName)
+const manifestPath = join(appPublicDir, 'extension.json')
+const EXT_PKG_PATH = 'apps/chrome-extension/package.json'
 
 function run(cmd, cwd) {
-  console.log(`\n$ ${cmd}\n  (cwd: ${cwd})`);
-  execSync(cmd, { cwd, stdio: 'inherit' });
+  console.log(`\n$ ${cmd}\n  (cwd: ${cwd})`)
+  execSync(cmd, { cwd, stdio: 'inherit' })
 }
 function capture(cmd, cwd) {
-  return execSync(cmd, { cwd }).toString().trim();
+  return execSync(cmd, { cwd }).toString().trim()
 }
 
 // 1. Bump PATCH. `wxt zip` reads this version for the manifest + zip name, so it
 //    MUST happen before the build. It is committed only at the end, after a
 //    successful build, so a failed build never pushes a phantom version.
-const currentVersion = capture('npm pkg get version', extDir).replace(/"/g, '');
-const semver = currentVersion.split('.').map(Number);
+const currentVersion = capture('npm pkg get version', extDir).replace(/"/g, '')
+const semver = currentVersion.split('.').map(Number)
 if (semver.length !== 3 || semver.some(Number.isNaN)) {
-  throw new Error(`Extension version "${currentVersion}" is not a clean x.y.z — fix it by hand first.`);
+  throw new Error(
+    `Extension version "${currentVersion}" is not a clean x.y.z — fix it by hand first.`,
+  )
 }
-const nextVersion = `${semver[0]}.${semver[1]}.${semver[2] + 1}`;
-console.log(`\nBumping extension version ${currentVersion} -> ${nextVersion}`);
-run(`npm pkg set version=${nextVersion}`, extDir);
+const nextVersion = `${semver[0]}.${semver[1]}.${semver[2] + 1}`
+console.log(`\nBumping extension version ${currentVersion} -> ${nextVersion}`)
+run(`npm pkg set version=${nextVersion}`, extDir)
 
 // 2. Production build + zip.
-run('pnpm --filter @quikfill/chrome-extension zip', frontendRoot);
+run('pnpm --filter @quikfill/chrome-extension zip', frontendRoot)
 
 // 3. Pick the newest *-chrome.zip (wxt also emits a *-sources.zip we ignore).
 const chromeZips = readdirSync(ceOutputDir)
   .filter((f) => f.endsWith('-chrome.zip'))
   .map((f) => ({ f, mtime: statSync(join(ceOutputDir, f)).mtimeMs }))
-  .sort((a, b) => b.mtime - a.mtime);
+  .sort((a, b) => b.mtime - a.mtime)
 if (chromeZips.length === 0) {
-  throw new Error(`No *-chrome.zip found in ${ceOutputDir} — did the build/zip step run?`);
+  throw new Error(`No *-chrome.zip found in ${ceOutputDir} — did the build/zip step run?`)
 }
-const newest = chromeZips[0].f;
-const version = /(\d+\.\d+\.\d+)/.exec(newest)?.[1] ?? nextVersion;
+const newest = chromeZips[0].f
+const version = /(\d+\.\d+\.\d+)/.exec(newest)?.[1] ?? nextVersion
 
 // 4. Refresh the app's public assets. Delete any existing *.zip first so the
 //    folder always holds exactly one current zip (robust against stray names).
-mkdirSync(appPublicDir, { recursive: true });
-const staleZips = readdirSync(appPublicDir).filter((f) => f.endsWith('.zip'));
-for (const z of staleZips) rmSync(join(appPublicDir, z));
-console.log(`\nPublishing ${newest} -> apps/app/public/${destZipName} (version ${version})`);
-copyFileSync(join(ceOutputDir, newest), destZip);
+mkdirSync(appPublicDir, { recursive: true })
+const staleZips = readdirSync(appPublicDir).filter((f) => f.endsWith('.zip'))
+for (const z of staleZips) rmSync(join(appPublicDir, z))
+console.log(`\nPublishing ${newest} -> apps/app/public/${destZipName} (version ${version})`)
+copyFileSync(join(ceOutputDir, newest), destZip)
 writeFileSync(
   manifestPath,
-  JSON.stringify({ version, filename: destZipName, builtAt: new Date().toISOString() }, null, 2) + '\n',
-);
+  JSON.stringify({ version, filename: destZipName, builtAt: new Date().toISOString() }, null, 2) +
+    '\n',
+)
 
 // 5. Stage ONLY our explicit, quoted paths (the bump, the new zip, the manifest,
 //    and any stale zip we removed) — never `git add -A`. Commit + rebase + push.
@@ -139,22 +147,27 @@ const gitPaths = new Set([
   EXT_PKG_PATH,
   relative(frontendRoot, destZip),
   relative(frontendRoot, manifestPath),
-]);
-for (const z of staleZips) gitPaths.add(relative(frontendRoot, join(appPublicDir, z)));
-const pathArgs = [...gitPaths].map((p) => `"${p}"`).join(' ');
+])
+for (const z of staleZips) gitPaths.add(relative(frontendRoot, join(appPublicDir, z)))
+const pathArgs = [...gitPaths].map((p) => `"${p}"`).join(' ')
 
-run(`git add ${pathArgs}`, frontendRoot);
+run(`git add ${pathArgs}`, frontendRoot)
 if (!capture('git diff --cached --name-only', frontendRoot)) {
-  console.log('\nNo change to publish — nothing to deploy.');
-  process.exit(0);
+  console.log('\nNo change to publish — nothing to deploy.')
+  process.exit(0)
 }
 // --no-verify: asset + version-bump only, so skip the heavy frontend gate.
 // Autostash protects any unrelated WIP during the rebase.
-run(`git commit --no-verify -m "chore(ce): publish extension build ${version}" -- ${pathArgs}`, frontendRoot);
-run('git pull --rebase --autostash origin main', frontendRoot);
-run('git push --no-verify origin HEAD', frontendRoot);
+run(
+  `git commit --no-verify -m "chore(ce): publish extension build ${version}" -- ${pathArgs}`,
+  frontendRoot,
+)
+run('git pull --rebase --autostash origin main', frontendRoot)
+run('git push --no-verify origin HEAD', frontendRoot)
 
-console.log('\n✅ Published. Cloudflare Workers Build will redeploy app.quikfill.io with the fresh download.');
+console.log(
+  '\n✅ Published. Cloudflare Workers Build will redeploy app.quikfill.io with the fresh download.',
+)
 ```
 
 - [ ] **Step 2: Add the root script**
@@ -188,6 +201,7 @@ only; the heavy pre-commit gate is exercised by the real code tasks below.)
 ## Task 2: `_headers` no-cache rule for the download
 
 **Files:**
+
 - Modify: `frontend/apps/app/public/_headers`
 
 - [ ] **Step 1: Append the rule**
@@ -222,6 +236,7 @@ lint/format/typecheck/build cleanly.)
 ## Task 3: `extension.json` schema + download-href helper (TDD)
 
 **Files:**
+
 - Create: `frontend/apps/app/src/schemas/extension.ts`
 - Test: `frontend/apps/app/src/schemas/extension.test.ts`
 
@@ -322,6 +337,7 @@ git pull --rebase --autostash origin main && git push --no-verify origin HEAD
 ## Task 4: Setup page (view, route, nav)
 
 **Files:**
+
 - Create: `frontend/apps/app/src/views/Setup.vue`
 - Delete: `frontend/apps/app/src/views/Configuration.vue`
 - Modify: `frontend/apps/app/src/router/index.ts`
@@ -371,8 +387,8 @@ const downloadHref = computed(() => buildDownloadHref(manifest.value))
       </CardHeader>
       <CardContent class="space-y-5">
         <p class="text-muted-foreground text-sm">
-          Download the QuikFill Chrome extension and load it as an unpacked
-          extension. Every release here is the latest build — re-download to update.
+          Download the QuikFill Chrome extension and load it as an unpacked extension. Every release
+          here is the latest build — re-download to update.
         </p>
 
         <Button as="a" :href="downloadHref" download>
@@ -385,7 +401,9 @@ const downloadHref = computed(() => buildDownloadHref(manifest.value))
           <ol class="text-muted-foreground list-decimal space-y-1.5 pl-5 text-sm">
             <li>Download the file above and unzip it.</li>
             <li>Open <code class="text-foreground">chrome://extensions</code> in Chrome.</li>
-            <li>Turn on <span class="text-foreground font-medium">Developer mode</span> (top-right).</li>
+            <li>
+              Turn on <span class="text-foreground font-medium">Developer mode</span> (top-right).
+            </li>
             <li>
               Click <span class="text-foreground font-medium">Load unpacked</span> and select the
               unzipped folder.
@@ -473,6 +491,7 @@ along in this commit.)
 ## Task 5: Retire the old `/ce` flow in services
 
 **Files:**
+
 - Modify: `services/src/main.ts`
 - Modify: `services/src/config/config.schema.ts`
 - Modify: `services/package.json`
@@ -549,12 +568,14 @@ makes ONE commit, rebases, and pushes.
 - [ ] **Step 2: Verify exactly one zip + manifest landed**
 
 Run:
+
 ```bash
 cd frontend
 ls apps/app/public/*.zip
 cat apps/app/public/extension.json
 git show --stat HEAD
 ```
+
 Expected: exactly one `quikfill-extension.zip`; `extension.json` has the new
 `version`/`filename`/`builtAt`; the HEAD commit touches ONLY
 `apps/chrome-extension/package.json`, `apps/app/public/quikfill-extension.zip`,
@@ -563,11 +584,13 @@ and `apps/app/public/extension.json`.
 - [ ] **Step 3: Verify the deployed download (after the Workers Build finishes)**
 
 Once the `app-quikfill` Cloudflare Workers Build completes for the push:
+
 ```bash
 curl -sI https://app.quikfill.io/extension.json | grep -i cache-control
 curl -s  https://app.quikfill.io/extension.json
 curl -sI "https://app.quikfill.io/quikfill-extension.zip" | grep -iE "content-type|cache-control"
 ```
+
 Expected: `extension.json` returns `Cache-Control: no-cache` and the current
 version JSON; the zip returns a `200`/`304` with `Cache-Control: no-cache`.
 
@@ -592,4 +615,7 @@ Unzip + Load unpacked once to confirm the build loads in Chrome.
   schema requires.
 - **Concurrent-git:** every commit stages only explicit, quoted paths and lands
   via `pull --rebase --autostash` → push, per the standing convention.
+
+```
+
 ```

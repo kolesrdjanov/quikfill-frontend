@@ -35,7 +35,7 @@ self-serve, signed-in download inside the dashboard:
 
 - Packing a `.crx` / Chrome Web Store publishing (separate CWS workflow exists).
 - Auto-update of an already-installed extension.
-- Gating the zip URL itself (it is a public static asset; the Setup *page* is
+- Gating the zip URL itself (it is a public static asset; the Setup _page_ is
   behind sign-in, which is sufficient for a trusted-tester build).
 
 ## Design
@@ -100,7 +100,7 @@ Routing & nav:
 - Keep `/settings/config` as a redirect to `/settings/setup` (back-compat).
 - Rename `views/Configuration.vue` → `views/Setup.vue`.
 - `AppLayout.vue` Settings nav: label `Configuration` → `Setup`, `to:
-  '/settings/setup'` (keep the existing icon).
+'/settings/setup'` (keep the existing icon).
 
 Page content (all `@quikfill/ui` shadcn components):
 
