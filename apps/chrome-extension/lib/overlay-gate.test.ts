@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_EXTENSION_SETTINGS, type ExtensionSettings } from '@quikfill/schemas'
-import { buttonDiameter, isHostBlocked, shouldShowOverlay } from './overlay-gate'
+import {
+  activeHostList,
+  buttonDiameter,
+  isHostActive,
+  isHostBlocked,
+  removeActiveHost,
+  setHostEnabled,
+  shouldShowOverlay,
+} from './overlay-gate'
 
 const base = (overrides: Partial<ExtensionSettings> = {}): ExtensionSettings => ({
   ...DEFAULT_EXTENSION_SETTINGS,
@@ -24,6 +32,68 @@ describe('shouldShowOverlay', () => {
     expect(
       shouldShowOverlay(base({ blockedHostnames: ['bank.example'] }), 'bank.example', false),
     ).toBe(false)
+  })
+  it('allowlist mode: shows only on allowed hosts', () => {
+    const s = base({ activationMode: 'allowlist', allowedHostnames: ['app.quikstor.com'] })
+    expect(shouldShowOverlay(s, 'app.quikstor.com', false)).toBe(true)
+    expect(shouldShowOverlay(s, 'example.com', false)).toBe(false)
+  })
+  it('allowlist mode with an empty list shows nowhere', () => {
+    expect(shouldShowOverlay(base({ activationMode: 'allowlist' }), 'example.com', false)).toBe(
+      false,
+    )
+  })
+})
+
+describe('isHostActive', () => {
+  it('all mode: active unless blocked', () => {
+    const s = base({ blockedHostnames: ['bank.example'] })
+    expect(isHostActive(s, 'example.com')).toBe(true)
+    expect(isHostActive(s, 'bank.example')).toBe(false)
+  })
+  it('allowlist mode: active only when allowed', () => {
+    const s = base({ activationMode: 'allowlist', allowedHostnames: ['app.quikstor.com'] })
+    expect(isHostActive(s, 'app.quikstor.com')).toBe(true)
+    expect(isHostActive(s, 'example.com')).toBe(false)
+  })
+})
+
+describe('setHostEnabled / activeHostList / removeActiveHost', () => {
+  it('all mode: disabling adds to the blocklist, enabling removes it', () => {
+    const off = setHostEnabled(base(), 'bank.example', false)
+    expect(off.blockedHostnames).toEqual(['bank.example'])
+    expect(setHostEnabled(off, 'bank.example', true).blockedHostnames).toEqual([])
+  })
+  it('allowlist mode: enabling adds to the allowlist, disabling removes it', () => {
+    const s = base({ activationMode: 'allowlist' })
+    const on = setHostEnabled(s, 'app.quikstor.com', true)
+    expect(on.allowedHostnames).toEqual(['app.quikstor.com'])
+    expect(setHostEnabled(on, 'app.quikstor.com', false).allowedHostnames).toEqual([])
+  })
+  it('normalizes and de-dupes the stored host (www/URL forms)', () => {
+    const off = setHostEnabled(
+      base({ blockedHostnames: ['bank.example'] }),
+      'www.bank.example',
+      false,
+    )
+    expect(off.blockedHostnames).toEqual(['bank.example'])
+  })
+  it('leaves the non-active list untouched when toggling', () => {
+    const s = base({ activationMode: 'allowlist', blockedHostnames: ['keep.example'] })
+    expect(setHostEnabled(s, 'a.example', true).blockedHostnames).toEqual(['keep.example'])
+  })
+  it('activeHostList tracks the mode', () => {
+    expect(activeHostList(base({ blockedHostnames: ['a.example'] }))).toEqual(['a.example'])
+    expect(
+      activeHostList(base({ activationMode: 'allowlist', allowedHostnames: ['b.example'] })),
+    ).toEqual(['b.example'])
+  })
+  it('removeActiveHost drops the entry in either mode', () => {
+    expect(
+      removeActiveHost(base({ blockedHostnames: ['a.example'] }), 'a.example').blockedHostnames,
+    ).toEqual([])
+    const allow = base({ activationMode: 'allowlist', allowedHostnames: ['b.example'] })
+    expect(removeActiveHost(allow, 'b.example').allowedHostnames).toEqual([])
   })
 })
 

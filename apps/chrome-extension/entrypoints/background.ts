@@ -17,6 +17,7 @@ import {
   onFillRunRecordRequest,
   onProfileSyncRequest,
   onSettingsSyncRequest,
+  onSettingsUpdateRequest,
   reinjectContentScripts,
   writeExtensionSettings,
 } from '@quikfill/browser-adapter'
@@ -178,6 +179,19 @@ export default defineBackground(() => {
   }
   // On-demand pull from a surface (popup open / manual "Sync settings" button).
   onSettingsSyncRequest(() => hydrateSettings())
+  // Surface-initiated WRITE (the popup's per-site activation toggle / mode switch):
+  // persist the full settings object to the account, then write the server's echo
+  // to storage so the popup and the on-page overlay update live via
+  // storage.onChanged. Resolves null on failure (offline / signed out), which the
+  // popup surfaces without changing local state.
+  onSettingsUpdateRequest(async (settings) => {
+    const me = await api.users.updateSettings(settings)
+    // The backend echoes the full, defaulted settings; fall back to what we sent
+    // if the response omits them (keeps the type non-optional and is correct).
+    const saved = me.extensionSettings ?? settings
+    await writeExtensionSettings(saved)
+    return saved
+  })
 
   let lastAuthStatus: AuthState['status'] | null = null
   function onAuthState(state: AuthState): void {

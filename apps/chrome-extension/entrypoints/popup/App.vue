@@ -9,6 +9,7 @@ import {
 } from '@quikfill/browser-adapter'
 import BrandLockup from '../../components/BrandLockup.vue'
 import AuthPanel from '../../components/auth/AuthPanel.vue'
+import ThisSiteCard from '../../components/ThisSiteCard.vue'
 import { SUPPORT_MAILTO } from '../../lib/external-urls'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
@@ -158,6 +159,9 @@ function openDashboard() {
           />
         </div>
       </div>
+
+      <!-- Per-site activation: toggle the current site on/off and pick the match mode. -->
+      <ThisSiteCard />
 
       <p v-if="gate.user.value?.email" class="text-muted-foreground px-1 text-[11px]">
         Signed in as {{ gate.user.value.email }}

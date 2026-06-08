@@ -54,6 +54,7 @@ describe('extensionSettingsFormSchema', () => {
     const parsed = extensionSettingsFormSchema.parse({
       ...DEFAULT_EXTENSION_SETTINGS,
       blockedHostnames: 'bank.example.com\nadmin.work.example',
+      allowedHostnames: '',
     })
     expect(parsed.blockedHostnames).toBe('bank.example.com\nadmin.work.example')
   })
@@ -62,6 +63,7 @@ describe('extensionSettingsFormSchema', () => {
     const parsed = extensionSettingsFormSchema.parse({
       ...DEFAULT_EXTENSION_SETTINGS,
       blockedHostnames: 'bank.example.com',
+      allowedHostnames: '',
     })
     // Parsing the output again — what VeeValidate does on every validation pass —
     // must still succeed. A string→array transform would fail here.

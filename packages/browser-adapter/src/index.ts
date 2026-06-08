@@ -100,6 +100,13 @@ export {
   onSettingsSyncRequest,
   type SettingsSyncRequestMessage,
 } from './settings-sync-messaging'
+export {
+  SETTINGS_UPDATE_REQUEST,
+  isSettingsUpdateRequest,
+  requestSettingsUpdate,
+  onSettingsUpdateRequest,
+  type SettingsUpdateRequestMessage,
+} from './settings-update-messaging'
 export { createProfileStore, type ProfileBundle, type ProfileStore } from './profile-store'
 export {
   PROFILE_SYNC,

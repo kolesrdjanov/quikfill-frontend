@@ -4,6 +4,14 @@ import { z } from 'zod'
 export const extensionLocaleSchema = z.enum(['en-US', 'en-GB', 'sr-RS'])
 export type ExtensionLocale = z.infer<typeof extensionLocaleSchema>
 
+/**
+ * How the extension decides where the Fill button runs: on every site except the
+ * blocklist (`all`, the default), or only on the allowlist (`allowlist`). Both
+ * lists persist across a mode switch so toggling the mode never loses config.
+ */
+export const activationModeSchema = z.enum(['all', 'allowlist'])
+export type ActivationMode = z.infer<typeof activationModeSchema>
+
 /** Theme preference. `auto` follows the OS `prefers-color-scheme`. */
 export const themePrefSchema = z.enum(['light', 'auto', 'dark'])
 export type ThemePref = z.infer<typeof themePrefSchema>
@@ -37,7 +45,9 @@ export type ButtonPositionPref = z.infer<typeof buttonPositionSchema>
 export const extensionSettingsSchema = z.object({
   // Activation
   globalEnabled: z.boolean(),
+  activationMode: activationModeSchema,
   blockedHostnames: z.array(z.string()),
+  allowedHostnames: z.array(z.string()),
   // Generated-data preferences
   locale: extensionLocaleSchema,
   dateFormat: dateFormatSchema,
@@ -81,7 +91,9 @@ export function normalizeHostname(value: string): string {
 
 export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
   globalEnabled: true,
+  activationMode: 'all',
   blockedHostnames: [],
+  allowedHostnames: [],
   locale: 'en-US',
   dateFormat: 'auto',
   hideValuesByDefault: false,

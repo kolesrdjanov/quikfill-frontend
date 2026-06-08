@@ -52,7 +52,9 @@ const { handleSubmit, defineField, errors, isSubmitting, resetForm } = useFormVa
 )
 
 const [globalEnabled] = defineField('globalEnabled')
+const [activationMode] = defineField('activationMode')
 const [blockedHostnames, blockedHostnamesAttrs] = defineField('blockedHostnames')
+const [allowedHostnames, allowedHostnamesAttrs] = defineField('allowedHostnames')
 const [locale] = defineField('locale')
 const [dateFormat] = defineField('dateFormat')
 const [hideValuesByDefault] = defineField('hideValuesByDefault')
@@ -68,6 +70,7 @@ function seedConfig(): void {
     values: {
       ...s,
       blockedHostnames: listToLines(s.blockedHostnames),
+      allowedHostnames: listToLines(s.allowedHostnames),
     },
   })
 }
@@ -84,6 +87,9 @@ const onSubmitConfig = handleSubmit(
         // `app.quikfill.io` and reliably matches the extension's `location.hostname`.
         blockedHostnames: [
           ...new Set(linesToList(values.blockedHostnames).map(normalizeHostname).filter(Boolean)),
+        ],
+        allowedHostnames: [
+          ...new Set(linesToList(values.allowedHostnames).map(normalizeHostname).filter(Boolean)),
         ],
       })
       toast.success('Configuration saved')
@@ -157,10 +163,27 @@ const onSubmitConfig = handleSubmit(
             />
           </div>
           <div>
+            <Label for="activation-mode">Where QuikFill runs</Label>
+            <p class="text-muted-foreground mb-2 text-xs">
+              Run on every site (except the blocked list), or only on the sites you allow.
+            </p>
+            <Select
+              id="activation-mode"
+              v-model="activationMode"
+              :aria-invalid="!!errors.activationMode"
+            >
+              <option value="all">All sites (except blocked)</option>
+              <option value="allowlist">Only sites I choose</option>
+            </Select>
+            <p v-if="errors.activationMode" class="text-destructive mt-1.5 text-xs">
+              {{ errors.activationMode }}
+            </p>
+          </div>
+          <div>
             <Label for="blocked-hostnames">Blocked sites</Label>
             <p class="text-muted-foreground mb-2 text-xs">
-              QuikFill never runs on these sites. One hostname per line (e.g.
-              <code>bank.example.com</code>).
+              Used in <span class="font-medium">All sites</span> mode — QuikFill never runs on
+              these. One hostname per line (e.g. <code>bank.example.com</code>).
             </p>
             <Textarea
               id="blocked-hostnames"
@@ -172,6 +195,24 @@ const onSubmitConfig = handleSubmit(
             />
             <p v-if="errors.blockedHostnames" class="text-destructive mt-1.5 text-xs">
               {{ errors.blockedHostnames }}
+            </p>
+          </div>
+          <div>
+            <Label for="allowed-hostnames">Allowed sites</Label>
+            <p class="text-muted-foreground mb-2 text-xs">
+              Used in <span class="font-medium">Only sites I choose</span> mode — QuikFill runs only
+              on these. One hostname per line (e.g. <code>app.quikstor.com</code>).
+            </p>
+            <Textarea
+              id="allowed-hostnames"
+              v-model="allowedHostnames"
+              v-bind="allowedHostnamesAttrs"
+              rows="4"
+              placeholder="app.quikstor.com&#10;crm.work.example"
+              :aria-invalid="!!errors.allowedHostnames"
+            />
+            <p v-if="errors.allowedHostnames" class="text-destructive mt-1.5 text-xs">
+              {{ errors.allowedHostnames }}
             </p>
           </div>
         </CardContent>

@@ -83,6 +83,7 @@ export type ProfileFormValues = z.input<typeof profileFormSchema>
  */
 export const extensionSettingsFormSchema = extensionSettingsSchema.extend({
   blockedHostnames: linesTextarea,
+  allowedHostnames: linesTextarea,
 })
 export type ExtensionSettingsFormValues = z.input<typeof extensionSettingsFormSchema>
 
