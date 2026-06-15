@@ -89,7 +89,7 @@ function useDifferentEmail(): void {
       <CardTitle class="text-2xl">Sign in</CardTitle>
       <CardDescription>
         <template v-if="step === 'email'">
-          We'll email you sign-in code — no password required.
+          We'll email you a sign-in code — no password required.
         </template>
         <template v-else>
           Enter the code we sent to <strong>{{ sentTo }}</strong

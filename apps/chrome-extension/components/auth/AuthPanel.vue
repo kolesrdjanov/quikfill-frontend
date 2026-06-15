@@ -34,13 +34,12 @@ import MessageScreen from './MessageScreen.vue'
 import OtpInput from './OtpInput.vue'
 import AuthStatusBadge from './AuthStatusBadge.vue'
 import { useAuthGate } from '../../lib/useAuthGate'
-import { DASHBOARD_URL, SUPPORT_MAILTO, WEB_STORE_URL } from '../../lib/external-urls'
+import { DASHBOARD_URL, PRIVACY_URL, SUPPORT_MAILTO, WEB_STORE_URL } from '../../lib/external-urls'
 
 // External recovery destinations. The dashboard origin is build-time (prod →
 // deployed app, dev → local Vite) via lib/external-urls, so a prod build never
 // deep-links to localhost.
 const DASHBOARD_BILLING_URL = `${DASHBOARD_URL}/settings/billing`
-const HELP_URL = `${DASHBOARD_URL}/`
 
 const gate = useAuthGate()
 
@@ -116,7 +115,7 @@ function closePanel(): void {
             size="icon"
             class="size-[30px]"
             aria-label="Help & privacy"
-            @click="openTab(HELP_URL)"
+            @click="openTab(PRIVACY_URL)"
           >
             <CircleHelp class="size-4" />
           </Button>
