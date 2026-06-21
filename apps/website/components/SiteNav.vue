@@ -20,7 +20,7 @@ const appUrl = useRuntimeConfig().public.appUrl
         <NuxtLink to="/#how">How it works</NuxtLink>
         <NuxtLink to="/#features">Features</NuxtLink>
         <NuxtLink to="/#privacy">Privacy</NuxtLink>
-        <!-- Pricing hidden until public launch: <a href="#pricing">Pricing</a> -->
+        <NuxtLink to="/#pricing">Pricing</NuxtLink>
       </nav>
       <div class="nav-actions">
         <button
@@ -34,10 +34,7 @@ const appUrl = useRuntimeConfig().public.appUrl
           <Moon class="t-moon" />
         </button>
         <a class="signin" :href="`${appUrl}/sign-in`">Sign in</a>
-        <!-- Get started disabled until public launch:
         <a class="btn btn--primary btn--sm" href="#pricing"><Zap /> Get started</a>
-        -->
-        <span class="btn btn--primary btn--sm" aria-disabled="true"><Zap /> Coming soon</span>
       </div>
     </div>
   </header>

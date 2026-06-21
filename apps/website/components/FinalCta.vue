@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { Chrome, ShieldCheck } from 'lucide-vue-next'
+
+// Chrome Web Store listing the install CTA points to (placeholder until launch).
+const chromeStoreUrl = useRuntimeConfig().public.chromeStoreUrl
 </script>
 
 <template>
@@ -12,11 +15,10 @@ import { Chrome, ShieldCheck } from 'lucide-vue-next'
           Free to start, no card required.
         </p>
         <div class="cta-row">
-          <!-- Disabled until public launch:
-          <a class="btn btn--primary btn--lg" href="#"><Chrome /> Add to Chrome — free</a>
+          <a class="btn btn--primary btn--lg" :href="chromeStoreUrl" target="_blank" rel="noopener"
+            ><Chrome /> Add to Chrome — free</a
+          >
           <a class="btn btn--ghost btn--lg" href="#pricing">See pricing</a>
-          -->
-          <span class="btn btn--primary btn--lg" aria-disabled="true"><Chrome /> Coming soon</span>
         </div>
         <div class="micro"><ShieldCheck /> Works on any site · nothing read until you scan</div>
       </div>

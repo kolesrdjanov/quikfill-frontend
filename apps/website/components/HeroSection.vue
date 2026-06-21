@@ -21,8 +21,7 @@ useMockFit(stageWrap)
             fills the whole thing from your data — you just review and submit. On any site.
           </p>
           <div class="cta-row">
-            <!-- Disabled until public launch: <a class="btn btn--primary btn--lg" href="#pricing"><Zap /> Get started</a> -->
-            <span class="btn btn--primary btn--lg" aria-disabled="true"><Zap /> Coming soon</span>
+            <a class="btn btn--primary btn--lg" href="#pricing"><Zap /> Get started</a>
             <a class="btn btn--ghost btn--lg" href="#how"><Play /> See it work</a>
           </div>
           <div class="micro">

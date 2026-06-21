@@ -1,4 +1,7 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+// Chrome Web Store listing the footer link points to (placeholder until launch).
+const chromeStoreUrl = useRuntimeConfig().public.chromeStoreUrl
+</script>
 
 <template>
   <footer class="footer">
@@ -19,8 +22,8 @@
           <h5>Product</h5>
           <NuxtLink to="/#features">Features</NuxtLink>
           <NuxtLink to="/#how">How it works</NuxtLink>
-          <!-- Pricing hidden until public launch: <a href="#pricing">Pricing</a> -->
-          <a aria-disabled="true">Chrome extension — coming soon</a>
+          <NuxtLink to="/#pricing">Pricing</NuxtLink>
+          <a :href="chromeStoreUrl" target="_blank" rel="noopener">Chrome extension</a>
         </div>
         <div class="footer-col">
           <h5>Company</h5>
