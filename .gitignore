@@ -49,6 +49,8 @@ blob-report
 .env
 .env.local
 .env.*.local
+.env.submit
+.env.development
 
 ### Editor
 .vscode/*
