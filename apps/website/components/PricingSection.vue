@@ -17,10 +17,6 @@ function tokenLabel(plan: PlanCatalogEntry): string {
   return `${n.toLocaleString('en-US')} tokens`
 }
 
-function ctaLabel(plan: PlanCatalogEntry): string {
-  return plan.key === 'free' ? 'Get started' : 'Upgrade'
-}
-
 function ctaHref(plan: PlanCatalogEntry): string {
   return plan.key === 'free' ? `${appUrl}/sign-in` : `${appUrl}/billing?plan=${plan.key}`
 }
@@ -60,7 +56,7 @@ function ctaHref(plan: PlanCatalogEntry): string {
             :href="ctaHref(plan)"
             style="width: 100%"
           >
-            <Zap v-if="plan.recommended" />{{ ctaLabel(plan) }}
+            <Zap v-if="plan.recommended" />Get started
           </a>
           <ul>
             <li v-for="f in plan.featureBullets" :key="f.text" :class="{ muted: f.muted }">
