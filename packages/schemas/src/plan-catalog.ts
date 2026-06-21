@@ -37,7 +37,17 @@ export interface PlanCatalogEntry {
   selfServe: boolean
 }
 
-/** Ordered free → starter → pro → enterprise. */
+/**
+ * Ordered free → starter → pro → enterprise.
+ *
+ * HONESTY CONSTRAINT: today the only real, plan-gated difference between tiers is the
+ * monthly AI-fill quota. Every other feature (manual fill, saved profiles, seedable
+ * generators, cross-device sync) is free for all users. Do NOT re-add paid-tier bullets
+ * like "SSO & team management" (the product is single-user by design), "priority field
+ * classification", or support/SLA claims unless they are actually built and
+ * entitlement-gated in quikfill-services.
+ * See docs/superpowers/specs/2026-06-22-honest-pricing-copy-design.md.
+ */
 export const PLAN_CATALOG: PlanCatalogEntry[] = [
   {
     key: 'free',
@@ -50,10 +60,10 @@ export const PLAN_CATALOG: PlanCatalogEntry[] = [
     tagline: 'Evaluation & first-time users',
     selfServe: false,
     featureBullets: [
-      { text: 'Unlimited manual scan & fill' },
-      { text: 'Saved profiles & records' },
-      { text: 'Generators & undo' },
-      { text: 'Limited AI fills', muted: true },
+      { text: 'Unlimited manual scan, fill & undo' },
+      { text: 'Saved profiles, records & seedable generators' },
+      { text: 'Cross-device profile sync' },
+      { text: '10 AI form fills / month', muted: true },
     ],
   },
   {
@@ -66,12 +76,7 @@ export const PLAN_CATALOG: PlanCatalogEntry[] = [
     marketingFills: '200',
     tagline: 'Solo developers & freelance QA',
     selfServe: true,
-    featureBullets: [
-      { text: 'Everything in Free' },
-      { text: '200 AI form fills / month' },
-      { text: 'Priority field classification' },
-      { text: 'Email support' },
-    ],
+    featureBullets: [{ text: 'Everything in Free' }, { text: '200 AI form fills / month' }],
   },
   {
     key: 'pro',
@@ -84,28 +89,21 @@ export const PLAN_CATALOG: PlanCatalogEntry[] = [
     tagline: 'Full-time manual QA professionals',
     recommended: true,
     selfServe: true,
-    featureBullets: [
-      { text: 'Everything in Starter' },
-      { text: '1,000 AI form fills / month' },
-      { text: 'Seedable generators for QA' },
-      { text: 'Profile sync across devices' },
-    ],
+    featureBullets: [{ text: 'Everything in Starter' }, { text: '1,000 AI form fills / month' }],
   },
   {
     key: 'enterprise',
     displayName: 'Enterprise',
     priceUsdCents: 9900,
-    priceLabel: '$99+',
+    priceLabel: '$99',
     pricePer: '/ mo',
     fillLimit: 10000,
     marketingFills: '10,000',
-    tagline: 'QA agencies & testing teams',
+    tagline: 'High-volume QA & power users',
     selfServe: true,
     featureBullets: [
       { text: 'Everything in Pro Tester' },
       { text: '10,000 AI form fills / month' },
-      { text: 'SSO & team management' },
-      { text: 'Dedicated support & SLA' },
     ],
   },
 ]
