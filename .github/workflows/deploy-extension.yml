@@ -20,7 +20,12 @@ on:
   #     - 'apps/chrome-extension/**'
   #     - 'packages/**'
   #     - 'pnpm-lock.yaml'
-  workflow_dispatch: {} # ručno pokretanje iz Actions taba
+  workflow_dispatch: # ručno pokretanje iz Actions taba
+    inputs:
+      dry_run:
+        description: 'Validate creds + zip WITHOUT uploading (safe during pending review)'
+        type: boolean
+        default: true
 
 concurrency:
   group: deploy-extension
@@ -65,9 +70,12 @@ jobs:
           # Bez ovoga produkcioni build pada (build:manifestGenerated hook u wxt.config.ts).
           WXT_QF_API_BASE_URL: ${{ secrets.WXT_QF_API_BASE_URL }}
 
+      # `dry_run` (workflow_dispatch input, default = true) authenticates + validates
+      # the zip but SKIPS upload/publish — safe to run while a review is pending. A
+      # `push` (once un-paused) carries no input, so the expression is false → real submit.
       - name: Upload + publish to Chrome Web Store
         working-directory: apps/chrome-extension
-        run: pnpm exec wxt submit --chrome-zip .output/*-chrome.zip
+        run: pnpm exec wxt submit ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }} --chrome-zip .output/*-chrome.zip
         env:
           CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
           CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
