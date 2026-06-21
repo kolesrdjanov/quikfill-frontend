@@ -9,9 +9,9 @@ and directs visitors to the Chrome extension and the dashboard. Parent roadmap:
 
 ## Status
 
-| #   | Iteration                                                     | Status                                                                                           |
-| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 9   | Marketing website (pages, pricing, docs/support placeholders) | 🚧 In progress — landing page (`/`) built 1:1 from design; product/extension/docs routes pending |
+| #   | Iteration                                                     | Status                                                                                                                                     |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 9   | Marketing website (pages, pricing, docs/support placeholders) | ✅ Live (2026-06-21) — single-page site (`/`) built 1:1 from design; `/privacy` standalone; product/extension/docs/pricing routes descoped |
 
 ## Stack & conventions
 
@@ -30,18 +30,30 @@ Mirrors `vue3-template/apps/web`:
   `form-scanner`, `autofill-core`, etc.). The website is pure marketing.
 - Use real product screenshots once the extension/dashboard are shippable.
 
-## Pages (MVP)
+## Pages (as built)
 
-| Route        | Page                   | Notes                                                                                            |
-| ------------ | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| `/`          | Landing                | hero, value prop, primary CTA → Chrome Web Store + "Open dashboard"                              |
-| `/product`   | Product overview       | how scan→preview→fill→save works; field-support honesty; AI-as-suggestion                        |
-| `/extension` | Chrome extension       | install steps, permissions explained, supported field levels                                     |
-| `/pricing`   | Pricing                | plan tiers; **read tiers from a single config**, don't scatter limits across components          |
-| `/docs`      | Docs / getting started | quick start, FAQs, troubleshooting (placeholder structure OK)                                    |
-| `/support`   | Support / contact      | contact form or mailto; links to docs                                                            |
-| `/privacy`   | Privacy                | placeholder — must reflect the real privacy posture (no full HTML, redacted values, mediated AI) |
-| `/terms`     | Terms                  | placeholder                                                                                      |
+The site shipped as a **single composite landing page** at `/` plus a standalone
+`/privacy` page — only these two routes exist (`pages/index.vue` + `pages/privacy.vue`;
+`nuxt.config.ts` prerenders exactly `['/', '/privacy']`). The planned
+`/product`, `/extension`, `/pricing`, `/docs`, `/support`, and `/terms` routes
+were **not built / descoped**; their content (where kept) lives as in-page
+sections on `/`, reached via anchors (`/#how`, `/#features`, `/#pricing`).
+
+| Route      | Page                  | Notes                                                                                                                                |
+| ---------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `/`        | Landing (single-page) | composes in-page sections: Hero, HowItWorks, Features, Privacy, Pricing, FinalCta; primary CTA → Chrome Web Store + "Open dashboard" |
+| `/privacy` | Privacy               | standalone page — reflects the real privacy posture (no full HTML, redacted values, mediated AI)                                     |
+
+**Descoped (not built):**
+
+| Planned route | Where it went                                                                                                                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/product`    | folded into the `/#how` (HowItWorks) + `/#features` in-page sections                                                                                                                     |
+| `/extension`  | not built — install/CTA handled by the hero + FinalCta Chrome Web Store CTAs                                                                                                             |
+| `/pricing`    | not a route — pricing is the in-page `#pricing` section (`PricingSection`); **tiers read from a single config** (`PLAN_CATALOG`, `@quikfill/schemas`), never scattered across components |
+| `/docs`       | not built                                                                                                                                                                                |
+| `/support`    | not built                                                                                                                                                                                |
+| `/terms`      | not built                                                                                                                                                                                |
 
 ## Content alignment
 

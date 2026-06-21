@@ -22,6 +22,8 @@ ai             → schemas                          ❌ no API key, no network t
 api-client     → schemas                          ✅ fetch/axios to quikfill-services
 ui             → (Vue + tailwind + shadcn-vue)    consumed by app + extension UI
 config         → (no runtime deps)                eslint/tailwind/tsconfig/test presets
+assets         → (no runtime deps)                shared brand/logo/icon assets, consumed by app + extension
+figma-adapter  → schemas, autofill-core           ⏸️ paused 4th-surface adapter — see FIGMA_PLUGIN_STATUS.md
 ```
 
 A lint boundary rule (e.g. `eslint-plugin-import` `no-restricted-paths`) should
@@ -253,6 +255,24 @@ Shared, versioned presets so apps don't drift:
 - ESLint 9 flat config base (re-exported by the root `eslint.config.js`).
 - Tailwind v4 preset + semantic tokens.
 - Vitest base setup.
+
+---
+
+## `packages/assets` — shared brand assets
+
+Shared brand/logo/icon assets, **consumed by the app and the extension**. No
+runtime deps; just the canonical brand imagery so the surfaces don't each carry
+their own copy.
+
+---
+
+## `packages/figma-adapter` — paused 4th-surface adapter
+
+⏸️ **PAUSED.** The shared adapter library for a potential Figma-plugin surface
+(host-adapter that composes `schemas` + `autofill-core`, mirroring how
+`form-scanner`/`browser-adapter` isolate the web/Chrome specifics). Built + tested,
+but the `apps/figma-plugin` host app was never scaffolded. Authoritative status:
+→ [`FIGMA_PLUGIN_STATUS.md`](./FIGMA_PLUGIN_STATUS.md).
 
 ---
 

@@ -13,7 +13,7 @@
     "dev:web": "pnpm --filter @quikfill/website dev",
     "build": "pnpm -r build",
     "build:app": "pnpm --filter @quikfill/app build",
-    "build:web": "pnpm --filter @quikfill/web build",
+    "build:web": "pnpm --filter @quikfill/website build",
     "generate:web": "pnpm --filter @quikfill/website generate",
     "deploy:chrome": "node scripts/deploy-chrome.mjs",
     "typecheck": "pnpm -r typecheck",

@@ -41,6 +41,10 @@ pnpm --filter @quikfill/app build   # build runs vue-tsc typecheck first
 
 ## Current state
 
+> This section describes the full Iteration-8 dashboard, which is **built but now
+> DISABLED**. The currently deployed live surface is the **Billing-only
+> deployment** section below (sign-in + Settings + Admin).
+
 Iteration 8 is **done**, built against the **live backend** (`/api/v1`, Vite proxy
 → `localhost:4010`; dev server pinned to `:5173` for CORS). Implemented:
 
@@ -49,7 +53,7 @@ Iteration 8 is **done**, built against the **live backend** (`/api/v1`, Vite pro
   guard, and the `@quikfill/api-client` singleton (`lib/api.ts`) with a queued
   401-refresh.
 - **Views:** `Home`, `Data` (entity types + records), `Generators`, `Apps`,
-  `FormProfiles` + `FormProfileDetail` (mapping review), `FillHistory`, `Settings`,
+  `FormProfiles` + `FormProfileDetail` (mapping review), `FillHistory`,
   and `Billing` (+ `BillingSuccess` / `BillingCancel`).
 - **Stores:** one Pinia setup store per resource; **forms** via
   `useFormValidation(schema)` with Zod schemas in `src/schemas/forms.ts`;
@@ -63,7 +67,7 @@ Checkout/Portal via `api.subscriptions`. Deferred to a follow-up: the
 ## Billing-only deployment (current shape)
 
 This surface is intentionally trimmed to **sign-in + a small Settings area**
-(Billing, Account, Configuration) for the `app.quikfill.io` deployment:
+(Billing, Account, Setup) for the `app.quikfill.io` deployment:
 
 - The full dashboard routes (Home, Data, Generators, Apps, Form Profiles, Fill
   History) are **commented out** in [`src/router/index.ts`](src/router/index.ts)
@@ -72,9 +76,10 @@ This surface is intentionally trimmed to **sign-in + a small Settings area**
 - **Settings** is a collapsible sidebar group (bottom of `AppLayout`) over
   `/settings/billing` ([`Billing.vue`](src/views/Billing.vue)),
   `/settings/account` ([`Account.vue`](src/views/Account.vue), first/last-name
-  form), and `/settings/config` ([`Configuration.vue`](src/views/Configuration.vue),
-  placeholder for CE customization). `/` and the guard fallbacks redirect to
-  `/settings/billing`; `/billing` is kept as a back-compat redirect and the Stripe
+  form), and `/settings/setup` ([`Setup.vue`](src/views/Setup.vue), the LIVE
+  CE-download + extension-configuration page). `/` and the guard fallbacks redirect to
+  `/settings/billing`; `/billing` and `/settings/config` are kept as back-compat
+  redirects (`/settings/config` → `/settings/setup`) and the Stripe
   `/billing/success` · `/billing/cancel` paths are unchanged.
 - **Sign-in access (beta gate):** access control is **backend-enforced** in
   `quikfill-services` — `POST /auth/magic-link` returns `403` for any email that
@@ -95,11 +100,14 @@ Deployed as a **Cloudflare Worker serving static assets** (assets-only, no serve
 code), config in [`wrangler.jsonc`](wrangler.jsonc). Cloudflare's **git-connected
 build** (Workers Builds) installs + builds the monorepo and runs `wrangler deploy`.
 
-> **REQUIRED: Node 24** (pinned in [`../../.nvmrc`](../../.nvmrc)). On Node 20,
-> Cloudflare's `pnpm install` fails to materialize the oxc-parser native Linux
-> binding and the website's `nuxt prepare` postinstall crashes the whole install
-> (`Cannot find @oxc-parser/binding-linux-x64-gnu`). Node 24 resolves it — this is
-> the proven setup used across the sibling `vaia-space` monorepo.
+> **Node 24** is the pinned version ([`../../.nvmrc`](../../.nvmrc) = `24`,
+> `engines.node` `>=24`). The past Cloudflare linux-install failures
+> (`pnpm install` failing to materialize native Linux bindings, the website's
+> `nuxt prepare` postinstall crashing the whole install) were **not** caused by the
+> Node version: the real root cause was a `pnpm.supportedArchitectures` **libc
+> filter** that starved the glibc native bindings — **removed 2026-06-01**, which is
+> what actually fixed the install. Node 24 stays pinned, but it isn't what resolved
+> the failure.
 
 **Cloudflare build configuration** (dashboard):
 

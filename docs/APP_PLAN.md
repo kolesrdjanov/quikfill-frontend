@@ -1,5 +1,12 @@
 # App (Dashboard) — Implementation Plan
 
+> **Status (deployed shape):** the live surface has since been **trimmed** to
+> sign-in + Settings (Billing / Account / Setup) + Admin (Analytics, Beta Users).
+> The full dashboard routes described below are **commented out** in
+> `apps/app/src/router/index.ts` (built but disabled). Billing now lives at
+> `/settings/billing` (not `/subscription`). See the **"Billing-only deployment"**
+> section of [`../apps/app/CLAUDE.md`](../apps/app/CLAUDE.md).
+
 `apps/app` is the **management surface**, not the filling experience. It manages
 account, subscription/billing, saved data, generator presets, domains, form
 profiles, mappings, and fill history — over the **same data model** the extension

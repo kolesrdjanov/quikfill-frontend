@@ -43,18 +43,18 @@ repo's iterations 4–6.
 
 ## Status
 
-| #   | Iteration                           | Primary surface | Status     |
-| --- | ----------------------------------- | --------------- | ---------- |
-| 1   | Monorepo Foundation                 | all             | ✅ Done    |
-| 2   | Shared Schemas (`packages/schemas`) | all             | ✅ Done    |
-| 3   | Scanner Prototype                   | extension       | ✅ Done    |
-| 4   | Fill Plan Preview                   | extension       | ✅ Done    |
-| 5   | Fill Execution + Undo               | extension       | ✅ Done    |
-| 6   | Local Form Profiles                 | extension       | ✅ Done    |
-| 7   | Gemini Assistance                   | extension       | ✅ Done    |
-| 8   | Dashboard Management                | app             | ✅ Done    |
-| 9   | Website                             | website         | 🚧 Partial |
-| 10  | Backend Sync + Billing              | extension + app | 🚧 Partial |
+| #   | Iteration                           | Primary surface | Status               |
+| --- | ----------------------------------- | --------------- | -------------------- |
+| 1   | Monorepo Foundation                 | all             | ✅ Done              |
+| 2   | Shared Schemas (`packages/schemas`) | all             | ✅ Done              |
+| 3   | Scanner Prototype                   | extension       | ✅ Done              |
+| 4   | Fill Plan Preview                   | extension       | ✅ Done              |
+| 5   | Fill Execution + Undo               | extension       | ✅ Done              |
+| 6   | Local Form Profiles                 | extension       | ✅ Done              |
+| 7   | Gemini Assistance                   | extension       | ✅ Done              |
+| 8   | Dashboard Management                | app             | ✅ Done              |
+| 9   | Website                             | website         | ✅ Live (2026-06-21) |
+| 10  | Backend Sync + Billing              | extension + app | 🚧 Partial           |
 
 > **Iteration 8 note:** built directly against the live backend (`quikfill-services`
 > at `/api/v1`) rather than a local mock — per the product owner. This pulls the
@@ -94,7 +94,7 @@ default** — change it here and the surface plans inherit it.
 | Unit tests                   | **Vitest** per package/app                                                                                       | Logic, schemas, scanner, planner, generators.                                                                                                                                                                                                  |
 | E2E                          | **Playwright** (`apps/e2e`), incl. extension harness + fixture HTML pages                                        | Matches `vue3-template`; fixtures exercise scanner/filler on real DOM.                                                                                                                                                                         |
 | Lint/format                  | ESLint 9 flat config + Prettier (`prettier-plugin-tailwindcss`), husky pre-commit                                | Matches `vue3-template`.                                                                                                                                                                                                                       |
-| Node                         | pinned via `.node-version` (>=20.19)                                                                             | Matches `vue3-template`.                                                                                                                                                                                                                       |
+| Node                         | pinned via `.nvmrc` (`24`; `engines.node` `>=24`)                                                                | Cloudflare Workers Builds + native bindings.                                                                                                                                                                                                   |
 
 > **Naming note:** the requirement names the apps `website/`, `app/`,
 > `chrome-extension/`. We keep those names (not the template's `web`/`app`) so the
@@ -114,7 +114,7 @@ No product logic yet — just the skeleton and the quality gate.
 quikfill-frontend/
   pnpm-workspace.yaml          # packages: ['apps/*', 'packages/*']
   package.json                 # root scripts (see below), packageManager: pnpm@10
-  .node-version                # >=20.19
+  .nvmrc                       # 24 (engines.node >=24)
   eslint.config.js             # ESLint 9 flat config (shared base re-exported from packages/config)
   .prettierrc / .prettierignore
   tsconfig.base.json           # shared compiler options; per-package tsconfig extends it
@@ -144,8 +144,14 @@ quikfill-frontend/
   "dev:app": "pnpm --filter @quikfill/app dev",
   "dev:web": "pnpm --filter @quikfill/website dev",
   "build": "pnpm -r build",
+  "build:app": "pnpm --filter @quikfill/app build",
+  "build:web": "pnpm --filter @quikfill/website build",
+  "generate:web": "pnpm --filter @quikfill/website generate",
+  "deploy:chrome": "node scripts/deploy-chrome.mjs",
   "typecheck": "pnpm -r typecheck",
   "lint": "eslint .",
+  "lint:fix": "eslint . --fix",
+  "format": "prettier --write .",
   "format:check": "prettier --check .",
   "test": "pnpm -r test",
   "e2e": "pnpm --filter @quikfill/e2e test",

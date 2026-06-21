@@ -43,8 +43,9 @@ field metadata (label / aria / name / type / placeholder / validation attrs),
 
 The content script (`entrypoints/content.ts`) runs at `document_idle` on
 `<all_urls>` and delegates the in-page UI to `entrypoints/content/overlay.ts`. The
-existing `onScanRequest` / `onFillRequest` / `onUndoRequest` message handlers stay
-(the surface's single-action scan form still uses scan).
+existing `onScanRequest` / `onFillRequest` / `onUndoRequest` message handlers are
+**legacy plumbing** — retained but with **no live UI consumer** (the popup has no
+scan form), so they are not a current surface, just preserved wiring.
 
 ```
 document_idle
@@ -128,7 +129,7 @@ while the user has AI budget. The overlay seeds entitlements from the background
 (`requestEntitlements`) and stays in sync via `onEntitlementsChange` (a
 `chrome.storage.onChanged` subscription in the adapter), re-running the scan when
 usage, plan, or a monthly reset changes. When `isOverQuota`, **no button is
-injected** — all usage numbers/detail live in the side panel, not on the page.
+injected** — all usage numbers/detail live in the popup, not on the page.
 Unknown entitlements (`null`) are treated optimistically (button shown), matching
 the surfaces; if a fill then tips the user over budget, it fails with **"AI limit
 reached"** and refreshes the snapshot, which removes the buttons.

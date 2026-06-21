@@ -12,7 +12,10 @@ page, detects fields, matches saved profiles, optionally asks AI for help, build
 a previewable fill plan, fills fields, and supports undo.
 
 - **Chrome extension** (`apps/chrome-extension`) — the primary execution surface.
-- **App / dashboard** (`apps/app`) — manages data, profiles, generators, history.
+- **App / dashboard** (`apps/app`) — currently a trimmed live surface: sign-in +
+  Settings (Billing / Account / Setup) + Admin. The full dashboard (data,
+  profiles, generators, history) is built but its routes are disabled; see
+  [`apps/app/CLAUDE.md`](./apps/app/CLAUDE.md).
 - **Website** (`apps/website`) — public marketing site.
 
 Every concept is production-shaped: storage/sync/AI sit behind adapters so the
@@ -33,6 +36,8 @@ packages/
   form-scanner/       # DOM-aware, NOT Chrome/Vue-aware.
   browser-adapter/    # the only package allowed to touch chrome.*
   generators/  ai/  api-client/  config/
+  assets/             # shared brand/logo/icon assets, consumed by app + extension.
+  figma-adapter/      # paused 4th-surface adapter library — see docs/FIGMA_PLUGIN_STATUS.md.
 docs/                 # roadmap + per-surface plans.
 ```
 

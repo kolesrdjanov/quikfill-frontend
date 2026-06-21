@@ -17,8 +17,11 @@ Engine: [`../../docs/SHARED_PACKAGES_PLAN.md`](../../docs/SHARED_PACKAGES_PLAN.m
 
 - **WXT** (`wxt.config.ts`) + Vue 3 + Vite + Tailwind v4. MV3-native, file-based
   entrypoints, generated manifest, typed messaging + `storage` helpers, HMR.
-- Entrypoints under `entrypoints/`: `background.ts`, `content.ts`, and Vue UIs
-  `popup/`, `sidepanel/`, `options/` (each `App.vue` + `main.ts` + `index.html`).
+- Entrypoints under `entrypoints/`: `background.ts`, `content.ts` (+
+  `content/overlay.ts` for the in-page UI), and the Vue popup UI `popup/`
+  (`App.vue` + `main.ts` + `index.html`). The old `sidepanel/` + `options/`
+  surfaces are retired under `apps/chrome-extension/legacy/` (outside
+  `entrypoints/`, so WXT never builds them).
 
 ```bash
 pnpm dev:ext      # or: pnpm --filter @quikfill/chrome-extension dev
@@ -32,9 +35,10 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
   `@quikfill/autofill-core`, `@quikfill/generators`, `@quikfill/schemas`.
 - **Chrome-specific code lives only in `@quikfill/browser-adapter`** and these
   entrypoints. Never call `chrome.*` from feature logic or other packages.
-- UI in popup/sidepanel/options uses `@quikfill/ui` (shadcn) — see root rules 2–4.
+- UI in the popup uses `@quikfill/ui` (shadcn) — see root rules 2–4.
   Forms (e.g. profile/mapping editors) use Zod + VeeValidate — root rule 1.
-- Keep **permissions minimal**; request tab access on a user action, not eagerly.
+- Keep **permissions minimal** (`activeTab`, `scripting`, `storage`, `alarms`);
+  `activeTab` is granted on the popup-open gesture, not eagerly.
 - Never identify a form by URL alone — use the fingerprint/profile match.
 - AI is review-first and privacy-aware: send redacted field summaries, never full
   HTML or current values; route AI calls through the backend, never Gemini direct.
@@ -73,23 +77,24 @@ worker owns the api-client call, fails gracefully when the backend is offline).
   ARE sent to the AI so its proposed date lands inside the picker's range (the
   filler types first, then falls back to clicking the nearest enabled day).
 
-The **UI design-system pass** is also done: popup, side panel, and options are
-rebuilt against the shared tokens + `@quikfill/ui` to match the dashboard. The
-side panel runs on a `useFillSession` composable (`lib/useFillSession.ts`) that
-wraps the existing package calls — behaviour is unchanged. Surface-local
-composition components live in `components/`; shared helpers in `lib/`. Settings
-persist locally via an `ExtensionSettings` schema + `useSettings`.
+**Live surface (v2): the toolbar popup.** The single live UI is the toolbar
+**popup** — passwordless email-OTP sign-in → a subscription/usage mini-dashboard
+with a **Manage** link to the dashboard app and a Sign out. There is no
+in-extension scan/settings UI. Auth screens live in `components/auth/`; a
+`useAuthGate` composable (`lib/useAuthGate.ts`) wraps the background session
+(`createBackgroundAuth` + `useAuth`) and drives the screen machine (sign-in →
+sending → OTP → verifying → success → app) plus the blocking states (error /
+subscription / offline / session / ratelimit / update). Forms validate via Zod +
+VeeValidate through the shared `useFormValidation` (now in `@quikfill/ui`).
 
-**Auth gate (Iteration 10):** the side panel and popup are now gated by
-passwordless email-OTP sign-in. A `useAuthGate` composable (`lib/useAuthGate.ts`)
-sits in front of `useFillSession`: it wraps the background session
-(`createBackgroundAuth` + `useAuth`) and derives the design's screen machine —
-sign-in → sending → OTP (6 segmented boxes, paste/keyboard nav) → verifying →
-success → app — plus the blocking states (error / subscription / offline /
-session / ratelimit / update). The OTP attempt counter, 10-min TTL, and
-rate-limit cooldown are tracked **client-side** because `/auth/verify` returns a
-uniform `INVALID_TOKEN`. Auth screens live in `components/auth/`; the toolbar
-badge reflects the session from `background.ts`. Forms validate via Zod +
-VeeValidate through the shared `useFormValidation` (now in `@quikfill/ui`). Next:
-Iteration 10 — backend **sync** (swap the local `StorageAdapter`). See the
-plan's status table.
+**Filling happens on the page**, not in the popup: the content script
+(`content.ts` + `content/overlay.ts`) auto-detects forms and injects an isolated
+Shadow-DOM floating **Fill** button that calls the backend `POST /ai/fill` and
+prefills via the existing `applyFill`. Full reference:
+[`../../docs/CHROME_EXTENSION_FLOW.md`](../../docs/CHROME_EXTENSION_FLOW.md).
+
+**Backend settings-sync is shipped:** `background.ts` wires `createBackgroundSync`
+
+- `hydrateSettings` + a periodic alarm, so dashboard-managed settings hydrate
+  into `chrome.storage` and the overlay applies them — no longer a future
+  iteration.

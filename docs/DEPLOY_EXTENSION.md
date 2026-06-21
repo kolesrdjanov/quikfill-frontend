@@ -1,11 +1,12 @@
-# Deploy: Chrome ekstenzija (privatno, na push na `main`)
+# Deploy: Chrome ekstenzija (privatno; ručno preko `workflow_dispatch`, push-na-`main` pauziran)
 
 Workflow: [`.github/workflows/deploy-extension.yml`](../.github/workflows/deploy-extension.yml).
 
-Push na `main` (koji dira `apps/chrome-extension/**`, `packages/**` ili
-`pnpm-lock.yaml`) → CI build-uje produkcionu ekstenziju i upload-uje je na
-Chrome Web Store preko WXT (`wxt zip` → `wxt submit`). Ekstenzija je **privatna** —
-vidljiva samo Google nalozima koje pozoveš.
+CWS objavljivanje se trenutno pokreće **ručno** iz Actions taba preko
+`workflow_dispatch`; automatski triger na push na `main` je **pauziran** (vidi
+"Uključivanje automatike" niže). Kad se pokrene, CI build-uje produkcionu
+ekstenziju i upload-uje je na Chrome Web Store preko WXT (`wxt zip` → `wxt submit`).
+Ekstenzija je **privatna** — vidljiva samo Google nalozima koje pozoveš.
 
 ## Jednokratni setup (mora ručno — CI ovo ne radi)
 
