@@ -40,7 +40,7 @@ const usageChip = computed(() => {
       : 'gray'
   const label = entitlements.isOverQuota.value
     ? 'AI limit reached'
-    : `≈ ${entitlements.fillsRemaining.value.toLocaleString()} AI fills left`
+    : `${entitlements.fillsRemaining.value.toLocaleString()} AI fills left`
   return { variant, label } as const
 })
 
