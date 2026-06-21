@@ -13,8 +13,8 @@ describe('entitlementsResponseSchema', () => {
       planKey: 'starter',
       displayName: 'Starter',
       status: 'active',
-      tokensUsed: 12_340,
-      tokenLimit: 500_000,
+      fillsUsed: 47,
+      fillLimit: 200,
       currentPeriodEnd: '2026-06-29T00:00:00.000Z',
     })
     expect(parsed.planKey).toBe('starter')
@@ -26,8 +26,8 @@ describe('entitlementsResponseSchema', () => {
       planKey: 'free',
       displayName: 'Free',
       status: 'active',
-      tokensUsed: 0,
-      tokenLimit: 2500,
+      fillsUsed: 0,
+      fillLimit: 10,
       currentPeriodEnd: null,
     })
     expect(parsed.currentPeriodEnd).toBeUndefined()
@@ -39,21 +39,21 @@ describe('entitlementsResponseSchema', () => {
         planKey: 'platinum',
         displayName: 'Platinum',
         status: 'active',
-        tokensUsed: 0,
-        tokenLimit: 0,
+        fillsUsed: 0,
+        fillLimit: 0,
         currentPeriodEnd: null,
       }),
     ).toThrow()
   })
 
-  it('rejects a negative token counter', () => {
+  it('rejects a negative fill counter', () => {
     expect(() =>
       entitlementsResponseSchema.parse({
         planKey: 'free',
         displayName: 'Free',
         status: 'active',
-        tokensUsed: -1,
-        tokenLimit: 2500,
+        fillsUsed: -1,
+        fillLimit: 10,
         currentPeriodEnd: null,
       }),
     ).toThrow()

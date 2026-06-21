@@ -126,7 +126,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   // reached" and refreshes the snapshot, which hides the button.
   let overQuota = false
   const applyEntitlements = (e: Entitlements | null): void => {
-    overQuota = e !== null && isOverQuota(e.tokensUsed, e.tokenLimit)
+    overQuota = e !== null && isOverQuota(e.fillsUsed, e.fillLimit)
   }
 
   // Dashboard-managed settings, synced into chrome.storage.local by the background

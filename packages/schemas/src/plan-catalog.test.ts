@@ -7,20 +7,15 @@ describe('PLAN_CATALOG', () => {
   })
 
   it('publishes the doc-authoritative marketing fill figures', () => {
-    expect(PLAN_CATALOG.map((p) => p.marketingFills)).toEqual([
-      '~10',
-      '~1,500',
-      '~6,000',
-      '~20,000+',
-    ])
+    expect(PLAN_CATALOG.map((p) => p.marketingFills)).toEqual(['10', '200', '1,000', '10,000'])
   })
 
-  it('matches the documented prices and token caps', () => {
-    expect(PLAN_CATALOG.map((p) => [p.priceLabel, p.tokenLimit])).toEqual([
-      ['$0', 2500],
-      ['$12', 500_000],
-      ['$29', 2_000_000],
-      ['$99+', 8_000_000],
+  it('matches the documented prices and fill caps', () => {
+    expect(PLAN_CATALOG.map((p) => [p.priceLabel, p.fillLimit])).toEqual([
+      ['$0', 10],
+      ['$12', 200],
+      ['$29', 1000],
+      ['$99+', 10000],
     ])
   })
 

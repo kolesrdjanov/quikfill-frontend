@@ -4,10 +4,11 @@ import { isoDateTime, nullableOptional } from './common'
 /**
  * Subscription / billing contracts (mirror the backend `subscriptions` module).
  *
- * The product is sold in a friendly "Form Fills" unit, but the backend enforces
- * quota on raw **AI tokens** — see `./usage` for the conversion helpers and
- * `./plan-catalog` for the static marketing catalogue. Only backend AI draws
- * down the budget; scanning and filling from saved data are always free.
+ * The product is sold and metered in **form fills** — one AI form fill (a single
+ * /ai/fill call) is one unit, regardless of form size. See `./usage` for the
+ * gating helpers and `./plan-catalog` for the static marketing catalogue. Only
+ * backend AI fills draw down the budget; scanning and filling from saved data are
+ * always free. (Raw tokens are tracked server-side for cost only — never here.)
  */
 
 /** The four subscription tiers. `free` is the no-card entry point. */
@@ -30,7 +31,7 @@ export type SubscriptionStatus = z.infer<typeof subscriptionStatusSchema>
 
 /**
  * `GET /entitlements` response — the live plan + usage for the current user.
- * `tokenLimit === 0` means the tier is uncapped (unlimited AI). `currentPeriodEnd`
+ * `fillLimit === 0` means the tier is uncapped (unlimited AI). `currentPeriodEnd`
  * is `null` for free users, so it uses {@link nullableOptional} (a plain
  * `.optional()` would reject the explicit `null` and fail the whole parse).
  */
@@ -38,8 +39,8 @@ export const entitlementsResponseSchema = z.object({
   planKey: planKeySchema,
   displayName: z.string(),
   status: subscriptionStatusSchema,
-  tokensUsed: z.number().int().nonnegative(),
-  tokenLimit: z.number().int().nonnegative(),
+  fillsUsed: z.number().int().nonnegative(),
+  fillLimit: z.number().int().nonnegative(),
   currentPeriodEnd: nullableOptional(isoDateTime),
 })
 export type Entitlements = z.infer<typeof entitlementsResponseSchema>

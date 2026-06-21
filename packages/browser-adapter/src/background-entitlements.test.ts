@@ -7,8 +7,8 @@ const ENT: Entitlements = {
   planKey: 'pro',
   displayName: 'Pro Tester',
   status: 'active',
-  tokensUsed: 5,
-  tokenLimit: 2_000_000,
+  fillsUsed: 5,
+  fillLimit: 1000,
 }
 
 function memoryStore(seed: Entitlements | null = null): EntitlementsStore {

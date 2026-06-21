@@ -2,13 +2,11 @@ import type { PlanKey } from './subscription'
 
 /**
  * The static plan catalogue — the single source of truth for *marketing* plan
- * metadata (prices, feature bullets, the friendly "≈ Form Fills" figure) shared
- * by the website pricing grid and the app's plan picker.
+ * metadata (prices, feature bullets, the form-fill figure) shared by the website
+ * pricing grid and the app's plan picker.
  *
- * The numbers here are the **authoritative, deliberately-conservative** figures
- * from the backend concept doc `services/.../billing-and-subscriptions.md`. Live
- * usage (tokensUsed / tokenLimit) always comes from `GET /entitlements`, never
- * from here — `tokenLimit` below is only the default cap for display.
+ * Live usage (fillsUsed / fillLimit) always comes from `GET /entitlements`, never
+ * from here — `fillLimit` below is only the default cap for display.
  */
 export interface PlanFeatureBullet {
   text: string
@@ -26,9 +24,9 @@ export interface PlanCatalogEntry {
   priceLabel: string
   /** Billing cadence suffix, e.g. "/ mo" or "/ forever". */
   pricePer: string
-  /** Default monthly AI token cap (0 = unlimited). Live value comes from the API. */
-  tokenLimit: number
-  /** Friendly "≈ Form Fills" marketing figure, e.g. "~6,000". */
+  /** Default monthly AI form-fill cap (0 = unlimited). Live value comes from the API. */
+  fillLimit: number
+  /** The "AI form fills / mo" marketing figure, e.g. "1,000". */
   marketingFills: string
   /** One-line target-audience tagline. */
   tagline: string
@@ -47,15 +45,15 @@ export const PLAN_CATALOG: PlanCatalogEntry[] = [
     priceUsdCents: 0,
     priceLabel: '$0',
     pricePer: '/ forever',
-    tokenLimit: 2500,
-    marketingFills: '~10',
+    fillLimit: 10,
+    marketingFills: '10',
     tagline: 'Evaluation & first-time users',
     selfServe: false,
     featureBullets: [
       { text: 'Unlimited manual scan & fill' },
       { text: 'Saved profiles & records' },
       { text: 'Generators & undo' },
-      { text: 'Limited AI classification', muted: true },
+      { text: 'Limited AI fills', muted: true },
     ],
   },
   {
@@ -64,13 +62,13 @@ export const PLAN_CATALOG: PlanCatalogEntry[] = [
     priceUsdCents: 1200,
     priceLabel: '$12',
     pricePer: '/ mo',
-    tokenLimit: 500_000,
-    marketingFills: '~1,500',
+    fillLimit: 200,
+    marketingFills: '200',
     tagline: 'Solo developers & freelance QA',
     selfServe: true,
     featureBullets: [
       { text: 'Everything in Free' },
-      { text: '500K AI tokens / month' },
+      { text: '200 AI form fills / month' },
       { text: 'Priority field classification' },
       { text: 'Email support' },
     ],
@@ -81,14 +79,14 @@ export const PLAN_CATALOG: PlanCatalogEntry[] = [
     priceUsdCents: 2900,
     priceLabel: '$29',
     pricePer: '/ mo',
-    tokenLimit: 2_000_000,
-    marketingFills: '~6,000',
+    fillLimit: 1000,
+    marketingFills: '1,000',
     tagline: 'Full-time manual QA professionals',
     recommended: true,
     selfServe: true,
     featureBullets: [
       { text: 'Everything in Starter' },
-      { text: '2M AI tokens / month' },
+      { text: '1,000 AI form fills / month' },
       { text: 'Seedable generators for QA' },
       { text: 'Profile sync across devices' },
     ],
@@ -99,13 +97,13 @@ export const PLAN_CATALOG: PlanCatalogEntry[] = [
     priceUsdCents: 9900,
     priceLabel: '$99+',
     pricePer: '/ mo',
-    tokenLimit: 8_000_000,
-    marketingFills: '~20,000+',
+    fillLimit: 10000,
+    marketingFills: '10,000',
     tagline: 'QA agencies & testing teams',
     selfServe: true,
     featureBullets: [
       { text: 'Everything in Pro Tester' },
-      { text: '8M+ AI tokens / month' },
+      { text: '10,000 AI form fills / month' },
       { text: 'SSO & team management' },
       { text: 'Dedicated support & SLA' },
     ],

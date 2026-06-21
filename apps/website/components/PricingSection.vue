@@ -8,15 +8,6 @@ import { PLAN_CATALOG, type PlanCatalogEntry } from '@quikfill/schemas'
 // paid tiers preselect a plan on /billing (self-serve checkout — incl. Enterprise).
 const appUrl = useRuntimeConfig().public.appUrl
 
-/** Short token label for the secondary line, e.g. "500K tokens" / "8M+ tokens". */
-function tokenLabel(plan: PlanCatalogEntry): string {
-  const n = plan.tokenLimit
-  const plus = plan.key === 'enterprise' ? '+' : ''
-  if (n >= 1_000_000) return `${n / 1_000_000}M${plus} tokens`
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K${plus} tokens`
-  return `${n.toLocaleString('en-US')} tokens`
-}
-
 function ctaHref(plan: PlanCatalogEntry): string {
   return plan.key === 'free' ? `${appUrl}/sign-in` : `${appUrl}/billing?plan=${plan.key}`
 }
@@ -49,7 +40,6 @@ function ctaHref(plan: PlanCatalogEntry): string {
           <div class="fills">
             <b>{{ plan.marketingFills }}</b> AI form fills / mo
           </div>
-          <div class="toks">{{ tokenLabel(plan) }}</div>
           <a
             class="btn btn--block pbtn"
             :class="plan.recommended ? 'btn--primary' : 'btn--ghost'"
@@ -66,8 +56,8 @@ function ctaHref(plan: PlanCatalogEntry): string {
         </div>
       </div>
       <p class="price-note">
-        A “form fill” ≈ one AI-classified form of average size. Hit your limit and QuikFill keeps
-        filling from saved data — only AI pauses until next cycle.
+        A “form fill” = one AI-classified form, any size. Hit your limit and QuikFill keeps filling
+        from saved data — only AI pauses until next cycle.
       </p>
     </div>
   </section>

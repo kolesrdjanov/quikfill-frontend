@@ -24,8 +24,8 @@ const ENT: Entitlements = {
   planKey: 'starter',
   displayName: 'Starter',
   status: 'active',
-  tokensUsed: 10,
-  tokenLimit: 500_000,
+  fillsUsed: 10,
+  fillLimit: 200,
 }
 
 describe('entitlements-store', () => {

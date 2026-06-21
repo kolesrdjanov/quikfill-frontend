@@ -17,12 +17,11 @@ import {
 import { Check, CreditCard } from 'lucide-vue-next'
 import {
   PLAN_CATALOG,
-  formatTokenUsage,
+  formatFillUsage,
   isOverQuota,
   isNearQuota,
   isUnlimited,
   planByKey,
-  tokensToFills,
   usagePercent,
 } from '@quikfill/schemas'
 import type { PaidPlanKey, PlanCatalogEntry, SubscriptionStatus } from '@quikfill/schemas'
@@ -54,15 +53,15 @@ const isSubscribed = computed(
   () => !!ent.value && ent.value.planKey !== 'free' && ent.value.status !== 'canceled',
 )
 
-const unlimited = computed(() => !!ent.value && isUnlimited(ent.value.tokenLimit))
+const unlimited = computed(() => !!ent.value && isUnlimited(ent.value.fillLimit))
 const percent = computed(() =>
-  ent.value ? usagePercent(ent.value.tokensUsed, ent.value.tokenLimit) : 0,
+  ent.value ? usagePercent(ent.value.fillsUsed, ent.value.fillLimit) : 0,
 )
 const overQuota = computed(
-  () => !!ent.value && isOverQuota(ent.value.tokensUsed, ent.value.tokenLimit),
+  () => !!ent.value && isOverQuota(ent.value.fillsUsed, ent.value.fillLimit),
 )
 const nearQuota = computed(
-  () => !!ent.value && isNearQuota(ent.value.tokensUsed, ent.value.tokenLimit),
+  () => !!ent.value && isNearQuota(ent.value.fillsUsed, ent.value.fillLimit),
 )
 const indicatorClass = computed(() =>
   overQuota.value ? 'bg-destructive' : nearQuota.value ? 'bg-amber-500' : undefined,
@@ -187,24 +186,18 @@ onMounted(async () => {
           <template v-if="unlimited">
             <p class="text-foreground text-sm font-medium">Unlimited AI</p>
             <p class="text-muted-foreground text-sm">
-              {{ formatTokenUsage(ent.tokensUsed, ent.tokenLimit) }} used this cycle.
+              {{ formatFillUsage(ent.fillsUsed, ent.fillLimit) }} used this cycle.
             </p>
           </template>
           <template v-else>
             <div class="flex items-center justify-between text-sm">
               <span class="font-medium"
-                >≈ {{ tokensToFills(ent.tokensUsed).toLocaleString() }} form fills used</span
+                >{{ formatFillUsage(ent.fillsUsed, ent.fillLimit) }} form fills used</span
               >
               <span class="text-muted-foreground">{{ percent }}%</span>
             </div>
             <Progress :model-value="percent" :indicator-class="indicatorClass" />
-            <p class="text-muted-foreground text-xs">
-              {{ formatTokenUsage(ent.tokensUsed, ent.tokenLimit) }} AI tokens<template
-                v-if="resetDate"
-              >
-                · resets {{ resetDate }}</template
-              >
-            </p>
+            <p v-if="resetDate" class="text-muted-foreground text-xs">Resets {{ resetDate }}</p>
             <p v-if="overQuota" class="text-destructive text-xs font-medium">
               Monthly AI limit reached. Manual fill from saved data still works — upgrade to keep
               using AI.

@@ -5,7 +5,6 @@ import {
   isNearQuota as isNearQuotaOf,
   isOverQuota as isOverQuotaOf,
   isUnlimited as isUnlimitedOf,
-  tokensToFills,
   usagePercent as usagePercentOf,
 } from '@quikfill/schemas'
 import {
@@ -56,8 +55,8 @@ export function useEntitlements() {
     return next
   }
 
-  const tokenLimit = computed(() => entitlements.value?.tokenLimit ?? 0)
-  const tokensUsed = computed(() => entitlements.value?.tokensUsed ?? 0)
+  const fillLimit = computed(() => entitlements.value?.fillLimit ?? 0)
+  const fillsUsed = computed(() => entitlements.value?.fillsUsed ?? 0)
   const known = computed(() => entitlements.value !== null)
 
   return {
@@ -66,13 +65,13 @@ export function useEntitlements() {
     refresh,
     known,
     /** True for uncapped plans OR when the snapshot is unknown (don't show a chip). */
-    isUnlimited: computed(() => !known.value || isUnlimitedOf(tokenLimit.value)),
+    isUnlimited: computed(() => !known.value || isUnlimitedOf(fillLimit.value)),
     /** True only when we know the plan AND the AI budget is exhausted. */
-    isOverQuota: computed(() => known.value && isOverQuotaOf(tokensUsed.value, tokenLimit.value)),
-    isNearQuota: computed(() => known.value && isNearQuotaOf(tokensUsed.value, tokenLimit.value)),
-    usagePercent: computed(() => usagePercentOf(tokensUsed.value, tokenLimit.value)),
-    fillsRemaining: computed(() => fillsRemainingOf(tokensUsed.value, tokenLimit.value)),
-    fillsUsed: computed(() => tokensToFills(tokensUsed.value)),
+    isOverQuota: computed(() => known.value && isOverQuotaOf(fillsUsed.value, fillLimit.value)),
+    isNearQuota: computed(() => known.value && isNearQuotaOf(fillsUsed.value, fillLimit.value)),
+    usagePercent: computed(() => usagePercentOf(fillsUsed.value, fillLimit.value)),
+    fillsRemaining: computed(() => fillsRemainingOf(fillsUsed.value, fillLimit.value)),
+    fillsUsed,
     planName: computed(() => entitlements.value?.displayName ?? null),
     status: computed(() => entitlements.value?.status ?? null),
   }

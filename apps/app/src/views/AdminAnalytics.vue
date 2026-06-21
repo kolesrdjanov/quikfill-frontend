@@ -256,20 +256,17 @@ function marginVariant(margin: number): 'success' | 'danger' {
                   ><Badge variant="gray">{{ row.planDisplayName }}</Badge></TableCell
                 >
                 <TableCell>{{ formatCompactNumber(row.requests) }}</TableCell>
+                <TableCell>{{ formatCompactNumber(row.tokens) }}</TableCell>
                 <TableCell>
-                  {{ formatCompactNumber(row.tokens) }}
-                  <span class="text-muted-foreground text-xs">
-                    / {{ row.planTokenLimit === 0 ? '∞' : formatCompactNumber(row.planTokenLimit) }}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <div v-if="isMonth && row.utilizationPercent !== undefined" class="space-y-1">
+                  <div v-if="isMonth && row.utilizationPercent != null" class="space-y-1">
                     <Progress
                       :model-value="row.utilizationPercent"
                       :indicator-class="utilizationTint(row.utilizationPercent)"
                     />
                     <div class="text-muted-foreground text-xs">
-                      {{ formatPercent(row.utilizationPercent) }}
+                      {{ formatCompactNumber(row.fillsUsed) }} /
+                      {{ row.planFillLimit === 0 ? '∞' : formatCompactNumber(row.planFillLimit) }}
+                      fills · {{ formatPercent(row.utilizationPercent) }}
                     </div>
                   </div>
                   <span v-else class="text-muted-foreground text-xs">—</span>

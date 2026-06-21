@@ -17,8 +17,8 @@ describe('api.subscriptions', () => {
         planKey: 'free',
         displayName: 'Free',
         status: 'active',
-        tokensUsed: 0,
-        tokenLimit: 2500,
+        fillsUsed: 0,
+        fillLimit: 10,
         currentPeriodEnd: null,
       }),
     )

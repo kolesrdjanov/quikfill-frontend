@@ -57,7 +57,7 @@ const usageText = computed(() => {
   if (!entitlements.known.value) return 'Loading your plan…'
   if (entitlements.isUnlimited.value) return 'Unlimited AI fills'
   if (entitlements.isOverQuota.value) return 'AI limit reached — resets next month'
-  return `≈ ${entitlements.fillsRemaining.value.toLocaleString()} AI fills left this month`
+  return `${entitlements.fillsRemaining.value.toLocaleString()} AI fills left this month`
 })
 
 const showBar = computed(() => entitlements.known.value && !entitlements.isUnlimited.value)
