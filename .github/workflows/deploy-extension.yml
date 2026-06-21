@@ -46,8 +46,12 @@ jobs:
           node-version: 20.19.0
           cache: pnpm
 
+      # Install ONLY the chrome-extension + its dependency closure (trailing `...`).
+      # A full `pnpm install` also runs apps/website's `nuxt prepare` postinstall, which
+      # fails on the Linux runner (missing oxc-parser native binding) and is irrelevant
+      # to building the extension. The extension's own `wxt prepare` postinstall still runs.
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --filter "@quikfill/chrome-extension..."
 
       # Quality gate — ne šaljemo na store ako ekstenzija ne prolazi.
       - name: Typecheck + test
