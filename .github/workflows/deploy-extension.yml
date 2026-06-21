@@ -50,12 +50,13 @@ jobs:
           pnpm --filter @quikfill/chrome-extension typecheck
           pnpm --filter @quikfill/chrome-extension test
 
-      # CWS odbija upload ako verzija nije VEĆA od poslednje objavljene.
-      # package.json je 0.0.0 → izvedi rastuću verziju iz broja workflow run-a.
-      # Major/minor menjaš ručno u package.json; patch ide iz github.run_number.
+      # CWS odbija upload ako verzija nije STROGO veća od poslednje objavljene na CWS-u.
+      # App-served kanal (`pnpm deploy:chrome`) drži liniju 1.0.x; CWS pipeline koristi
+      # 1.1.<run_number> da uvek ostane iznad nje i da se kanali ne sudare.
+      # Major/minor menjaš ručno u package.json. Vidi docs/DEPLOY_EXTENSION.md.
       - name: Set release version
         working-directory: apps/chrome-extension
-        run: npm pkg set version=1.0.${{ github.run_number }}
+        run: npm pkg set version=1.1.${{ github.run_number }}
 
       - name: Build + zip (production)
         working-directory: apps/chrome-extension

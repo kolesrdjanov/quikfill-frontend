@@ -14,8 +14,12 @@ vidljiva samo Google nalozima koje pozoveš.
 - Otvori [Developer Dashboard](https://chrome.google.com/webstore/devconsole), plati
   jednokratni $5 developer fee ako već nisi.
 - Napravi novi item: upload-uj prvi build ručno jednom (`pnpm --filter
-@quikfill/chrome-extension zip`, pa drag&drop `.output/*-chrome.zip`). Tek tako
-  dobijaš **Extension ID** — `wxt submit` posle samo ažurira postojeći item.
+@quikfill/chrome-extension zip`, pa drag&drop
+  `.output/quikfillchrome-extension-<verzija>-chrome.zip`). Tek tako dobijaš
+  **Extension ID** — `wxt submit` posle samo ažurira postojeći item.
+- Popuni listing (naziv, opis, kategorija, screenshot-ovi) i **Privacy** tab
+  (single purpose + justifikacija svake permisije + data disclosures). Sav
+  paste-ready tekst i opravdanja su u [`STORE_LISTING.md`](./STORE_LISTING.md).
 - **Privacy/Visibility → Private**, pa **dodaj trusted testers** (Google email
   adrese ljudi koje pozivaš). Samo oni će moći da instaliraju ekstenziju.
 - > Napomena: i privatne/trusted-tester verzije prolaze Google review pre nego što
@@ -38,19 +42,35 @@ commit-uj ga.)
 
 Repo → Settings → Secrets and variables → Actions → New repository secret:
 
-| Secret                 | Vrednost                                                       |
-| ---------------------- | -------------------------------------------------------------- |
-| `WXT_QF_API_BASE_URL`  | produkcioni API origin, npr. `https://api.quikfill.com/api/v1` |
-| `CHROME_EXTENSION_ID`  | iz koraka 2                                                    |
-| `CHROME_CLIENT_ID`     | iz koraka 2                                                    |
-| `CHROME_CLIENT_SECRET` | iz koraka 2                                                    |
-| `CHROME_REFRESH_TOKEN` | iz koraka 2                                                    |
+| Secret                 | Vrednost                                                 |
+| ---------------------- | -------------------------------------------------------- |
+| `WXT_QF_API_BASE_URL`  | produkcioni API origin: `https://api.quikfill.io/api/v1` |
+| `CHROME_EXTENSION_ID`  | iz koraka 2                                              |
+| `CHROME_CLIENT_ID`     | iz koraka 2                                              |
+| `CHROME_CLIENT_SECRET` | iz koraka 2                                              |
+| `CHROME_REFRESH_TOKEN` | iz koraka 2                                              |
 
-## Kako se objavljuje
+## Uključivanje automatike (tek POSLE prvog ručnog upload-a)
 
-Posle setup-a svaki push na `main` automatski deployuje. Verzija mora da raste pri
-svakom upload-u — workflow zato setuje `1.0.<github.run_number>`. Major/minor
-menjaš ručno u `apps/chrome-extension/package.json` kad želiš.
+`push:` triger u workflow-u je **pauziran** dok ručni setup nije gotov. Uključi ga
+tek kad: (1) prvi build je ručno upload-ovan i item ima **Extension ID**, i (2) svi
+GitHub Secrets su postavljeni. Onda u
+[`deploy-extension.yml`](../.github/workflows/deploy-extension.yml) otkomentariši
+`push:` blok. (Dotad: ručno iz Actions taba preko `workflow_dispatch`.)
+
+## Verzionisanje — dva kanala dele `apps/chrome-extension/package.json`
+
+CWS odbija upload čija verzija nije STROGO veća od poslednje objavljene NA CWS-u.
+Zato su kanali razdvojeni po minor broju da se nikad ne sudare:
+
+- **App-served download** (`pnpm deploy:chrome`): commit-uje patch bump na liniji
+  `1.0.x` (trenutno `1.0.9`).
+- **CWS pipeline** (ovaj workflow): setuje _efemerno_ (necommit-ovano)
+  `1.1.<github.run_number>`, pa uvek ostaje iznad `1.0.x` linije i CWS vidi
+  rastuću verziju. Major/minor menjaš ručno u package.json kad želiš.
+
+> Prvi ručni upload na CWS uradi sa trenutnom `1.0.x` verzijom (npr. `1.0.9`) —
+> `1.1.x` iz pipeline-a je iznad toga, pa prvi automatski run neće biti odbijen.
 
 ## Korisne varijante (u workflow-u)
 
