@@ -22,6 +22,10 @@ export interface BackgroundEntitlements {
   clear(): Promise<void>
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : 'refresh failed'
+}
+
 /**
  * Background-only owner of the entitlements snapshot. Fetches via the injected
  * api client, caches through {@link EntitlementsStore} (which every surface
@@ -68,8 +72,13 @@ export function createBackgroundEntitlements({
       hydrated = true
       await store.write(entitlements)
       return entitlements
-    } catch {
-      // Keep the last-known snapshot on a transient failure (offline / 5xx).
+    } catch (error) {
+      // Surface the swallowed failure so a hard contract/parse mismatch (e.g. a
+      // stale build bundling a renamed usage field) is diagnosable in the SW
+      // devtools instead of silently presenting as an eternal "Loading…". We still
+      // return the last-known snapshot so a transient blip (offline / 5xx) never
+      // wrongly gates AI — entitlements is an optimistic, display-only signal.
+      console.warn('[quikfill] entitlements: refresh failed', errorMessage(error))
       return cached
     }
   }

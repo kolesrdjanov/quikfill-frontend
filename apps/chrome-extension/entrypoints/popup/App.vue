@@ -46,6 +46,12 @@ async function syncSettings(): Promise<void> {
   }
 }
 
+// A refresh that failed with nothing cached (offline at cold start, or a contract
+// mismatch the background swallowed). Entitlements is display-only — AI gating
+// treats unknown optimistically — so we degrade to a brief error + retry instead
+// of hanging on "Loading your plan…" forever.
+const loadError = computed(() => entitlements.loadFailed.value && !entitlements.known.value)
+
 const planLine = computed(() => {
   if (!entitlements.known.value) return null
   const name = entitlements.planName.value ?? 'Plan'
@@ -54,11 +60,23 @@ const planLine = computed(() => {
 })
 
 const usageText = computed(() => {
+  if (loadError.value) return "Couldn't load your plan"
   if (!entitlements.known.value) return 'Loading your plan…'
   if (entitlements.isUnlimited.value) return 'Unlimited AI fills'
   if (entitlements.isOverQuota.value) return 'AI limit reached — resets next month'
   return `${entitlements.fillsRemaining.value.toLocaleString()} AI fills left this month`
 })
+
+const retrying = ref(false)
+async function retryEntitlements(): Promise<void> {
+  if (retrying.value) return
+  retrying.value = true
+  try {
+    await entitlements.refresh()
+  } finally {
+    retrying.value = false
+  }
+}
 
 const showBar = computed(() => entitlements.known.value && !entitlements.isUnlimited.value)
 const barPct = computed(() => Math.min(100, Math.max(0, entitlements.usagePercent.value)))
@@ -151,6 +169,17 @@ function openDashboard() {
           <Badge v-if="entitlements.isOverQuota.value" variant="danger">AI limit reached</Badge>
         </div>
         <p class="text-muted-foreground text-[12px]">{{ usageText }}</p>
+        <Button
+          v-if="loadError"
+          variant="outline"
+          size="sm"
+          class="h-7 gap-1.5 self-start"
+          :disabled="retrying"
+          @click="retryEntitlements"
+        >
+          <RefreshCw class="size-3.5" :class="{ 'animate-spin': retrying }" />
+          Retry
+        </Button>
         <div v-if="showBar" class="bg-muted h-1.5 w-full overflow-hidden rounded-full">
           <div
             class="h-full rounded-full transition-all"

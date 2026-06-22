@@ -28,10 +28,15 @@ import {
  * a surface shares one reactive state.
  */
 const entitlements = ref<Entitlements | null>(null)
+// Set once a refresh comes back empty with nothing cached (offline at cold start,
+// or a contract/parse mismatch the background swallowed) — lets the popup tell a
+// hard failure apart from "still loading". Cleared the moment we have a snapshot.
+const loadFailed = ref(false)
 let initialized = false
 
 function apply(next: Entitlements | null): void {
   entitlements.value = next
+  if (next) loadFailed.value = false
 }
 
 export function useEntitlements() {
@@ -51,7 +56,12 @@ export function useEntitlements() {
   /** Ask the background to re-fetch (e.g. after an AI 429 or returning from billing). */
   async function refresh(): Promise<Entitlements | null> {
     const next = await refreshEntitlementsMsg()
-    apply(next)
+    // The background returns its last-known snapshot on a soft failure, so a `null`
+    // means the fetch yielded nothing AND nothing was cached — a hard load failure,
+    // not "still loading". Keep any existing snapshot rather than blanking it, and
+    // flag the failure so the popup can offer a retry instead of an eternal loader.
+    if (next) apply(next)
+    loadFailed.value = next === null && entitlements.value === null
     return next
   }
 
@@ -64,6 +74,8 @@ export function useEntitlements() {
     init,
     refresh,
     known,
+    /** True when a refresh failed with nothing to show — the popup offers a retry. */
+    loadFailed: readonly(loadFailed),
     /** True for uncapped plans OR when the snapshot is unknown (don't show a chip). */
     isUnlimited: computed(() => !known.value || isUnlimitedOf(fillLimit.value)),
     /** True only when we know the plan AND the AI budget is exhausted. */

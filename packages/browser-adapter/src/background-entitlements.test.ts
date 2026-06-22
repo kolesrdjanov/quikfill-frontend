@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Entitlements } from '@quikfill/schemas'
 import { createBackgroundEntitlements } from './background-entitlements'
 import type { EntitlementsStore } from './entitlements-store'
@@ -25,6 +25,16 @@ function memoryStore(seed: Entitlements | null = null): EntitlementsStore {
 }
 
 describe('createBackgroundEntitlements', () => {
+  // A failed refresh is swallowed (we keep the last-known snapshot), so silence the
+  // diagnostic warn to keep test output pristine while still asserting it fires.
+  let warnSpy: ReturnType<typeof vi.spyOn>
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
   it('refresh fetches, caches, and writes through to the store', async () => {
     const store = memoryStore()
     const api = { subscriptions: { entitlements: vi.fn().mockResolvedValue(ENT) } }
@@ -50,6 +60,24 @@ describe('createBackgroundEntitlements', () => {
 
     await owner.handlers.get() // hydrate cache from store
     expect(await owner.refresh()).toEqual(ENT)
+  })
+
+  it('logs the swallowed error so a hard failure is diagnosable in devtools', async () => {
+    // A stale build with the wrong contract (the renamed-usage-field incident) makes
+    // the Zod parse throw; without a log the failure is invisible and the popup just
+    // hangs on "Loading…". The error detail must reach the SW console.
+    const store = memoryStore()
+    const entitlements = vi
+      .fn()
+      .mockRejectedValue(new Error('contract mismatch: fillsUsed missing'))
+    const owner = createBackgroundEntitlements({ api: { subscriptions: { entitlements } }, store })
+
+    await owner.refresh()
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('entitlements'),
+      'contract mismatch: fillsUsed missing',
+    )
   })
 
   it('clear drops the cached snapshot', async () => {
