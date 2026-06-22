@@ -32,7 +32,7 @@ export default defineNuxtConfig({
   nitro: {
     prerender: {
       crawlLinks: true,
-      routes: ['/', '/privacy'],
+      routes: ['/', '/privacy', '/terms'],
     },
   },
   app: {

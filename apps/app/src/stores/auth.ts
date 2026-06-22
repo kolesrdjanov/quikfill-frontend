@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { ExtensionSettings, UpdateProfileInput, UserAccount } from '@quikfill/schemas'
+import type {
+  AccountExport,
+  ExtensionSettings,
+  UpdateProfileInput,
+  UserAccount,
+} from '@quikfill/schemas'
 import { api } from '@/lib/api'
 import { authTokens } from '@/lib/auth-tokens'
 
@@ -70,6 +75,18 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = await api.users.updateSettings(input)
   }
 
+  /** Download a full export of everything QuikFill holds for the signed-in user. */
+  function exportData(): Promise<AccountExport> {
+    return api.users.exportData()
+  }
+
+  /** Permanently delete the account, then drop the local session. */
+  async function deleteAccount(): Promise<void> {
+    await api.users.deleteAccount()
+    authTokens.clear()
+    user.value = null
+  }
+
   /** Called by the API client when a refresh fails — drop the local session. */
   function forceSignOut(): void {
     authTokens.clear()
@@ -86,6 +103,8 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     updateProfile,
     updateSettings,
+    exportData,
+    deleteAccount,
     forceSignOut,
   }
 })

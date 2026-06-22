@@ -15,6 +15,9 @@ export const WEB_STORE_URL = 'https://chrome.google.com/webstore'
 /** Public privacy policy, served by the marketing site (stable across envs). */
 export const PRIVACY_URL = 'https://quikfill.io/privacy'
 
+/** Public terms of service, served by the marketing site (stable across envs). */
+export const TERMS_URL = 'https://quikfill.io/terms'
+
 /** Support inbox, surfaced as a `mailto:` deep-link across the extension UI. */
 export const SUPPORT_EMAIL = 'support@quikfill.io'
 export const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`

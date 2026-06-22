@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { BadgeCheck, ShieldAlert } from 'lucide-vue-next'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { BadgeCheck, Download, ShieldAlert, Trash2 } from 'lucide-vue-next'
 import {
   Badge,
   Button,
@@ -8,6 +9,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   Input,
   Label,
   toast,
@@ -17,8 +19,10 @@ import { useApiError } from '@/composables/useApiError'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { profileFormSchema } from '@/schemas/forms'
 import { formatDateTime } from '@/lib/format'
+import { downloadJson } from '@/lib/download'
 
 const auth = useAuthStore()
+const router = useRouter()
 const { handleError } = useApiError()
 
 const { handleSubmit, defineField, isSubmitting, resetForm } = useFormValidation(profileFormSchema)
@@ -52,6 +56,37 @@ const onSubmit = handleSubmit(async (values) => {
     handleError(error)
   }
 })
+
+const exporting = ref(false)
+const deleteOpen = ref(false)
+const deleting = ref(false)
+
+/** Fetch the full account export and save it as a JSON file. */
+async function onExport(): Promise<void> {
+  exporting.value = true
+  try {
+    const data = await auth.exportData()
+    downloadJson(data, `quikfill-export-${new Date().toISOString().slice(0, 10)}.json`)
+    toast.success('Your data export has been downloaded')
+  } catch (error) {
+    handleError(error)
+  } finally {
+    exporting.value = false
+  }
+}
+
+/** Permanently delete the account, then return to the sign-in screen. */
+async function onDelete(): Promise<void> {
+  deleting.value = true
+  try {
+    await auth.deleteAccount()
+    toast.success('Your account has been deleted')
+    await router.push({ name: 'sign-in' })
+  } catch (error) {
+    handleError(error)
+    deleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -112,5 +147,49 @@ const onSubmit = handleSubmit(async (values) => {
         </dl>
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Data &amp; privacy</CardTitle>
+      </CardHeader>
+      <CardContent class="space-y-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="space-y-0.5">
+            <p class="text-sm font-medium">Export my data</p>
+            <p class="text-muted-foreground text-sm">
+              Download everything QuikFill holds for your account as a JSON file.
+            </p>
+          </div>
+          <Button variant="outline" :disabled="exporting" @click="onExport">
+            <Download class="size-4" />
+            {{ exporting ? 'Preparing…' : 'Export' }}
+          </Button>
+        </div>
+
+        <div
+          class="border-destructive/30 bg-destructive/5 flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="space-y-0.5">
+            <p class="text-sm font-medium">Delete my account</p>
+            <p class="text-muted-foreground text-sm">
+              Permanently delete your account and all associated data. This cannot be undone.
+            </p>
+          </div>
+          <Button variant="destructive" :disabled="deleting" @click="deleteOpen = true">
+            <Trash2 class="size-4" />
+            Delete account
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+
+    <ConfirmDialog
+      v-model:open="deleteOpen"
+      title="Delete your account?"
+      description="This permanently deletes your account, saved data, settings, and history, and cancels any active subscription. This cannot be undone."
+      confirm-label="Delete account"
+      :pending="deleting"
+      @confirm="onDelete"
+    />
   </div>
 </template>

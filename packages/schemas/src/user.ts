@@ -33,3 +33,12 @@ export const updateProfileInputSchema = z.object({
   lastName: z.string().optional(),
 })
 export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>
+
+/**
+ * The full data export from `GET /users/me/export` (mirrors the backend
+ * `AccountExportDto`). Only `exportedAt` is asserted; the rest is the user's own
+ * records, passed through verbatim for download, so new export fields can never
+ * break the client.
+ */
+export const accountExportSchema = z.object({ exportedAt: isoDateTime }).catchall(z.unknown())
+export type AccountExport = z.infer<typeof accountExportSchema>

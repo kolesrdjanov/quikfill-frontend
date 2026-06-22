@@ -24,6 +24,7 @@ const chromeStoreUrl = useRuntimeConfig().public.chromeStoreUrl
           <div class="footer-col">
             <h5>Company</h5>
             <NuxtLink to="/privacy">Privacy policy</NuxtLink>
+            <NuxtLink to="/terms">Terms of service</NuxtLink>
             <a :href="chromeStoreUrl" target="_blank" rel="noopener">Chrome extension</a>
             <a href="mailto:hello@quikfill.io">Contact</a>
           </div>

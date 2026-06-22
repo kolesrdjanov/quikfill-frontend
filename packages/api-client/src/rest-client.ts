@@ -23,6 +23,7 @@ import {
   generatorPresetSchema,
   magicLinkRequestedSchema,
   userAccountSchema,
+  accountExportSchema,
   extensionSettingsSchema,
   entitlementsResponseSchema,
   createCheckoutSessionInputSchema,
@@ -62,6 +63,7 @@ import type {
   UpdateProfileInput,
   ExtensionSettings,
   UserAccount,
+  AccountExport,
   Entitlements,
   CreateCheckoutSessionInput,
   SessionUrlResponse,
@@ -86,6 +88,10 @@ export interface ApiClient {
     updateMe(input: UpdateProfileInput, signal?: AbortSignal): Promise<UserAccount>
     /** Replace the dashboard-managed extension settings (full object). */
     updateSettings(input: ExtensionSettings, signal?: AbortSignal): Promise<UserAccount>
+    /** Download every record QuikFill holds for the user (GDPR/CCPA export). */
+    exportData(signal?: AbortSignal): Promise<AccountExport>
+    /** Permanently delete the account and all associated data. */
+    deleteAccount(signal?: AbortSignal): Promise<void>
   }
   admin: {
     /** List the beta-access allowlist (admin only). */
@@ -215,6 +221,8 @@ export function createApiClient(config: RestClientConfig): ApiClient {
           schema: userAccountSchema,
           signal,
         }),
+      exportData: (signal) => rest.get('/users/me/export', { schema: accountExportSchema, signal }),
+      deleteAccount: (signal) => rest.del('/users/me', { signal }),
     },
 
     admin: {
