@@ -41,6 +41,7 @@ function makeApi(
       verify: vi.fn().mockResolvedValue(tokens),
       refresh: vi.fn().mockResolvedValue({ ...tokens, accessToken: 'acc2' }),
       logout: vi.fn().mockResolvedValue(undefined),
+      redeemHandoff: vi.fn().mockResolvedValue(tokens),
       ...overrides,
     },
     users: { me: (overrides.me as AuthApi['users']['me']) ?? vi.fn().mockResolvedValue(user) },
@@ -169,6 +170,25 @@ describe('verify', () => {
       ok: false,
       error: 'quota-exceeded',
     })
+  })
+})
+
+describe('adoptHandoff', () => {
+  it('redeems a handoff code, stores tokens, and returns the signed-in state', async () => {
+    const { auth, store, api } = setup()
+    const result = await auth.handlers.adoptHandoff('h4nd0ff')
+    expect(api.auth.redeemHandoff).toHaveBeenCalledWith('h4nd0ff')
+    expect(result).toEqual({ ok: true, state: { status: 'signed-in', user } })
+    expect(await store.getAccess()).toBe('acc')
+    expect(await store.readState()).toEqual({ status: 'signed-in', user })
+  })
+
+  it('stores nothing and stays signed-out when the code is invalid (silent best-effort)', async () => {
+    const api = makeApi({ redeemHandoff: vi.fn().mockRejectedValue(httpError(401)) })
+    const { auth, store } = setup(api)
+    const result = await auth.handlers.adoptHandoff('bad')
+    expect(result.ok).toBe(false)
+    expect(await store.hasSession()).toBe(false)
   })
 })
 

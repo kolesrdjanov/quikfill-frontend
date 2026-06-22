@@ -13,6 +13,7 @@ export interface AuthApi {
     verify(email: string, code: string): Promise<AuthTokens>
     refresh(refreshToken: string): Promise<AuthTokens>
     logout(refreshToken: string): Promise<void>
+    redeemHandoff(code: string): Promise<AuthTokens>
   }
   users: {
     me(): Promise<UserAccount>
@@ -129,6 +130,24 @@ export function createBackgroundAuth({
     }
   }
 
+  /**
+   * Adopt a session handed off from the web app by redeeming a one-time code for
+   * this surface's OWN session (mirrors `verify`). Best-effort: a failed/expired/
+   * raced code is reported but must NOT flip a signed-out surface into an error
+   * state — the next app visit re-bootstraps it.
+   */
+  async function adoptHandoff(code: string): Promise<VerifyResponse> {
+    try {
+      const tokens = await api.auth.redeemHandoff(code)
+      await store.setTokens(tokens)
+      hydrated = true
+      const next = await setState({ status: 'signed-in', user: tokens.user })
+      return { ok: true, state: next }
+    } catch (error) {
+      return { ok: false, error: endpointErrorKind(error) }
+    }
+  }
+
   async function logout(): Promise<{ ok: true }> {
     const refresh = await store.getRefresh()
     if (refresh) {
@@ -164,7 +183,7 @@ export function createBackgroundAuth({
   }
 
   return {
-    handlers: { getState, requestCode, verify, logout },
+    handlers: { getState, requestCode, verify, logout, adoptHandoff },
     refreshAuth,
     onAuthError,
   }

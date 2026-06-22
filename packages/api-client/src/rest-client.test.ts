@@ -89,3 +89,39 @@ describe('api.subscriptions', () => {
     })
   })
 })
+
+describe('api.auth handoff', () => {
+  it('mints a handoff code as an authenticated request', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ code: 'h4nd0ff', expiresIn: 60 }))
+    const api = createApiClient({ baseUrl: base, fetch, getAuthToken: () => 'access-tok' })
+
+    const result = await api.auth.createHandoff()
+
+    expect(fetch.mock.calls[0][0]).toBe(`${base}/auth/handoff`)
+    expect(fetch.mock.calls[0][1].method).toBe('POST')
+    expect(fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer access-tok')
+    expect(result).toEqual({ code: 'h4nd0ff', expiresIn: 60 })
+  })
+
+  it('redeems a handoff code without attaching auth, returning a new session', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        accessToken: 'new-access',
+        refreshToken: 'new-refresh',
+        tokenType: 'Bearer',
+        expiresIn: 900,
+        user: { id: '11111111-1111-4111-8111-111111111111', email: 'ada@example.com' },
+      }),
+    )
+    const api = createApiClient({ baseUrl: base, fetch, getAuthToken: () => 'access-tok' })
+
+    const result = await api.auth.redeemHandoff('h4nd0ff')
+
+    expect(fetch.mock.calls[0][0]).toBe(`${base}/auth/handoff/redeem`)
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ code: 'h4nd0ff' })
+    // skipAuth: no Authorization header even though a token is available.
+    expect(fetch.mock.calls[0][1].headers.Authorization).toBeUndefined()
+    expect(result.accessToken).toBe('new-access')
+    expect(result.refreshToken).toBe('new-refresh')
+  })
+})

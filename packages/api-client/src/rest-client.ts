@@ -1,5 +1,6 @@
 import {
   authTokensSchema,
+  handoffCodeSchema,
   betaUserSchema,
   analyticsResponseSchema,
   inviteBetaUserInputSchema,
@@ -29,6 +30,7 @@ import {
 } from '@quikfill/schemas'
 import type {
   AuthTokens,
+  HandoffCode,
   BetaUser,
   AnalyticsResponse,
   AnalyticsQueryParams,
@@ -74,6 +76,10 @@ export interface ApiClient {
     verify(email: string, code: string, signal?: AbortSignal): Promise<AuthTokens>
     refresh(refreshToken: string, signal?: AbortSignal): Promise<AuthTokens>
     logout(refreshToken: string, signal?: AbortSignal): Promise<void>
+    /** Mint a single-use code that hands the current (authenticated) session to another surface. */
+    createHandoff(signal?: AbortSignal): Promise<HandoffCode>
+    /** Redeem a handoff code for a brand-new, independent session (no auth required). */
+    redeemHandoff(code: string, signal?: AbortSignal): Promise<AuthTokens>
   }
   users: {
     me(signal?: AbortSignal): Promise<UserAccount>
@@ -190,6 +196,14 @@ export function createApiClient(config: RestClientConfig): ApiClient {
         ),
       logout: (refreshToken, signal) =>
         rest.post('/auth/logout', { refreshToken }, { skipAuth: true, signal }),
+      createHandoff: (signal) =>
+        rest.post('/auth/handoff', undefined, { schema: handoffCodeSchema, signal }),
+      redeemHandoff: (code, signal) =>
+        rest.post(
+          '/auth/handoff/redeem',
+          { code },
+          { schema: authTokensSchema, skipAuth: true, signal },
+        ),
     },
 
     users: {

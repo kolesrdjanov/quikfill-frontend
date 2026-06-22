@@ -51,6 +51,7 @@ export {
   requestAuthCode,
   verifyAuthCode,
   logoutAuth,
+  adoptHandoff,
   onAuthRequest,
   type AuthRequestMessage,
   type RequestCodeResponse,

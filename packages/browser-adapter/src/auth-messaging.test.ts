@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthState } from '@quikfill/schemas'
 import {
+  adoptHandoff,
   AUTH_REQUEST,
   isAuthRequest,
   logoutAuth,
@@ -38,6 +39,7 @@ function handlers(overrides = {}) {
     requestCode: vi.fn().mockResolvedValue({ ok: true }),
     verify: vi.fn().mockResolvedValue({ ok: true, state: signedIn }),
     logout: vi.fn().mockResolvedValue({ ok: true }),
+    adoptHandoff: vi.fn().mockResolvedValue({ ok: true, state: signedIn }),
     ...overrides,
   }
 }
@@ -102,6 +104,22 @@ describe('surface helpers', () => {
     installChrome(vi.fn().mockRejectedValue(new Error('no receiver')))
     expect(await logoutAuth()).toEqual({ ok: true })
   })
+
+  it('adoptHandoff forwards the code and returns the new state', async () => {
+    const { runtime } = installChrome(vi.fn().mockResolvedValue({ ok: true, state: signedIn }))
+    const result = await adoptHandoff('h4nd0ff')
+    expect(runtime.sendMessage).toHaveBeenCalledWith({
+      type: AUTH_REQUEST,
+      action: 'adopt-handoff',
+      code: 'h4nd0ff',
+    })
+    expect(result).toEqual({ ok: true, state: signedIn })
+  })
+
+  it('adoptHandoff fails as network when the background is unreachable', async () => {
+    installChrome(vi.fn().mockRejectedValue(new Error('no receiver')))
+    expect(await adoptHandoff('h4nd0ff')).toEqual({ ok: false, error: 'network' })
+  })
 })
 
 describe('onAuthRequest', () => {
@@ -129,6 +147,17 @@ describe('onAuthRequest', () => {
     )
     await new Promise((r) => setTimeout(r, 0))
     expect(h.verify).toHaveBeenCalledWith('a@b.com', '999111')
+    expect(sendResponse).toHaveBeenCalledWith({ ok: true, state: signedIn })
+  })
+
+  it('dispatches adopt-handoff with the code', async () => {
+    const { listeners } = installChrome()
+    const h = handlers()
+    onAuthRequest(h)
+    const sendResponse = vi.fn()
+    listeners[0]({ type: AUTH_REQUEST, action: 'adopt-handoff', code: 'h4nd0ff' }, {}, sendResponse)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(h.adoptHandoff).toHaveBeenCalledWith('h4nd0ff')
     expect(sendResponse).toHaveBeenCalledWith({ ok: true, state: signedIn })
   })
 

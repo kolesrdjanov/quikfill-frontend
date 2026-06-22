@@ -40,6 +40,19 @@ export const authTokensSchema = z.object({
 })
 export type AuthTokens = z.infer<typeof authTokensSchema>
 
+/** `POST /auth/handoff` response — a single-use code that hands the current session to another surface. */
+export const handoffCodeSchema = z.object({
+  code: z.string(),
+  expiresIn: z.number(),
+})
+export type HandoffCode = z.infer<typeof handoffCodeSchema>
+
+/** `POST /auth/handoff/redeem` request — exchange a handoff code for a brand-new session. */
+export const redeemHandoffInputSchema = z.object({
+  code: z.string().min(1),
+})
+export type RedeemHandoffInput = z.infer<typeof redeemHandoffInputSchema>
+
 /**
  * A normalized auth failure kind the UI can render without knowing HTTP. The two
  * "subscription-related" kinds (`payment-required`, `quota-exceeded`) are mapped

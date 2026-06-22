@@ -1,5 +1,13 @@
-import { onFillRequest, onScanRequest, onUndoRequest } from '@quikfill/browser-adapter'
+import {
+  adoptHandoff,
+  onFillRequest,
+  onScanRequest,
+  onUndoRequest,
+  requestAuthState,
+} from '@quikfill/browser-adapter'
 import { applyFill, applyUndo, resolveScopeRoot, scanForms } from '@quikfill/form-scanner'
+import { DASHBOARD_URL } from '../lib/external-urls'
+import { createHandoffContentBridge } from '../lib/handoff-content-bridge'
 import { mountOverlay } from './content/overlay'
 
 export default defineContentScript({
@@ -14,6 +22,21 @@ export default defineContentScript({
     // delegates the backend call to the background worker via requestAiFill. The
     // legacy scan/fill/undo message handlers below stay for the surface's scan form.
     mountOverlay(document)
+
+    // Zero-click cross-surface session handoff: only on the QuikFill app origin. A
+    // signed-out extension announces itself to the page and adopts any one-time code
+    // the web app hands back — so a session created in the web app flows into the
+    // extension with no second sign-in. Only a code crosses; tokens stay in the bg.
+    if (window.location.origin === DASHBOARD_URL) {
+      void createHandoffContentBridge({
+        origin: window.location.origin,
+        target: window,
+        isSignedIn: async () => (await requestAuthState()).status === 'signed-in',
+        adopt: async (code) => {
+          await adoptHandoff(code)
+        },
+      }).start()
+    }
 
     // The container the last scan resolved to (a drawer/dialog element, or the
     // whole document). Fill/undo are confined to it so a fuzzy selector can never

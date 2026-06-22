@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { authErrorKind } from './auth'
+import { authErrorKind, handoffCodeSchema, redeemHandoffInputSchema } from './auth'
 
 describe('authErrorKind', () => {
   it('maps 400 to invalid-code', () => {
@@ -29,5 +29,28 @@ describe('authErrorKind', () => {
   it('maps an unmapped status to unknown', () => {
     expect(authErrorKind(418)).toBe('unknown')
     expect(authErrorKind(500)).toBe('unknown')
+  })
+})
+
+describe('handoffCodeSchema', () => {
+  it('parses a code with its ttl', () => {
+    expect(handoffCodeSchema.parse({ code: 'abc123', expiresIn: 60 })).toEqual({
+      code: 'abc123',
+      expiresIn: 60,
+    })
+  })
+
+  it('rejects a response missing the code', () => {
+    expect(() => handoffCodeSchema.parse({ expiresIn: 60 })).toThrow()
+  })
+})
+
+describe('redeemHandoffInputSchema', () => {
+  it('parses a non-empty code', () => {
+    expect(redeemHandoffInputSchema.parse({ code: 'abc123' })).toEqual({ code: 'abc123' })
+  })
+
+  it('rejects an empty code', () => {
+    expect(() => redeemHandoffInputSchema.parse({ code: '' })).toThrow()
   })
 })

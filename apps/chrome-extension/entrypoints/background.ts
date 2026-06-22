@@ -22,6 +22,7 @@ import {
   writeExtensionSettings,
 } from '@quikfill/browser-adapter'
 import { generatorKindSchema, type AuthState, type ExtensionSettings } from '@quikfill/schemas'
+import { DASHBOARD_URL } from '../lib/external-urls'
 
 /** Alarm that periodically re-pulls dashboard-managed settings while signed in. */
 const SETTINGS_SYNC_ALARM = 'qf-settings-sync'
@@ -228,5 +229,12 @@ export default defineBackground(() => {
   // (new) worker throw and the in-page Fill button shows a misleading "Offline"
   // until the tab is reloaded. Re-inject so a freshly (re)installed extension is
   // usable on already-open tabs without a manual page reload.
-  browser.runtime.onInstalled.addListener(() => void reinjectContentScripts(chromeReinjectDeps()))
+  browser.runtime.onInstalled.addListener((details) => {
+    void reinjectContentScripts(chromeReinjectDeps())
+    // On a fresh install, open the app so a user already signed in there hands a
+    // session to the extension with zero clicks — the content-script bridge runs on
+    // that freshly-loaded page (and it doubles as the onboarding entry point). Skip
+    // on update / browser_update so a background refresh never pops a tab.
+    if (details.reason === 'install') void browser.tabs.create({ url: DASHBOARD_URL })
+  })
 })

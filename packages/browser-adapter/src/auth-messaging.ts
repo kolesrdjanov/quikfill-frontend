@@ -14,6 +14,7 @@ export type AuthRequestMessage =
   | { type: typeof AUTH_REQUEST; action: 'request-code'; email: string }
   | { type: typeof AUTH_REQUEST; action: 'verify'; email: string; code: string }
   | { type: typeof AUTH_REQUEST; action: 'logout' }
+  | { type: typeof AUTH_REQUEST; action: 'adopt-handoff'; code: string }
 
 /** Background → surface reply for `request-code` (`devCode` only outside production). */
 export type RequestCodeResponse =
@@ -63,6 +64,15 @@ export async function verifyAuthCode(email: string, code: string): Promise<Verif
   }
 }
 
+/** Adopt a web-app session by redeeming a one-time handoff code. Unreachable ⇒ network error. */
+export async function adoptHandoff(code: string): Promise<VerifyResponse> {
+  try {
+    return await send<VerifyResponse>({ type: AUTH_REQUEST, action: 'adopt-handoff', code })
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+
 /** End the session. Best-effort: an unreachable background is treated as done. */
 export async function logoutAuth(): Promise<LogoutResponse> {
   try {
@@ -79,6 +89,7 @@ export interface AuthHandlers {
   requestCode(email: string): RequestCodeResponse | Promise<RequestCodeResponse>
   verify(email: string, code: string): VerifyResponse | Promise<VerifyResponse>
   logout(): LogoutResponse | Promise<LogoutResponse>
+  adoptHandoff(code: string): VerifyResponse | Promise<VerifyResponse>
 }
 
 /**
@@ -100,6 +111,8 @@ export function onAuthRequest(handlers: AuthHandlers): void {
           return handlers.verify(message.email, message.code)
         case 'logout':
           return handlers.logout()
+        case 'adopt-handoff':
+          return handlers.adoptHandoff(message.code)
       }
     }
     run()
