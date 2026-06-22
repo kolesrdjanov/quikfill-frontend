@@ -47,7 +47,8 @@ placeholder until the public CWS listing exists), "Sign in" / pricing CTAs
 deep-link `appUrl`.
 
 `pages/index.vue` composes the one-page site: `SiteNav` (incl. a real mobile
-menu + dark/light `useTheme` toggle), `HeroSection` (kinetic rotator, count-up
+menu; the colour theme follows the OS `prefers-color-scheme` via CSS — no manual
+toggle), `HeroSection` (kinetic rotator, count-up
 stats, and `ProductMock` — the auto-playing browser **Fill** demo cycling 3
 forms), `FlowSection` (#flow), `CapabilitiesSection` (#capabilities bento with
 live mini-visuals), `PrivacySection` (#privacy), `PricingSection` (#pricing),

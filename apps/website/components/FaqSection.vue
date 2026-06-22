@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ComponentPublicInstance } from 'vue'
 import { Plus } from 'lucide-vue-next'
 
 // Authored fresh (the design handoff's FAQ copy is not used). Answers reflect the
@@ -31,8 +32,35 @@ const faqs = [
   },
 ]
 
+// Single-open accordion. The open panel animates to an explicit pixel height
+// measured from the panel's scrollHeight (which reports full content height even
+// while the box is clipped), so it expands reliably across browsers.
 const openIndex = ref<number | null>(null)
-const toggle = (i: number) => (openIndex.value = openIndex.value === i ? null : i)
+const openHeight = ref(0)
+const panels: (HTMLElement | null)[] = []
+
+function setPanel(el: Element | ComponentPublicInstance | null, i: number) {
+  panels[i] = (el as HTMLElement) ?? null
+}
+function measure(i: number) {
+  openHeight.value = panels[i]?.scrollHeight ?? 0
+}
+function toggle(i: number) {
+  if (openIndex.value === i) {
+    openIndex.value = null
+    return
+  }
+  measure(i) // panels are always in the DOM, so this is safe to read synchronously
+  openIndex.value = i
+}
+
+onMounted(() => {
+  const onResize = () => {
+    if (openIndex.value !== null) measure(openIndex.value)
+  }
+  window.addEventListener('resize', onResize, { passive: true })
+  onBeforeUnmount(() => window.removeEventListener('resize', onResize))
+})
 </script>
 
 <template>
@@ -60,10 +88,14 @@ const toggle = (i: number) => (openIndex.value = openIndex.value === i ? null : 
             {{ item.q }}
             <span class="ic"><Plus /></span>
           </button>
-          <div :id="`faq-a-${i}`" class="faq-a" role="region">
-            <div class="faq-a-wrap">
-              <div class="faq-a-inner">{{ item.a }}</div>
-            </div>
+          <div
+            :id="`faq-a-${i}`"
+            :ref="(el) => setPanel(el, i)"
+            class="faq-a"
+            role="region"
+            :style="{ maxHeight: openIndex === i ? `${openHeight}px` : '0px' }"
+          >
+            <div class="faq-a-inner">{{ item.a }}</div>
           </div>
         </div>
       </div>

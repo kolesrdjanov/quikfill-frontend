@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { Sun, Moon, Menu, X } from 'lucide-vue-next'
+import { Menu, X } from 'lucide-vue-next'
 
 const { scrolled } = useNavScroll()
-const { toggle } = useTheme()
 
 // "Add to Chrome" points at the Chrome Web Store listing (placeholder until the
 // public listing exists); "Sign in" deep-links into the dashboard. Both origins
@@ -46,16 +45,6 @@ onMounted(() => {
       </nav>
 
       <div class="nav-actions">
-        <button
-          class="theme-toggle"
-          type="button"
-          aria-label="Toggle light / dark theme"
-          title="Toggle light / dark"
-          @click="toggle"
-        >
-          <Sun class="t-sun" />
-          <Moon class="t-moon" />
-        </button>
         <a class="signin" :href="`${appUrl}/sign-in`">Sign in</a>
         <a
           class="btn btn--primary btn--sm nav-cta"

@@ -37,7 +37,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      htmlAttrs: { lang: 'en', 'data-theme': 'dark' },
+      htmlAttrs: { lang: 'en' },
       title,
       meta: [
         { charset: 'utf-8' },
@@ -73,10 +73,10 @@ export default defineNuxtConfig({
       ],
       script: [
         {
-          // Before first paint: apply the saved theme (no flash) and flag `js` so
-          // scroll-reveal elements start hidden only when JS can reveal them.
-          innerHTML:
-            "try{var d=document.documentElement;d.classList.add('js');var t=localStorage.getItem('qf-theme');if(t)d.setAttribute('data-theme',t);}catch(e){}",
+          // Before first paint, flag `js` so scroll-reveal elements start hidden
+          // only when JS can reveal them. The colour theme follows the OS/browser
+          // preference via CSS `prefers-color-scheme` — there is no manual toggle.
+          innerHTML: "try{document.documentElement.classList.add('js')}catch(e){}",
           tagPosition: 'head',
         },
       ],

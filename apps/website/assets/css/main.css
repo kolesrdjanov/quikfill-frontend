@@ -32,9 +32,8 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* dark (default) */
-:root,
-:root[data-theme='dark'] {
+/* dark — the default surface */
+:root {
   --bg: #07090e;
   --bg-2: #0a0d14;
   --panel: #0e131c;
@@ -58,33 +57,35 @@
   color-scheme: dark;
 }
 
-/* light */
-:root[data-theme='light'] {
-  --bg: #f6f8fc;
-  --bg-2: #eef2f8;
-  --panel: #ffffff;
-  --panel-2: #f5f8fd;
-  --panel-3: #eef2f8;
-  --line: #e2e8f1;
-  --line-2: #d2dbe8;
-  --fg: #0d1422;
-  --fg-2: #36465c;
-  --muted: #5d6b80;
-  --faint: #8d9bb0;
-  --blue: #3056d3;
-  --blue-bright: #2544c0;
-  --teal: #0fae87;
-  --teal-bright: #0a8e6e;
-  --blue-soft: rgba(48, 86, 211, 0.09);
-  --blue-line: rgba(48, 86, 211, 0.32);
-  --teal-soft: rgba(15, 174, 135, 0.1);
-  --grid: rgba(13, 20, 34, 0.035);
-  --glow-blue: rgba(48, 86, 211, 0.28);
-  --glow-teal: rgba(15, 174, 135, 0.22);
-  --shadow: 0 24px 60px -28px rgba(20, 36, 80, 0.28);
-  --shadow-lift: 0 40px 110px -36px rgba(20, 36, 80, 0.32);
-  --btn-fg: #fff;
-  color-scheme: light;
+/* light — follows the OS / browser colour-scheme preference; no manual toggle */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f8fc;
+    --bg-2: #eef2f8;
+    --panel: #ffffff;
+    --panel-2: #f5f8fd;
+    --panel-3: #eef2f8;
+    --line: #e2e8f1;
+    --line-2: #d2dbe8;
+    --fg: #0d1422;
+    --fg-2: #36465c;
+    --muted: #5d6b80;
+    --faint: #8d9bb0;
+    --blue: #3056d3;
+    --blue-bright: #2544c0;
+    --teal: #0fae87;
+    --teal-bright: #0a8e6e;
+    --blue-soft: rgba(48, 86, 211, 0.09);
+    --blue-line: rgba(48, 86, 211, 0.32);
+    --teal-soft: rgba(15, 174, 135, 0.1);
+    --grid: rgba(13, 20, 34, 0.035);
+    --glow-blue: rgba(48, 86, 211, 0.28);
+    --glow-teal: rgba(15, 174, 135, 0.22);
+    --shadow: 0 24px 60px -28px rgba(20, 36, 80, 0.28);
+    --shadow-lift: 0 40px 110px -36px rgba(20, 36, 80, 0.32);
+    --btn-fg: #fff;
+    color-scheme: light;
+  }
 }
 
 * {
@@ -141,8 +142,10 @@ body::before {
   opacity: 0.75;
   animation: aurora 26s ease-in-out infinite alternate;
 }
-[data-theme='light'] body::before {
-  opacity: 0.5;
+@media (prefers-color-scheme: light) {
+  body::before {
+    opacity: 0.5;
+  }
 }
 @keyframes aurora {
   0% {
@@ -387,35 +390,6 @@ button {
 }
 .signin:hover {
   color: var(--fg);
-}
-.theme-toggle {
-  width: 40px;
-  height: 40px;
-  border-radius: 11px;
-  border: 1px solid var(--line-2);
-  background: color-mix(in srgb, var(--fg) 4%, transparent);
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.18s;
-}
-.theme-toggle:hover {
-  color: var(--fg);
-  border-color: var(--blue-line);
-}
-.theme-toggle svg {
-  width: 18px;
-  height: 18px;
-}
-.theme-toggle .t-moon {
-  display: none;
-}
-[data-theme='light'] .theme-toggle .t-sun {
-  display: none;
-}
-[data-theme='light'] .theme-toggle .t-moon {
-  display: inline-flex;
 }
 
 /* hamburger (mobile only) */
@@ -2222,16 +2196,13 @@ button {
   width: 16px;
   height: 16px;
 }
+/* Answer panel animates an explicit measured max-height (set inline from JS),
+   so it reliably expands in every browser — the grid 0fr/1fr trick rendered the
+   open panel at zero height in some engines. */
 .faq-a {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.4s var(--ease);
-}
-.faq-item.open .faq-a {
-  grid-template-rows: 1fr;
-}
-.faq-a-wrap {
+  max-height: 0;
   overflow: hidden;
+  transition: max-height 0.4s var(--ease);
 }
 .faq-a-inner {
   padding: 0 24px 24px;
