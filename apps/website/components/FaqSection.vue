@@ -72,30 +72,36 @@ onMounted(() => {
         <h2>Questions, answered.</h2>
       </div>
       <div class="faq-grid">
-        <div
-          v-for="(item, i) in faqs"
-          :key="i"
-          class="faq-item reveal"
-          :class="{ open: openIndex === i }"
-        >
-          <button
-            class="faq-q"
-            type="button"
-            :aria-expanded="openIndex === i"
-            :aria-controls="`faq-a-${i}`"
-            @click="toggle(i)"
-          >
-            {{ item.q }}
-            <span class="ic"><Plus /></span>
-          </button>
-          <div
-            :id="`faq-a-${i}`"
-            :ref="(el) => setPanel(el, i)"
-            class="faq-a"
-            role="region"
-            :style="{ maxHeight: openIndex === i ? `${openHeight}px` : '0px' }"
-          >
-            <div class="faq-a-inner">{{ item.a }}</div>
+        <!--
+          `reveal` lives on this wrapper, NOT on the same element as the reactive
+          `:class="{ open }"` below. useReveal() adds the `.in` class imperatively
+          (classList.add) when an item scrolls into view, but Vue rewrites the
+          whole className on every reactive update — so if the two shared one
+          element, opening an item would wipe `.in` and drop the now-open panel to
+          `opacity: 0` (the `.js .reveal` hidden state), making it invisible.
+          Splitting them keeps the scroll-reveal and the open/close state separate.
+        -->
+        <div v-for="(item, i) in faqs" :key="i" class="faq-reveal reveal">
+          <div class="faq-item" :class="{ open: openIndex === i }">
+            <button
+              class="faq-q"
+              type="button"
+              :aria-expanded="openIndex === i"
+              :aria-controls="`faq-a-${i}`"
+              @click="toggle(i)"
+            >
+              {{ item.q }}
+              <span class="ic"><Plus /></span>
+            </button>
+            <div
+              :id="`faq-a-${i}`"
+              :ref="(el) => setPanel(el, i)"
+              class="faq-a"
+              role="region"
+              :style="{ maxHeight: openIndex === i ? `${openHeight}px` : '0px' }"
+            >
+              <div class="faq-a-inner">{{ item.a }}</div>
+            </div>
           </div>
         </div>
       </div>

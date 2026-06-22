@@ -6,6 +6,12 @@
  * IntersectionObserver (idiomatic in a real framework, per the handoff), plus a
  * failsafe so content is never left hidden if the observer never fires.
  *
+ * IMPORTANT: `.in` is added imperatively via `classList.add`, which Vue does not
+ * track. Never put `reveal` on the same element as a *reactive* `:class` binding —
+ * Vue rewrites the whole className on every update and would wipe `.in`, leaving
+ * the element stuck at `opacity: 0`. Put `reveal` on a wrapper instead (see
+ * FaqSection.vue, whose inner items toggle an `open` class).
+ *
  * Call once after the page's sections have mounted (e.g. from `pages/index.vue`).
  */
 export function useReveal() {

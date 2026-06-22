@@ -791,6 +791,9 @@ button {
 }
 .burl {
   flex: 1;
+  min-width: 0; /* allow shrink below the URL's intrinsic width on narrow screens */
+  overflow: hidden;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -2414,6 +2417,10 @@ button {
   .b6 {
     grid-column: span 1;
   }
+  /* narrower tiles: let headings wrap instead of clipping (e.g. "iframes & shadow DOM") */
+  .tile h3 {
+    white-space: normal;
+  }
 }
 @media (max-width: 860px) {
   .nav-links,
@@ -2438,6 +2445,9 @@ button {
   .price-grid {
     grid-template-columns: 1fr;
   }
+  .cta-box {
+    padding: 56px 22px;
+  }
 }
 @media (max-width: 560px) {
   .wrap {
@@ -2460,5 +2470,23 @@ button {
   }
   .mobile-menu {
     inset: 70px 0 auto 0;
+  }
+  .footer-top {
+    gap: 36px;
+  }
+  .footer-cols {
+    gap: 44px;
+  }
+}
+@media (max-width: 480px) {
+  /* stack the two primary CTAs full-width — cleaner and bigger tap targets than wrapping */
+  .hero .cta-row,
+  .cta-box .cta-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero .cta-row .btn,
+  .cta-box .cta-row .btn {
+    width: 100%;
   }
 }
