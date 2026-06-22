@@ -15,5 +15,23 @@ import logoUrl from '@quikfill/assets/logos/quikfill-icon.svg?url'
     <div class="w-full max-w-md">
       <slot />
     </div>
+    <p class="text-muted-foreground mt-8 max-w-xs text-center text-xs text-balance">
+      By continuing, you agree to our
+      <a
+        href="https://quikfill.io/terms"
+        target="_blank"
+        rel="noopener"
+        class="hover:text-foreground underline underline-offset-4"
+        >Terms of Service</a
+      >
+      and
+      <a
+        href="https://quikfill.io/privacy"
+        target="_blank"
+        rel="noopener"
+        class="hover:text-foreground underline underline-offset-4"
+        >Privacy Policy</a
+      >.
+    </p>
   </div>
 </template>
