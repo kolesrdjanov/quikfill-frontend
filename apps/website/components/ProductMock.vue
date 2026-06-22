@@ -1,398 +1,320 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
-import {
-  ShieldCheck,
-  User,
-  Mail,
-  Phone,
-  Link,
-  Sparkles,
-  Circle,
-  Check,
-  WandSparkles,
-  CheckCheck,
-  Lock,
-} from 'lucide-vue-next'
+import { Check, Lock } from 'lucide-vue-next'
 
-type FieldKey = 'first' | 'last' | 'email' | 'phone' | 'portfolio' | 'location' | 'exp'
-type Source = 'saved' | 'ai' | 'gen'
-
-/* ---- host form (the page being filled) ---- */
-interface HostField {
-  key: FieldKey
+/**
+ * The hero showpiece: a browser-window mock that auto-plays QuikFill's in-page
+ * Fill flow and loops through three real-world forms. Ported from the design's
+ * `app.js` (renderScene / runScene / demoLoop) into a Vue state machine.
+ *
+ * The flow per scene: render the form empty → the floating Fill button fades in
+ * next to the form's submit → a fake cursor glides over and taps it → the button
+ * goes busy → fields fill top-to-bottom with a sweep highlight + source badge →
+ * the button turns teal "Filled" and the browser pulses → hold → swap to the next
+ * scene. Pauses when scrolled offscreen; reduced motion renders one filled scene.
+ */
+interface SceneField {
   label: string
-  required?: boolean
+  req?: boolean
+  val: string
+  src: 'saved' | 'ai'
   wide?: boolean
-  ph: string
-  typed: string
+  area?: boolean
 }
-const aboutYou: HostField[] = [
-  { key: 'first', label: 'First name', required: true, ph: 'Your first name', typed: 'Jordan' },
-  { key: 'last', label: 'Last name', required: true, ph: 'Your last name', typed: 'Avery' },
+interface Scene {
+  fav: { t: string; c: string }
+  url: string
+  logo: { t: string; mk: string; c: string }
+  heading: string
+  sub: string
+  submit: string
+  fields: SceneField[]
+}
+
+const SCENES: Scene[] = [
   {
-    key: 'email',
-    label: 'Email address',
-    required: true,
-    ph: 'you@email.com',
-    typed: 'jordan.avery@gmail.com',
+    fav: { t: 'G', c: '#6366f1' },
+    url: 'careers.globex.io/apply',
+    logo: { t: 'Globex', mk: 'G', c: '#6366f1' },
+    heading: 'Apply — Senior Product Designer',
+    sub: 'Globex Corporation · Remote · Full-time',
+    submit: 'Submit application',
+    fields: [
+      { label: 'First name', req: true, val: 'Jordan', src: 'saved' },
+      { label: 'Last name', req: true, val: 'Avery', src: 'saved' },
+      {
+        label: 'Email address',
+        req: true,
+        val: 'jordan.avery@gmail.com',
+        src: 'saved',
+        wide: true,
+      },
+      { label: 'Phone', val: '+1 (415) 555-0142', src: 'saved' },
+      { label: 'Location', val: 'San Francisco, CA', src: 'ai' },
+      {
+        label: 'LinkedIn / portfolio',
+        val: 'linkedin.com/in/jordanavery',
+        src: 'saved',
+        wide: true,
+      },
+    ],
   },
-  { key: 'phone', label: 'Phone', ph: '+1', typed: '+1 (415) 555-0142' },
   {
-    key: 'portfolio',
-    label: 'LinkedIn / portfolio',
-    wide: true,
-    ph: 'https://',
-    typed: 'linkedin.com/in/jordanavery',
+    fav: { t: 'N', c: '#0ea5e9' },
+    url: 'checkout.northwind.shop',
+    logo: { t: 'Northwind', mk: 'N', c: '#0ea5e9' },
+    heading: 'Checkout',
+    sub: 'Northwind Shop · Step 2 of 3 — Shipping',
+    submit: 'Continue to payment',
+    fields: [
+      { label: 'Full name', req: true, val: 'Jordan Avery', src: 'saved', wide: true },
+      { label: 'Address', req: true, val: '414 Brannan St', src: 'saved', wide: true },
+      { label: 'City', req: true, val: 'San Francisco', src: 'saved' },
+      { label: 'ZIP', req: true, val: '94107', src: 'saved' },
+      { label: 'Country', val: 'United States', src: 'ai' },
+      { label: 'Email for receipt', val: 'jordan.avery@gmail.com', src: 'saved' },
+    ],
+  },
+  {
+    fav: { t: 'S', c: '#13c296' },
+    url: 'crm.summit.dev/leads/new',
+    logo: { t: 'Summit CRM', mk: 'S', c: '#13c296' },
+    heading: 'New lead',
+    sub: 'Summit CRM · Inbound · Q3 pipeline',
+    submit: 'Create lead',
+    fields: [
+      { label: 'Company', req: true, val: 'Helios Robotics', src: 'saved' },
+      { label: 'Contact', req: true, val: 'Mei Tanaka', src: 'saved' },
+      { label: 'Work email', req: true, val: 'mei@helios.io', src: 'ai', wide: true },
+      { label: 'Deal size', val: '$48,000', src: 'ai' },
+      { label: 'Source', val: 'Webinar', src: 'ai' },
+      { label: 'Notes', val: 'Warm intro via partner team', src: 'ai', wide: true, area: true },
+    ],
   },
 ]
-const roleDetails: HostField[] = [
-  {
-    key: 'location',
-    label: 'Location',
-    required: true,
-    ph: 'City, State',
-    typed: 'San Francisco, CA',
-  },
-  { key: 'exp', label: 'Years of experience', ph: 'Select…', typed: '6 years' },
-]
 
-/* ---- QuikFill panel rows (the fill plan) ---- */
-interface Row {
-  key: FieldKey
-  icon: Component
-  name: string
-  src: Source
-  srcLabel: string
-  meter: number
-  value: string
-}
-const rows: Row[] = [
-  {
-    key: 'first',
-    icon: User,
-    name: 'First name',
-    src: 'saved',
-    srcLabel: 'Saved',
-    meter: 98,
-    value: 'Jordan',
-  },
-  {
-    key: 'last',
-    icon: User,
-    name: 'Last name',
-    src: 'saved',
-    srcLabel: 'Saved',
-    meter: 98,
-    value: 'Avery',
-  },
-  {
-    key: 'email',
-    icon: Mail,
-    name: 'Email address',
-    src: 'saved',
-    srcLabel: 'Saved',
-    meter: 99,
-    value: 'jordan.avery@gmail.com',
-  },
-  {
-    key: 'phone',
-    icon: Phone,
-    name: 'Phone',
-    src: 'gen',
-    srcLabel: 'Generated',
-    meter: 100,
-    value: '+1 (415) 555-0142',
-  },
-  {
-    key: 'portfolio',
-    icon: Link,
-    name: 'LinkedIn / portfolio',
-    src: 'saved',
-    srcLabel: 'Saved',
-    meter: 95,
-    value: 'linkedin.com/in/jordanavery',
-  },
-  {
-    key: 'location',
-    icon: Sparkles,
-    name: 'Location',
-    src: 'ai',
-    srcLabel: 'AI · classified',
-    meter: 91,
-    value: 'San Francisco, CA',
-  },
-  {
-    key: 'exp',
-    icon: Sparkles,
-    name: 'Years of experience',
-    src: 'ai',
-    srcLabel: 'AI · classified',
-    meter: 87,
-    value: '6 years',
-  },
-]
-const FIELDS = rows.map((r) => r.key)
-const N = rows.length
+const sceneIdx = ref(0)
+const scene = computed(() => SCENES[sceneIdx.value]!)
 
-/* ---- reactive animation state ---- */
-type MfState = '' | 'scan' | 'preview' | 'fill'
-type RowState = { show: boolean; preview: boolean; done: boolean }
+const filled = ref<boolean[]>([])
+const fab = reactive({ show: false, hover: false, press: false, busy: false, done: false })
+const fabLabel = computed(() => (fab.busy ? 'Filling…' : fab.done ? 'Filled' : 'Fill'))
+const fabLeft = ref(0)
+const fabTop = ref(0)
+const cursor = reactive({ x: 0, y: 0, visible: false })
+const hostSwap = ref(false)
+const browserPulse = ref(false)
 
-const view = ref<'scan' | 'work'>('scan')
-const statusScan = ref(true)
-const statusText = ref('Detecting fields…')
-const statusCount = ref('0 fields')
-const btnText = ref('Fill this form')
-const btnIcon = shallowRef<Component>(WandSparkles)
-const btnCls = ref('')
-const pressed = ref(false)
+const rootEl = ref<HTMLElement | null>(null)
+const bodyEl = ref<HTMLElement | null>(null)
+const submitEl = ref<HTMLElement | null>(null)
 
-const mf = reactive<Record<FieldKey, MfState>>(
-  Object.fromEntries(FIELDS.map((f) => [f, ''])) as Record<FieldKey, MfState>,
-)
-const rowState = reactive<Record<FieldKey, RowState>>(
-  Object.fromEntries(
-    FIELDS.map((f) => [f, { show: false, preview: false, done: false }]),
-  ) as Record<FieldKey, RowState>,
-)
+const reducedMotion = () =>
+  import.meta.client && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-const reduced = import.meta.client && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-/* ---- timer plumbing (mirrors anim.js) ---- */
-let timers: ReturnType<typeof setTimeout>[] = []
-const after = (ms: number, fn: () => void) => {
-  const t = setTimeout(fn, ms)
-  timers.push(t)
-  return t
-}
-const clearAll = () => {
-  timers.forEach(clearTimeout)
-  timers = []
+let generation = 0
+let running = false
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+/** Resolve after `ms`, returning false if this run was cancelled meanwhile. */
+async function step(ms: number, gen: number) {
+  await sleep(ms)
+  return running && gen === generation
 }
 
-function setBtn(text: string, icon: Component, cls: string) {
-  btnText.value = text
-  btnIcon.value = icon
-  btnCls.value = cls
-}
-function pressPulse() {
-  pressed.value = true
-  after(140, () => (pressed.value = false))
-}
-function reset() {
-  FIELDS.forEach((f) => {
-    rowState[f].show = false
-    rowState[f].preview = false
-    rowState[f].done = false
-    mf[f] = ''
-  })
-  statusScan.value = true
-  view.value = 'scan'
-  setBtn('Fill this form', WandSparkles, '')
+function resetScene() {
+  filled.value = scene.value.fields.map(() => false)
+  fab.show = fab.hover = fab.press = fab.busy = fab.done = false
+  cursor.visible = false
+  hostSwap.value = false
+  browserPulse.value = false
 }
 
-function showFinal() {
-  view.value = 'work'
-  statusScan.value = false
-  statusText.value = 'Filled · verified'
-  statusCount.value = `${N}/${N}`
-  FIELDS.forEach((f) => {
-    rowState[f].show = true
-    rowState[f].done = true
-    mf[f] = 'fill'
-  })
-  setBtn(`Filled · ${N}/${N}`, CheckCheck, 'done')
+function positionFab() {
+  const body = bodyEl.value
+  const submit = submitEl.value
+  if (!body || !submit) return
+  const br = body.getBoundingClientRect()
+  const sr = submit.getBoundingClientRect()
+  const sLeft = sr.left - br.left
+  const sTop = sr.top - br.top
+  let left = sLeft + sr.width + 16
+  let top = sTop + (sr.height - 44) / 2
+  // keep inside the body — if no room to the right, sit just above the submit
+  if (left + 150 > body.clientWidth) {
+    left = sLeft + sr.width - 44
+    top = sTop - 58
+  }
+  fabLeft.value = left
+  fabTop.value = top
 }
 
-function run() {
-  clearAll()
-  reset()
-  if (reduced) {
-    after(300, showFinal)
+async function runScene(gen: number) {
+  resetScene()
+  await nextTick()
+  positionFab()
+
+  if (reducedMotion()) {
+    filled.value = filled.value.map(() => true)
+    fab.show = true
+    fab.done = true
     return
   }
 
-  // 0) dwell on the Fill button
-  after(1700, () => {
-    pressPulse() // a single click
-    // 1) one click → AI detects every field and fills the whole form in one pass
-    after(260, () => {
-      view.value = 'work'
-      statusScan.value = true
-      statusText.value = 'Detecting fields…'
-      statusCount.value = '0 fields'
-      setBtn('Filling…', WandSparkles, '')
-      let done = 0
-      rows.forEach((r, i) => {
-        after(i * 220, () => {
-          rowState[r.key].show = true
-          rowState[r.key].done = true
-          mf[r.key] = 'fill'
-          done++
-          statusScan.value = false
-          statusText.value = done < N ? 'Filling…' : 'Filled · verified'
-          statusCount.value = `${done}/${N}`
-        })
-      })
-      // 2) done → hold, then loop
-      after(N * 220 + 420, () => {
-        setBtn(`Filled · ${N}/${N}`, CheckCheck, 'done')
-        after(3200, run)
-      })
-    })
-  })
+  cursor.x = fabLeft.value - 120
+  cursor.y = fabTop.value + 140
+  cursor.visible = false
+  if (!(await step(500, gen))) return
+  fab.show = true
+  if (!(await step(450, gen))) return
+  cursor.visible = true
+  cursor.x = fabLeft.value + 12
+  cursor.y = fabTop.value + 16
+  if (!(await step(820, gen))) return
+  fab.hover = true
+  if (!(await step(700, gen))) return
+  fab.press = true
+  if (!(await step(130, gen))) return
+  fab.press = false
+  fab.hover = false
+  fab.busy = true
+  cursor.visible = true
+  cursor.x = fabLeft.value - 80
+  cursor.y = fabTop.value + 90
+  if (!(await step(720, gen))) return
+  cursor.visible = false
+  for (let i = 0; i < filled.value.length; i++) {
+    filled.value[i] = true
+    if (!(await step(165, gen))) return
+  }
+  if (!(await step(260, gen))) return
+  fab.busy = false
+  fab.done = true
+  browserPulse.value = true
+  setTimeout(() => (browserPulse.value = false), 1000)
+  if (!(await step(2300, gen))) return
+  hostSwap.value = true
+  fab.show = false
+  fab.done = false
+  if (!(await step(420, gen))) return
 }
 
-/* ---- run only while visible; restart when re-entering view ---- */
-const mockEl = ref<HTMLElement | null>(null)
-let running = false
+async function runLoop() {
+  const gen = ++generation
+  running = true
+  if (!(await step(400, gen))) return
+  while (running && gen === generation) {
+    await runScene(gen)
+    if (!running || gen !== generation) return
+    if (reducedMotion()) return
+    sceneIdx.value = (sceneIdx.value + 1) % SCENES.length
+    await nextTick()
+  }
+}
+function stop() {
+  running = false
+  generation++
+}
+
 let io: IntersectionObserver | null = null
+let resizeTimer: ReturnType<typeof setTimeout> | null = null
+function onResize() {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(positionFab, 150)
+}
 
 onMounted(() => {
-  if (!mockEl.value) return
+  if (!rootEl.value) return
   io = new IntersectionObserver(
     (entries) => {
-      entries.forEach((e) => {
-        if (e.isIntersecting && !running) {
-          running = true
-          run()
-        } else if (!e.isIntersecting && running) {
-          running = false
-          clearAll()
-        }
-      })
+      for (const e of entries) {
+        if (e.isIntersecting && !running) runLoop()
+        else if (!e.isIntersecting && running) stop()
+      }
     },
-    { threshold: 0.25 },
+    { threshold: 0.2 },
   )
-  io.observe(mockEl.value)
+  io.observe(rootEl.value)
+  window.addEventListener('resize', onResize, { passive: true })
 })
 onBeforeUnmount(() => {
   io?.disconnect()
-  clearAll()
+  stop()
+  if (resizeTimer) clearTimeout(resizeTimer)
+  window.removeEventListener('resize', onResize)
 })
-
-// let a curious user replay by clicking the panel button
-function onBtnClick() {
-  if (running) run()
-}
 </script>
 
 <template>
-  <div id="mockHome" class="mock-stage">
-    <div id="mock" ref="mockEl" class="mock" data-step="idle">
-      <div class="mb-bar">
-        <div class="mb-dots"><span></span><span></span><span></span></div>
-        <div class="mb-tab">
-          <span class="fav" style="background: #6366f1">G</span
-          ><span>Apply — Senior Product Designer</span>
+  <div id="demo" ref="rootEl" aria-hidden="true">
+    <div class="browser" :class="{ 'done-pulse': browserPulse }">
+      <div class="browser-bar">
+        <div class="bdots"><span></span><span></span><span></span></div>
+        <div class="btab">
+          <span class="fav" :style="{ background: scene.fav.c }">{{ scene.fav.t }}</span>
+          <span class="ttl">{{ scene.heading }}</span>
         </div>
-        <div class="mb-url"><Lock /> careers.globex.io/apply</div>
-        <div class="mb-ext"><img src="/quikfill-icon.svg" alt="" /><span class="live"></span></div>
+        <div class="burl"><Lock /> {{ scene.url }}</div>
+        <div class="bext"><img src="/quikfill-icon.svg" alt="" /></div>
       </div>
-      <div class="mb-body">
-        <!-- host form -->
-        <div class="mb-host">
-          <div class="fm-head">
-            <h4>Apply — Senior Product Designer</h4>
-            <p>Globex Corporation · Remote · Full-time</p>
-          </div>
-          <div class="fm-sec">About you</div>
-          <div class="fm-grid">
-            <div
-              v-for="f in aboutYou"
-              :key="f.key"
-              class="mf"
-              :class="[{ wide: f.wide }, mf[f.key] ? `is-${mf[f.key]}` : '']"
-              :data-f="f.key"
+
+      <div ref="bodyEl" class="browser-body">
+        <div class="host" :class="{ swap: hostSwap }">
+          <div class="host-head">
+            <span class="hlogo"
+              ><span class="mk" :style="{ background: scene.logo.c }">{{ scene.logo.mk }}</span
+              >{{ scene.logo.t }}</span
             >
-              <label>{{ f.label }} <em v-if="f.required">*</em></label>
-              <div class="mf-val">
-                <span class="ph">{{ f.ph }}</span
-                ><span class="typed">{{ f.typed }}</span>
+            <h3>{{ scene.heading }}</h3>
+            <p>{{ scene.sub }}</p>
+          </div>
+          <div class="hform">
+            <div
+              v-for="(f, i) in scene.fields"
+              :key="`${sceneIdx}-${i}`"
+              class="hfield"
+              :class="{ wide: f.wide, filled: filled[i] }"
+            >
+              <label>{{ f.label }} <em v-if="f.req">*</em></label>
+              <div class="hinput" :class="{ area: f.area }">
+                <span class="ph">{{ f.area ? '' : '—' }}</span>
+                <span class="val">{{ f.val }}</span>
+                <span class="src" :class="f.src">{{ f.src === 'ai' ? 'AI' : 'Saved' }}</span>
               </div>
             </div>
-          </div>
-          <div class="fm-sec">Role details</div>
-          <div class="fm-grid">
-            <div
-              v-for="f in roleDetails"
-              :key="f.key"
-              class="mf"
-              :class="[{ wide: f.wide }, mf[f.key] ? `is-${mf[f.key]}` : '']"
-              :data-f="f.key"
-            >
-              <label>{{ f.label }} <em v-if="f.required">*</em></label>
-              <div class="mf-val">
-                <span class="ph">{{ f.ph }}</span
-                ><span class="typed">{{ f.typed }}</span>
-              </div>
+            <div class="hactions">
+              <span class="hbtn cancel">Cancel</span>
+              <span ref="submitEl" class="hbtn submit">{{ scene.submit }}</span>
             </div>
           </div>
         </div>
-        <!-- QuikFill popup (anchored to the toolbar) -->
-        <aside class="mb-panel">
-          <div class="pp-head">
-            <img src="/quikfill-icon.svg" alt="" />
-            <span class="nm">Quik<em>Fill</em></span>
-            <span class="host"><span class="fav">G</span>globex.io</span>
-          </div>
-          <div class="pp-body">
-            <!-- scan view -->
-            <div class="pv pv-scan" :class="{ on: view === 'scan' }" data-view="scan">
-              <span class="scan-ico"><WandSparkles /></span>
-              <h5>Fill this form</h5>
-              <p>One click and QuikFill's AI detects every field and fills the whole form.</p>
-              <span class="reassure"><ShieldCheck /> Nothing is read until you click</span>
-            </div>
-            <!-- work view -->
-            <div class="pv pv-work" :class="{ on: view === 'work' }" data-view="work">
-              <div id="pwStatus" class="pw-status" :class="{ scan: statusScan }">
-                <span class="sp"></span><span class="txt">{{ statusText }}</span
-                ><span class="cnt">{{ statusCount }}</span>
-              </div>
-              <div class="pw-list">
-                <div
-                  v-for="r in rows"
-                  :key="r.key"
-                  class="prow"
-                  :class="[
-                    `src-${r.src}`,
-                    {
-                      show: rowState[r.key].show,
-                      preview: rowState[r.key].preview,
-                      done: rowState[r.key].done,
-                    },
-                  ]"
-                  :data-f="r.key"
-                >
-                  <span class="ricon"><component :is="r.icon" /></span>
-                  <div class="rmid">
-                    <div class="rname">{{ r.name }}</div>
-                    <div class="rmeta">
-                      <span class="rsrc">{{ r.srcLabel }}</span
-                      ><span class="rmeter"><i :style="{ width: `${r.meter}%` }"></i></span>
-                    </div>
-                    <div class="rval">{{ r.value }}</div>
-                  </div>
-                  <span class="rstat"
-                    ><component :is="rowState[r.key].done ? Check : Circle"
-                  /></span>
-                </div>
-              </div>
-              <div class="pw-foot">
-                <button
-                  id="ppBtn"
-                  class="pp-btn"
-                  :class="btnCls"
-                  :style="{ transform: pressed ? 'scale(.97)' : '' }"
-                  @click="onBtnClick"
-                >
-                  <component :is="btnIcon" /> <span>{{ btnText }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </aside>
+
+        <!-- the floating QuikFill button (anchored next to the form's submit) -->
+        <div
+          class="qf-fab"
+          :class="{
+            show: fab.show,
+            hover: fab.hover,
+            press: fab.press,
+            busy: fab.busy,
+            done: fab.done,
+          }"
+          :style="{ left: `${fabLeft}px`, top: `${fabTop}px` }"
+        >
+          <span class="ficon"><img src="/quikfill-icon.svg" alt="" /></span>
+          <span class="fspin"></span>
+          <span class="fcheck"><Check /></span>
+          <span class="flabel">{{ fabLabel }}</span>
+        </div>
+
+        <!-- fake cursor -->
+        <div
+          class="qf-cursor"
+          :class="{ visible: cursor.visible }"
+          :style="{ transform: `translate(${cursor.x}px, ${cursor.y}px)` }"
+        >
+          <svg viewBox="0 0 24 24" fill="#fff" stroke="#0b0e14" stroke-width="1.2">
+            <path d="M5 3l14 7-6 2.2L9.5 19 5 3z" />
+          </svg>
+        </div>
       </div>
     </div>
   </div>

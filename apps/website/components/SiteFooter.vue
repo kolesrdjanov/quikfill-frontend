@@ -8,27 +8,25 @@ const chromeStoreUrl = useRuntimeConfig().public.chromeStoreUrl
     <div class="wrap">
       <div class="footer-top">
         <div class="footer-brand">
-          <NuxtLink class="brand" to="/"
-            ><img src="/quikfill-icon.svg" alt="" /><span
-              >Quik<span class="f">Fill</span></span
-            ></NuxtLink
-          >
-          <p>
-            The one-click autofill that reads the form, understands the fields, and fills it from
-            your data — on any site.
-          </p>
+          <NuxtLink class="brand" to="/">
+            <img src="/quikfill-icon.svg" alt="" /><span>Quik<span class="f">Fill</span></span>
+          </NuxtLink>
+          <p>A button on every form. One click to fill it. Your data stays on your device.</p>
         </div>
-        <div class="footer-col">
-          <h5>Product</h5>
-          <NuxtLink to="/#features">Features</NuxtLink>
-          <NuxtLink to="/#how">How it works</NuxtLink>
-          <NuxtLink to="/#pricing">Pricing</NuxtLink>
-          <a :href="chromeStoreUrl" target="_blank" rel="noopener">Chrome extension</a>
-        </div>
-        <div class="footer-col">
-          <h5>Company</h5>
-          <NuxtLink to="/privacy">Privacy</NuxtLink>
-          <a href="mailto:hello@quikfill.io">hello@quikfill.io</a>
+        <div class="footer-cols">
+          <div class="footer-col">
+            <h5>Product</h5>
+            <NuxtLink to="/#flow">How it works</NuxtLink>
+            <NuxtLink to="/#capabilities">Capabilities</NuxtLink>
+            <NuxtLink to="/#pricing">Pricing</NuxtLink>
+            <NuxtLink to="/#faq">FAQ</NuxtLink>
+          </div>
+          <div class="footer-col">
+            <h5>Company</h5>
+            <NuxtLink to="/privacy">Privacy policy</NuxtLink>
+            <a :href="chromeStoreUrl" target="_blank" rel="noopener">Chrome extension</a>
+            <a href="mailto:hello@quikfill.io">Contact</a>
+          </div>
         </div>
       </div>
       <div class="footer-bottom">

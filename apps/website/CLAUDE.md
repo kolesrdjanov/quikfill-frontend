@@ -37,19 +37,33 @@ pnpm --filter @quikfill/website generate   # static; build / preview also availa
 
 ## Current state
 
-Iteration 9 (marketing website) — **LIVE (2026-06-21)**. All CTAs enabled,
-PricingSection shown. Chrome Web Store links are a `https://google.com`
-placeholder via `runtimeConfig.public.chromeStoreUrl`, pending the real CWS
-listing. The hero uses the animated `ProductMock`; real product screenshots are
-a post-launch follow-up.
+Marketing website — **LIVE**, redesigned 2026-06-22 to the dark-technical
+"tool for power users" look (near-black canvas, electric blue + teal, JetBrains
+Mono detailing, animated aurora + scroll reveals). This reflects the **current**
+product behaviour: an in-page floating **Fill** button on every form, NOT the
+deprecated side-panel scan/preview wizard. All CTAs enabled; "Add to Chrome"
+buttons point at `runtimeConfig.public.chromeStoreUrl` (a `https://google.com`
+placeholder until the public CWS listing exists), "Sign in" / pricing CTAs
+deep-link `appUrl`.
 
-`pages/index.vue` composes the full one-page marketing site (`components/Site*`,
-`HeroSection` — which itself renders `ProductMock` — `HowItWorks`,
-`FeaturesSection`, `PrivacySection`, `PricingSection`, `FinalCta`), ported 1:1
-from the `QuikFill (standalone).html` design. It uses a bespoke dark-premium
-marketing CSS system (`assets/css/main.css`, own CSS variables) intentionally
-separate from the shadcn dashboard/extension UI; reuse is limited to the
-`@quikfill/assets` logo, `lucide-vue-next` icons, and the shared Google Fonts
-link. Dark/light theme toggle (`useTheme`, persisted to `qf-theme`), nav-scroll
-state, and the scan→preview→fill panel animation (`ProductMock`, ported from the
-design's `anim.js`) are all live. See the plan's status table.
+`pages/index.vue` composes the one-page site: `SiteNav` (incl. a real mobile
+menu + dark/light `useTheme` toggle), `HeroSection` (kinetic rotator, count-up
+stats, and `ProductMock` — the auto-playing browser **Fill** demo cycling 3
+forms), `FlowSection` (#flow), `CapabilitiesSection` (#capabilities bento with
+live mini-visuals), `PrivacySection` (#privacy), `PricingSection` (#pricing),
+`FaqSection` (#faq, bespoke Q&As), `FinalCta`, `SiteFooter`. Recreated from the
+`design_handoff_website_redesign` HTML/CSS prototype, re-expressed idiomatically
+in Vue/Nuxt.
+
+Bespoke marketing CSS system in `assets/css/main.css` (own CSS variables:
+`--bg/--fg/--blue/--teal/...`), intentionally separate from the shadcn
+dashboard/extension UI; reuse limited to the logo, `lucide-vue-next` icons, and
+the shared Google Fonts link (Plus Jakarta Sans + JetBrains Mono). Motion lives
+in small composables (`useReveal`, `useCursorGlow`, `useNavScroll`,
+`usePrefersReducedMotion`) and all of it respects `prefers-reduced-motion`.
+
+**Pricing copy stays bound to `@quikfill/schemas` `PLAN_CATALOG`** (the single
+source of truth: Free 10 / Starter 200 / Pro 1,000 / Enterprise 10,000 fills,
+honest bullets, no token line). The handoff's pricing (token quotas, fabricated
+features) is deliberately ignored — only its UI was applied. Likewise the
+handoff's FAQ copy is unused; `FaqSection` carries its own accurate Q&As.

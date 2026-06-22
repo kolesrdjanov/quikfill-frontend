@@ -148,12 +148,12 @@ useHead({
   font-size: 2.4rem;
 }
 .legal .updated {
-  color: var(--ink-3);
+  color: var(--muted);
   font-size: 0.85rem;
   margin: 10px 0 32px;
 }
 .legal .lead {
-  color: var(--ink);
+  color: var(--fg);
   font-size: 1.08rem;
   margin-bottom: 8px;
 }
@@ -162,23 +162,23 @@ useHead({
   margin: 40px 0 12px;
 }
 .legal p {
-  color: var(--ink-2);
+  color: var(--fg-2);
   margin: 0 0 14px;
 }
 .legal ul {
   margin: 0 0 14px;
   padding-left: 22px;
-  color: var(--ink-2);
+  color: var(--fg-2);
 }
 .legal li {
   margin: 0 0 10px;
 }
 .legal strong {
-  color: var(--ink);
+  color: var(--fg);
   font-weight: 600;
 }
 .legal a {
-  color: var(--accent-2);
+  color: var(--blue-bright);
 }
 .legal a:hover {
   text-decoration: underline;

@@ -3,7 +3,7 @@ export function useNavScroll() {
   const scrolled = ref(false)
 
   function onScroll() {
-    scrolled.value = window.scrollY > 8
+    scrolled.value = window.scrollY > 12
   }
 
   onMounted(() => {

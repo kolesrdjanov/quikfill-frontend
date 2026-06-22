@@ -2,7 +2,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 const title = 'QuikFill — Fill any form in one click'
 const description =
-  'QuikFill adds a Fill button to any form on any site. One click and its AI detects every field and fills the whole form from your data. Built for people who live in forms.'
+  'QuikFill drops a button next to every form on every site. Hover, click Fill, and AI fills every field in a second — no panel, no per-site setup. Your data never leaves your device.'
 
 // Production canonical origin. og:image / og:url MUST be absolute — Slack,
 // WhatsApp, Facebook and LinkedIn do not resolve relative social-card URLs.
@@ -37,7 +37,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      htmlAttrs: { lang: 'en', 'data-theme': 'dark', 'data-hero': 'a' },
+      htmlAttrs: { lang: 'en', 'data-theme': 'dark' },
       title,
       meta: [
         { charset: 'utf-8' },
@@ -59,7 +59,7 @@ export default defineNuxtConfig({
         { name: 'twitter:title', content: title },
         { name: 'twitter:description', content: description },
         { name: 'twitter:image', content: ogImage },
-        { name: 'theme-color', content: '#070a14' },
+        { name: 'theme-color', content: '#07090e' },
       ],
       link: [
         { rel: 'canonical', href: siteUrl },
@@ -68,14 +68,15 @@ export default defineNuxtConfig({
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {
           rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap',
+          href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=JetBrains+Mono:wght@400;500;600;700&display=swap',
         },
       ],
       script: [
         {
-          // Apply the saved theme before first paint to avoid a flash.
+          // Before first paint: apply the saved theme (no flash) and flag `js` so
+          // scroll-reveal elements start hidden only when JS can reveal them.
           innerHTML:
-            "try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}",
+            "try{var d=document.documentElement;d.classList.add('js');var t=localStorage.getItem('qf-theme');if(t)d.setAttribute('data-theme',t);}catch(e){}",
           tagPosition: 'head',
         },
       ],
