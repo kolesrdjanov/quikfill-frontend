@@ -58,6 +58,36 @@ describe('entitlementsResponseSchema', () => {
       }),
     ).toThrow()
   })
+
+  it('parses a paused subscription (a Stripe status the old enum omitted)', () => {
+    // The backend persists Stripe's raw `subscription.status`; `paused` (along with
+    // `unpaid` / `incomplete_expired`) used to be absent from the enum, so any user
+    // in that state failed the whole parse and bricked the popup. Regression guard.
+    const parsed = entitlementsResponseSchema.parse({
+      planKey: 'pro',
+      displayName: 'Pro',
+      status: 'paused',
+      fillsUsed: 12,
+      fillLimit: 1000,
+      currentPeriodEnd: null,
+    })
+    expect(parsed.status).toBe('paused')
+  })
+
+  it('falls back to "active" for an unknown future status instead of throwing', () => {
+    // `status` is display-only in the popup, so a status Stripe introduces later
+    // must degrade to a safe known value — never throw and brick the entitlements
+    // panel (which would leave it stuck on "Loading your plan…" forever).
+    const parsed = entitlementsResponseSchema.parse({
+      planKey: 'pro',
+      displayName: 'Pro',
+      status: 'some_unreleased_stripe_status',
+      fillsUsed: 0,
+      fillLimit: 1000,
+      currentPeriodEnd: null,
+    })
+    expect(parsed.status).toBe('active')
+  })
 })
 
 describe('createCheckoutSessionInputSchema', () => {
@@ -85,13 +115,16 @@ describe('enums', () => {
   it('planKeySchema covers the four tiers', () => {
     expect(planKeySchema.options).toEqual(['free', 'starter', 'pro', 'enterprise'])
   })
-  it('subscriptionStatusSchema covers the Stripe lifecycle states', () => {
+  it('subscriptionStatusSchema mirrors the full Stripe status set', () => {
     expect(subscriptionStatusSchema.options).toEqual([
       'active',
       'trialing',
       'past_due',
       'canceled',
       'incomplete',
+      'incomplete_expired',
+      'unpaid',
+      'paused',
     ])
   })
 })

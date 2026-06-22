@@ -41,6 +41,9 @@ const STATUS_BADGE: Record<
   past_due: { label: 'Past due', variant: 'warning' },
   canceled: { label: 'Canceled', variant: 'outline' },
   incomplete: { label: 'Incomplete', variant: 'warning' },
+  incomplete_expired: { label: 'Expired', variant: 'outline' },
+  unpaid: { label: 'Unpaid', variant: 'warning' },
+  paused: { label: 'Paused', variant: 'secondary' },
 }
 
 const ent = computed(() => subscription.entitlements)

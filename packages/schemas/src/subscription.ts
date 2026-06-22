@@ -19,13 +19,22 @@ export type PlanKey = z.infer<typeof planKeySchema>
 export const paidPlanKeySchema = z.enum(['starter', 'pro', 'enterprise'])
 export type PaidPlanKey = z.infer<typeof paidPlanKeySchema>
 
-/** Stripe-derived subscription lifecycle status (mirrors `subscription.status`). */
+/**
+ * Stripe-derived subscription lifecycle status. The backend persists Stripe's raw
+ * `subscription.status` verbatim, so this must mirror Stripe's full status set —
+ * all eight values, including `incomplete_expired`, `unpaid`, and `paused`. (An
+ * earlier, narrower enum omitted those three, so a user in any of them failed the
+ * whole `/entitlements` parse and bricked the popup.)
+ */
 export const subscriptionStatusSchema = z.enum([
   'active',
   'trialing',
   'past_due',
   'canceled',
   'incomplete',
+  'incomplete_expired',
+  'unpaid',
+  'paused',
 ])
 export type SubscriptionStatus = z.infer<typeof subscriptionStatusSchema>
 
@@ -38,7 +47,12 @@ export type SubscriptionStatus = z.infer<typeof subscriptionStatusSchema>
 export const entitlementsResponseSchema = z.object({
   planKey: planKeySchema,
   displayName: z.string(),
-  status: subscriptionStatusSchema,
+  // Display-only in the popup (a text suffix on the plan line) and never used to
+  // gate AI, so tolerate a value Stripe introduces later by falling back to a safe
+  // known state rather than throwing — a single unexpected status must never brick
+  // the whole entitlements panel. The enum above already covers every current
+  // Stripe status; `.catch` is the forward-compat safety net.
+  status: subscriptionStatusSchema.catch('active'),
   fillsUsed: z.number().int().nonnegative(),
   fillLimit: z.number().int().nonnegative(),
   currentPeriodEnd: nullableOptional(isoDateTime),
