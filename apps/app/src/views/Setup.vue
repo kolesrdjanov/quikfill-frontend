@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Download } from 'lucide-vue-next'
+import { onMounted } from 'vue'
+import { ExternalLink } from 'lucide-vue-next'
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -15,33 +14,14 @@ import {
   toast,
 } from '@quikfill/ui'
 import { DEFAULT_EXTENSION_SETTINGS, normalizeHostname } from '@quikfill/schemas'
-import {
-  buildDownloadHref,
-  extensionManifestSchema,
-  type ExtensionManifest,
-} from '@/schemas/extension'
 import { useAuthStore } from '@/stores/auth'
 import { useApiError } from '@/composables/useApiError'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { extensionSettingsFormSchema, linesToList, listToLines } from '@/schemas/forms'
 
-// --- Extension download (manifest-driven) ---
-const manifest = ref<ExtensionManifest | null>(null)
-
-// `/extension.json` is a same-origin STATIC asset (written by deploy:chrome), not
-// the backend API — so it is fetched directly, NOT through @quikfill/api-client.
-// Parsed with Zod; on any failure the fixed download URL still works (no badge).
-onMounted(async () => {
-  try {
-    const res = await fetch('/extension.json', { cache: 'no-store' })
-    if (!res.ok) return
-    manifest.value = extensionManifestSchema.parse(await res.json())
-  } catch {
-    // Manifest missing/malformed — leave the version hidden; download still works.
-  }
-})
-
-const downloadHref = computed(() => buildDownloadHref(manifest.value))
+// The published Chrome Web Store listing. Users install (and auto-update) from here.
+const CHROME_STORE_URL =
+  'https://chromewebstore.google.com/detail/quikfill/nnfiaaapphfcenegcppgdoehdalmnhce'
 
 // --- Extension configuration (this dashboard is the source of truth; the
 // extension syncs + applies these on sign-in/refresh) ---
@@ -105,36 +85,17 @@ const onSubmitConfig = handleSubmit(
   <div class="mx-auto max-w-2xl space-y-5">
     <Card>
       <CardHeader>
-        <CardTitle class="flex items-center gap-2">
-          Chrome extension
-          <Badge v-if="manifest" variant="gray">v{{ manifest.version }}</Badge>
-        </CardTitle>
+        <CardTitle>Chrome extension</CardTitle>
       </CardHeader>
       <CardContent class="space-y-5">
         <p class="text-muted-foreground text-sm">
-          Download the QuikFill Chrome extension and load it as an unpacked extension. Every release
-          here is the latest build — re-download any time to update.
+          Install QuikFill from the Chrome Web Store. It updates automatically — no manual steps.
         </p>
 
-        <Button as="a" :href="downloadHref" download>
-          <Download class="size-4" />
-          Download extension
+        <Button as="a" :href="CHROME_STORE_URL" target="_blank" rel="noopener">
+          <ExternalLink class="size-4" />
+          Add to Chrome
         </Button>
-
-        <div class="space-y-2">
-          <p class="text-sm font-medium">Loading it into Chrome</p>
-          <ol class="text-muted-foreground list-decimal space-y-1.5 pl-5 text-sm">
-            <li>Download the file above and unzip it.</li>
-            <li>Open <code class="text-foreground">chrome://extensions</code> in Chrome.</li>
-            <li>
-              Turn on <span class="text-foreground font-medium">Developer mode</span> (top-right).
-            </li>
-            <li>
-              Click <span class="text-foreground font-medium">Load unpacked</span> and select the
-              unzipped folder.
-            </li>
-          </ol>
-        </div>
       </CardContent>
     </Card>
 
