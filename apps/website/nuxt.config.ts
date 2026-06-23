@@ -19,10 +19,10 @@ export default defineNuxtConfig({
       // Dashboard origin the pricing CTAs deep-link into. Inlined at build time
       // for the static prerender — set NUXT_PUBLIC_APP_URL in CI/prod.
       appUrl: 'http://localhost:5173',
-      // Chrome Web Store listing the "Add to Chrome" CTAs point to. Placeholder
-      // (google.com) until the extension is published — swap here or via
-      // NUXT_PUBLIC_CHROME_STORE_URL once the real listing URL exists.
-      chromeStoreUrl: 'https://google.com',
+      // Chrome Web Store listing the "Add to Chrome" CTAs point to. Override in
+      // CI/prod via NUXT_PUBLIC_CHROME_STORE_URL.
+      chromeStoreUrl:
+        'https://chromewebstore.google.com/detail/quikfill/nnfiaaapphfcenegcppgdoehdalmnhce',
     },
   },
   css: ['~/assets/css/main.css'],
