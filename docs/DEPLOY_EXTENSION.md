@@ -51,27 +51,23 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | `CHROME_CLIENT_SECRET` | iz koraka 2                                              |
 | `CHROME_REFRESH_TOKEN` | iz koraka 2                                              |
 
-## Uključivanje automatike (tek POSLE prvog ručnog upload-a)
+## Automatika (AKTIVNA od 2026-06-23)
 
-`push:` triger u workflow-u je **pauziran** dok ručni setup nije gotov. Uključi ga
-tek kad: (1) prvi build je ručno upload-ovan i item ima **Extension ID**, i (2) svi
-GitHub Secrets su postavljeni. Onda u
-[`deploy-extension.yml`](../.github/workflows/deploy-extension.yml) otkomentariši
-`push:` blok. (Dotad: ručno iz Actions taba preko `workflow_dispatch`.)
+`push:` triger je **uključen**. Svaki push na `main` koji dira
+`apps/chrome-extension/**`, `packages/**` ili `pnpm-lock.yaml` build-uje i šalje
+novu verziju na CWS (`wxt zip` → `wxt submit`), koja se auto-objavi posle Google
+review-a (zatečena verzija ostaje živa dok traje review). Ručni run iz Actions taba
+(`workflow_dispatch`) podrazumevano ide `dry_run` (validira, bez upload-a).
 
-## Verzionisanje — dva kanala dele `apps/chrome-extension/package.json`
+## Verzionisanje
 
 CWS odbija upload čija verzija nije STROGO veća od poslednje objavljene NA CWS-u.
-Zato su kanali razdvojeni po minor broju da se nikad ne sudare:
+Pipeline zato setuje _efemerno_ (necommit-ovano) `1.1.<github.run_number>` — uvek
+rastuće. Major/minor menjaš ručno u `apps/chrome-extension/package.json` kad želiš.
 
-- **App-served download** (`pnpm deploy:chrome`): commit-uje patch bump na liniji
-  `1.0.x` (trenutno `1.0.9`).
-- **CWS pipeline** (ovaj workflow): setuje _efemerno_ (necommit-ovano)
-  `1.1.<github.run_number>`, pa uvek ostaje iznad `1.0.x` linije i CWS vidi
-  rastuću verziju. Major/minor menjaš ručno u package.json kad želiš.
-
-> Prvi ručni upload na CWS uradi sa trenutnom `1.0.x` verzijom (npr. `1.0.9`) —
-> `1.1.x` iz pipeline-a je iznad toga, pa prvi automatski run neće biti odbijen.
+> Stari **app-served download** kanal (`pnpm deploy:chrome`, linija `1.0.x`) je
+> **penzionisan 2026-06-23** — CWS je sad jedini kanal. Zato je `1.1.x` izabran: da
+> uvek ostane iznad zatečene `1.0.x` istorije na CWS-u.
 
 ## Korisne varijante (u workflow-u)
 

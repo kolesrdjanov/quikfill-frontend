@@ -76,8 +76,8 @@ This surface is intentionally trimmed to **sign-in + a small Settings area**
 - **Settings** is a collapsible sidebar group (bottom of `AppLayout`) over
   `/settings/billing` ([`Billing.vue`](src/views/Billing.vue)),
   `/settings/account` ([`Account.vue`](src/views/Account.vue), first/last-name
-  form), and `/settings/setup` ([`Setup.vue`](src/views/Setup.vue), the LIVE
-  CE-download + extension-configuration page). `/` and the guard fallbacks redirect to
+  form), and `/settings/setup` ([`Setup.vue`](src/views/Setup.vue), now a Chrome Web Store
+  install link + extension-configuration page). `/` and the guard fallbacks redirect to
   `/settings/billing`; `/billing` and `/settings/config` are kept as back-compat
   redirects (`/settings/config` → `/settings/setup`) and the Stripe
   `/billing/success` · `/billing/cancel` paths are unchanged.

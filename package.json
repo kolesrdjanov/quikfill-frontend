@@ -15,7 +15,6 @@
     "build:app": "pnpm --filter @quikfill/app build",
     "build:web": "pnpm --filter @quikfill/website build",
     "generate:web": "pnpm --filter @quikfill/website generate",
-    "deploy:chrome": "node scripts/deploy-chrome.mjs",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

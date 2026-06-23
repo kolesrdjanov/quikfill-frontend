@@ -17,13 +17,3 @@
   X-Frame-Options: DENY
   Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-
-# The extension zip is version-stamped (quikfill-extension-<version>.zip, see
-# scripts/deploy-chrome.mjs) so each build has a unique, immutable URL — cache it
-# hard. The version manifest (extension.json) keeps a FIXED name and is rewritten
-# on every deploy, so it must revalidate so the Setup page always discovers the
-# newest build (the download link also appends ?v=<version> as a second buster).
-/quikfill-extension-*.zip
-  Cache-Control: public, max-age=31536000, immutable
-/extension.json
-  Cache-Control: no-cache
