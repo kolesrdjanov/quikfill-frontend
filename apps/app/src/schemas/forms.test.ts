@@ -1,26 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_EXTENSION_SETTINGS, inviteBetaUserInputSchema } from '@quikfill/schemas'
+import { DEFAULT_EXTENSION_SETTINGS } from '@quikfill/schemas'
 import { extensionSettingsFormSchema, linesToList, listToLines, signInEmailSchema } from './forms'
 
 describe('signInEmailSchema', () => {
-  it('accepts any valid email — access is enforced by the backend beta gate, not the client', () => {
+  it('accepts any valid email — sign-in is open; the backend issues a code for any valid email', () => {
     expect(signInEmailSchema.safeParse({ email: 'anyone@example.com' }).success).toBe(true)
   })
 
   it('still rejects a malformed email', () => {
     expect(signInEmailSchema.safeParse({ email: 'not-an-email' }).success).toBe(false)
-  })
-})
-
-describe('inviteBetaUserInputSchema', () => {
-  it('accepts a valid email', () => {
-    expect(inviteBetaUserInputSchema.safeParse({ email: 'newtester@example.com' }).success).toBe(
-      true,
-    )
-  })
-
-  it('rejects a malformed email', () => {
-    expect(inviteBetaUserInputSchema.safeParse({ email: 'nope' }).success).toBe(false)
   })
 })
 

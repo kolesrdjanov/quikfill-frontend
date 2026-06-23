@@ -111,12 +111,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/AdminAnalytics.vue'),
   },
   {
-    path: '/admin/beta-users',
-    name: 'admin-beta-users',
-    meta: { layout: 'app', requiresAuth: true, requiresAdmin: true, title: 'Beta Users' },
-    component: () => import('@/views/AdminBetaUsers.vue'),
-  },
-  {
     path: '/sign-in',
     name: 'sign-in',
     meta: { layout: 'auth', title: 'Sign in' },

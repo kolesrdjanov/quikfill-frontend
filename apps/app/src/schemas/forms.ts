@@ -8,9 +8,8 @@ import {
 } from '@quikfill/schemas'
 
 /**
- * Sign-in email step — just the shared magic-link contract. Access is enforced by
- * the backend beta gate (quikfill-services), which returns a 403 with a message
- * the sign-in screen surfaces via `useApiError`; there is no client-side allowlist.
+ * Sign-in email step — just the shared magic-link contract. Sign-in is open: the
+ * backend issues a code for any valid email, so there is no client-side allowlist.
  */
 export const signInEmailSchema = requestMagicLinkInputSchema
 export type SignInEmailValues = z.input<typeof signInEmailSchema>

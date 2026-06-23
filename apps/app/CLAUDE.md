@@ -81,13 +81,10 @@ This surface is intentionally trimmed to **sign-in + a small Settings area**
   `/settings/billing`; `/billing` and `/settings/config` are kept as back-compat
   redirects (`/settings/config` → `/settings/setup`) and the Stripe
   `/billing/success` · `/billing/cancel` paths are unchanged.
-- **Sign-in access (beta gate):** access control is **backend-enforced** in
-  `quikfill-services` — `POST /auth/magic-link` returns `403` for any email that
-  isn't an admin (`ADMIN_EMAILS`) or in the `beta_users` allowlist; the sign-in
-  screen surfaces that message via `useApiError`. Admins manage the allowlist from
-  **Admin → Beta Users** (`/admin/beta-users`, see [`views/AdminBetaUsers.vue`](src/views/AdminBetaUsers.vue)).
-  The old client-side `ALLOWED_USERS` allowlist has been removed. `isAdmin` comes
-  from `GET /users/me` and gates the admin route + nav (`requiresAdmin`).
+- **Sign-in access:** sign-in is **open** — `POST /auth/magic-link` issues a code
+  for any valid email (the backend beta access gate was removed at launch).
+  `isAdmin` comes from `GET /users/me` and gates the admin route + nav
+  (`requiresAdmin`).
 - **Admin → Analytics** (`/admin/analytics`, see [`views/AdminAnalytics.vue`](src/views/AdminAnalytics.vue)):
   usage/tokens/estimated-cost/margin across all users (overall + sortable per-user
   table, This month / All time), backed by `GET /admin/analytics` and the

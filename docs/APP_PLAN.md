@@ -1,7 +1,7 @@
 # App (Dashboard) — Implementation Plan
 
 > **Status (deployed shape):** the live surface has since been **trimmed** to
-> sign-in + Settings (Billing / Account / Setup) + Admin (Analytics, Beta Users).
+> sign-in + Settings (Billing / Account / Setup) + Admin (Analytics).
 > The full dashboard routes described below are **commented out** in
 > `apps/app/src/router/index.ts` (built but disabled). Billing now lives at
 > `/settings/billing` (not `/subscription`). See the **"Billing-only deployment"**

@@ -12,7 +12,6 @@ import {
   SlidersHorizontal,
   Sun,
   User,
-  Users,
 } from 'lucide-vue-next'
 import { Avatar, Button } from '@quikfill/ui'
 import logoUrl from '@quikfill/assets/logos/quikfill-icon.svg?url'
@@ -25,10 +24,7 @@ const auth = useAuthStore()
 const { isDark, toggle } = useTheme()
 
 // Admin-only nav, rendered in its own section when the user has admin rights.
-const adminNav = [
-  { label: 'Analytics', to: '/admin/analytics', icon: BarChart3 },
-  { label: 'Beta Users', to: '/admin/beta-users', icon: Users },
-]
+const adminNav = [{ label: 'Analytics', to: '/admin/analytics', icon: BarChart3 }]
 
 // Settings group, pinned to the bottom block — Billing lives here now. The full
 // dashboard nav (Home, Data, Generators, …) stays disabled alongside its routes

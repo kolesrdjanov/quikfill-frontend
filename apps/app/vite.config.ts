@@ -7,8 +7,8 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
   // Expose `VITE_*` (e.g. VITE_QF_API_BASE_URL) to client code via
-  // `import.meta.env`. Sign-in access control lives in the backend beta gate, so
-  // there is no longer a client-side allowlist env var to expose.
+  // `import.meta.env`. Sign-in is open (no client-side allowlist), so there is no
+  // access-control env var to expose.
   envPrefix: ['VITE_'],
   server: {
     // Pinned to 5173: the backend only allows this origin via CORS. `/api/*` is
