@@ -24,6 +24,7 @@ const ENT: Entitlements = {
   planKey: 'starter',
   displayName: 'Starter',
   status: 'active',
+  cancelAtPeriodEnd: false,
   fillsUsed: 10,
   fillLimit: 200,
 }

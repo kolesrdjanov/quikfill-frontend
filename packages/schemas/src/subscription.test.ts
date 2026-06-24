@@ -21,6 +21,31 @@ describe('entitlementsResponseSchema', () => {
     expect(parsed.currentPeriodEnd).toBe('2026-06-29T00:00:00.000Z')
   })
 
+  it('defaults cancelAtPeriodEnd to false when the backend omits it', () => {
+    const parsed = entitlementsResponseSchema.parse({
+      planKey: 'starter',
+      displayName: 'Starter',
+      status: 'active',
+      fillsUsed: 0,
+      fillLimit: 200,
+      currentPeriodEnd: null,
+    })
+    expect(parsed.cancelAtPeriodEnd).toBe(false)
+  })
+
+  it('captures a pending cancellation (cancelAtPeriodEnd: true)', () => {
+    const parsed = entitlementsResponseSchema.parse({
+      planKey: 'starter',
+      displayName: 'Starter',
+      status: 'active',
+      cancelAtPeriodEnd: true,
+      fillsUsed: 0,
+      fillLimit: 200,
+      currentPeriodEnd: '2026-07-01T00:00:00.000Z',
+    })
+    expect(parsed.cancelAtPeriodEnd).toBe(true)
+  })
+
   it('normalizes a null currentPeriodEnd (free users) to undefined', () => {
     const parsed = entitlementsResponseSchema.parse({
       planKey: 'free',

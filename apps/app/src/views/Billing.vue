@@ -73,6 +73,24 @@ const resetDate = computed(() =>
   ent.value?.currentPeriodEnd ? new Date(ent.value.currentPeriodEnd).toLocaleDateString() : null,
 )
 
+/**
+ * Scheduled to cancel but still active until the period ends (Stripe
+ * `cancel_at_period_end`). Distinct from `status === 'canceled'`, which is the
+ * terminal state after the period has elapsed.
+ */
+const canceling = computed(
+  () => !!ent.value && ent.value.cancelAtPeriodEnd && ent.value.status !== 'canceled',
+)
+
+/** Plan badge: a pending cancellation reads as "Canceling", otherwise mirror the status. */
+const planBadge = computed(() =>
+  canceling.value
+    ? ({ label: 'Canceling', variant: 'warning' } as const)
+    : ent.value
+      ? STATUS_BADGE[ent.value.status]
+      : STATUS_BADGE.active,
+)
+
 const highlightedPlan = computed(() =>
   typeof route.query.plan === 'string' ? route.query.plan : null,
 )
@@ -157,20 +175,37 @@ onMounted(async () => {
         </AlertDescription>
       </Alert>
 
+      <Alert v-else-if="canceling" class="border-amber-500/50 text-amber-700 dark:text-amber-400">
+        <AlertTitle>Subscription ending</AlertTitle>
+        <AlertDescription
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>
+            Your {{ currentPlan?.displayName ?? ent.displayName }} plan is canceled<template
+              v-if="resetDate"
+            >
+              and ends on {{ resetDate }}</template
+            >. You'll move to the Free tier then — resume to keep your AI allowance.
+          </span>
+          <Button size="sm" variant="outline" @click="manageBilling">Resume subscription</Button>
+        </AlertDescription>
+      </Alert>
+
       <!-- Current plan -->
       <Card>
         <CardHeader class="flex flex-row items-start justify-between gap-4">
           <div class="space-y-1">
             <CardTitle class="flex items-center gap-2">
               {{ currentPlan?.displayName ?? ent.displayName }}
-              <Badge :variant="STATUS_BADGE[ent.status].variant">
-                {{ STATUS_BADGE[ent.status].label }}
+              <Badge :variant="planBadge.variant">
+                {{ planBadge.label }}
               </Badge>
             </CardTitle>
             <p class="text-muted-foreground text-sm">
               <span class="text-foreground font-medium">{{ currentPlan?.priceLabel }}</span>
               {{ currentPlan?.pricePer }}
-              <template v-if="resetDate"> · Renews {{ resetDate }}</template>
+              <template v-if="canceling && resetDate"> · Cancels {{ resetDate }}</template>
+              <template v-else-if="resetDate"> · Renews {{ resetDate }}</template>
             </p>
           </div>
           <Button v-if="hasBillingAccount" variant="outline" @click="manageBilling">

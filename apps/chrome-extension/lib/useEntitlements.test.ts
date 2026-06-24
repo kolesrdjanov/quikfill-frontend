@@ -20,6 +20,7 @@ const SNAPSHOT: Entitlements = {
   planKey: 'pro',
   displayName: 'Pro',
   status: 'active',
+  cancelAtPeriodEnd: false,
   fillsUsed: 5,
   fillLimit: 1000,
 }

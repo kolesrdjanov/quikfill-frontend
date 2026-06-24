@@ -53,6 +53,10 @@ export const entitlementsResponseSchema = z.object({
   // the whole entitlements panel. The enum above already covers every current
   // Stripe status; `.catch` is the forward-compat safety net.
   status: subscriptionStatusSchema.catch('active'),
+  // True once the user schedules cancellation in the Stripe Portal: the plan stays
+  // active until `currentPeriodEnd`, then drops to free. Optional + defaulted so an
+  // older backend that predates the field still parses (treated as "not canceling").
+  cancelAtPeriodEnd: z.boolean().optional().default(false),
   fillsUsed: z.number().int().nonnegative(),
   fillLimit: z.number().int().nonnegative(),
   currentPeriodEnd: nullableOptional(isoDateTime),

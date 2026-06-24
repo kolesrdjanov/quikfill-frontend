@@ -12,6 +12,7 @@ const ENT: Entitlements = {
   planKey: 'pro',
   displayName: 'Pro Tester',
   status: 'active',
+  cancelAtPeriodEnd: false,
   fillsUsed: 5,
   fillLimit: 1000,
 }
