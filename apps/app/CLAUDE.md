@@ -64,6 +64,13 @@ Iteration 8 is **done**, built against the **live backend** (`/api/v1`, Vite pro
 Checkout/Portal via `api.subscriptions`. Deferred to a follow-up: the
 `SyncAdapter` and the server-side Stripe wiring (Iteration 10).
 
+> [`Billing.vue`](src/views/Billing.vue)'s "Cancels {date}" / "Canceling" vs
+> "Renews {date}" state is driven entirely by the backend's `cancelAtPeriodEnd`
+> entitlement — the frontend renders the flag, it doesn't compute it. If a
+> scheduled cancellation isn't reflected, the bug is backend-side (how the
+> `customer.subscription.updated` webhook maps Stripe's cancel signal); see
+> `quikfill-services` → Billing & Subscriptions docs.
+
 ## Billing-only deployment (current shape)
 
 This surface is intentionally trimmed to **sign-in + a small Settings area**
