@@ -12,6 +12,14 @@ export const DASHBOARD_URL = import.meta.env.PROD
 /** Chrome Web Store listing (stable across environments). */
 export const WEB_STORE_URL = 'https://chrome.google.com/webstore'
 
+/**
+ * Public marketing site / homepage (stable across environments). The privacy and
+ * terms pages below live under it, and it's also declared as the manifest
+ * `homepage_url` (`wxt.config.ts`) so chrome://extensions and the store listing
+ * link back to it.
+ */
+export const WEBSITE_URL = 'https://quikfill.io'
+
 /** Public privacy policy, served by the marketing site (stable across envs). */
 export const PRIVACY_URL = 'https://quikfill.io/privacy'
 
