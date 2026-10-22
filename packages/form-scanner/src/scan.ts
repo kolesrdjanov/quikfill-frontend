@@ -32,6 +32,7 @@ import {
 } from './extract'
 import { fingerprint, structureHash } from './fingerprint'
 import { getMaskPattern } from './mask'
+import { isAriaToggle, toggleValue } from './toggle-adapter'
 
 let scanSequence = 0
 
@@ -154,6 +155,47 @@ export function scanForms(
     const elements = ctx.walk.querySelectorAll('*')
     for (const el of Array.from(elements)) {
       if (isSuppressed(el)) continue
+      // Framework form-payload proxies are not independent user controls.
+      if (
+        el.matches(
+          'input[data-hidden], select[aria-hidden="true"], input[aria-hidden="true"][tabindex="-1"]',
+        )
+      )
+        continue
+
+      if (el.getAttribute('role') === 'radiogroup') {
+        const radios = Array.from(el.querySelectorAll('[role="radio"]')).filter(
+          (r) => r.closest('[role="radiogroup"]') === el,
+        )
+        if (radios.length) {
+          const field = buildField(el as FormControl, ctx, `qf-${scanId}-${counter}`)
+          field.inputType = 'radiogroup'
+          field.options = radios.map((r) => ({
+            value: toggleValue(r),
+            label: getLabelText(r as FormControl, ctx.lookup) ?? toggleValue(r),
+            selected: r.getAttribute('aria-checked') === 'true',
+            disabled: r.getAttribute('aria-disabled') === 'true' || r.matches(':disabled'),
+          }))
+          field.currentValue = field.options.find((o) => o.selected)?.value ?? null
+          push(field, el)
+          suppressed.push(el)
+          continue
+        }
+      }
+      if (isAriaToggle(el) && el.getAttribute('role') !== 'radio') {
+        const field = buildField(el as FormControl, ctx, `qf-${scanId}-${counter}`)
+        field.inputType = el.getAttribute('role') === 'switch' ? 'switch' : 'checkbox'
+        const state = el.getAttribute('aria-checked')
+        field.currentValue = state === 'false' ? null : (state ?? null)
+        field.required ||= el.getAttribute('aria-required') === 'true'
+        field.disabled ||= el.getAttribute('aria-disabled') === 'true'
+        field.readonly ||=
+          el.getAttribute('aria-readonly') === 'true' ||
+          !['true', 'false', 'mixed'].includes(state ?? '')
+        push(field, el)
+        suppressed.push(el)
+        continue
+      }
 
       if (isCustomSelectTrigger(el)) {
         const info = detectCustomSelect(el)

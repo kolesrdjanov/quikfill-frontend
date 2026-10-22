@@ -15,6 +15,8 @@ import {
 import { transport } from './browser-adapter'
 import { createApp, type App } from 'vue'
 import ControlledForm from './ControlledForm.vue'
+import RekaWidgets from './RekaWidgets.vue'
+import { mountReactWidgets } from './react-widgets'
 
 let overlay: OverlayHandle | null = null
 let reactRoot: Root | null = null
@@ -29,6 +31,12 @@ const harness = {
   valuesToFillInstructions,
   transport,
   reactState,
+  mountReactWidgets,
+  mountRekaWidgets() {
+    vueApp?.unmount()
+    vueApp = createApp(RekaWidgets)
+    vueApp.mount(document.getElementById('fixtures')!)
+  },
   mountOverlay() {
     overlay?.destroy()
     overlay = mountOverlay(document)

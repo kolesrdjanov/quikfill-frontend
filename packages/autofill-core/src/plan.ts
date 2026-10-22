@@ -28,7 +28,7 @@ export function defaultFillStrategy(field: DetectedField): FillStrategy {
   if (field.autocompleteHint) return 'assistedAutocomplete'
   if (type === 'customselect' || field.customWidget) return 'customSelect'
   if (type === 'select' || field.tagName === 'select') return 'select'
-  if (type === 'checkbox' || type === 'radio') return 'clickToggle'
+  if (type === 'checkbox' || type === 'radio' || type === 'switch') return 'clickToggle'
   return 'nativeInput'
 }
 

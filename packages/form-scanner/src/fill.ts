@@ -8,6 +8,7 @@ import type {
 } from '@quikfill/schemas'
 import { withoutSubmit } from './interaction-guard'
 import { coerceToMask, getMaskSpec, valuesMatch } from './mask'
+import { isToggle, isAriaToggle, checkedState, activateToggle, toggleValue } from './toggle-adapter'
 import {
   calendarHeading,
   clickElement,
@@ -65,10 +66,7 @@ export function captureFillTargets(
     targets.set(field.id, {
       element: el,
       value: fieldState(field, el, root),
-      checked:
-        isToggle(el) && field.inputType !== 'radiogroup'
-          ? (el as HTMLInputElement).checked
-          : undefined,
+      checked: isToggle(el) && field.inputType !== 'radiogroup' ? checkedState(el) : undefined,
     })
   }
   return targets
@@ -80,7 +78,8 @@ function fieldState(
   root: FillRoot,
 ): string {
   if (field.inputType === 'radiogroup') {
-    return ownedRadios(root, field.selectorCandidates, el).find((r) => r.checked)?.value ?? ''
+    const selected = ownedRadios(root, field.selectorCandidates, el).find(checkedState)
+    return selected ? toggleValue(selected) : ''
   }
   return field.customWidget ? readDisplay(el, field.customWidget, ownerDocOf(el)) : readValue(el)
 }
@@ -172,8 +171,7 @@ async function executeFill(
       }
       if (
         fieldState(ins, bound.element, root) !== bound.value ||
-        (bound.checked !== undefined &&
-          (bound.element as HTMLInputElement).checked !== bound.checked)
+        (bound.checked !== undefined && checkedState(bound.element) !== bound.checked)
       ) {
         results.push(
           skip(ins.detectedFieldId, 'Field changed since scanning — your edit was preserved.'),
@@ -253,7 +251,7 @@ async function executeFill(
       results.push(fail(ins.detectedFieldId, e instanceof Error ? e.message : 'Fill failed.'))
     }
     entry.appliedValue = readValue(el)
-    entry.appliedChecked = isToggle(el) ? (el as HTMLInputElement).checked : undefined
+    entry.appliedChecked = isToggle(el) ? checkedState(el) : undefined
     if (
       entry.previousValue !== entry.appliedValue ||
       entry.previousChecked !== entry.appliedChecked
@@ -302,8 +300,7 @@ async function executeUndo(
         ? entry.appliedValue !== undefined &&
           fieldState({ ...entry, inputType: 'radiogroup' }, el, root) !== entry.appliedValue
         : (entry.appliedValue !== undefined && readValue(el) !== entry.appliedValue) ||
-          (entry.appliedChecked !== undefined &&
-            (el as HTMLInputElement).checked !== entry.appliedChecked)
+          (entry.appliedChecked !== undefined && checkedState(el) !== entry.appliedChecked)
     if (changed) {
       results.push(
         skip(entry.detectedFieldId, 'Field changed after filling — your edit was preserved.'),
@@ -319,6 +316,10 @@ async function executeUndo(
       continue
     }
     try {
+      if (isAriaToggle(el) && entry.previousValue === 'mixed') {
+        results.push(skip(entry.detectedFieldId, 'Restore the previous mixed state manually.'))
+        continue
+      }
       if (isToggle(el) && entry.previousChecked !== undefined) {
         setChecked(el as HTMLInputElement, entry.previousChecked)
       } else {
@@ -327,7 +328,7 @@ async function executeUndo(
       await settle()
       const restored =
         isToggle(el) && entry.previousChecked !== undefined
-          ? (el as HTMLInputElement).checked === entry.previousChecked
+          ? checkedState(el) === entry.previousChecked
           : readValue(el) === (entry.previousValue ?? '')
       results.push(
         restored
@@ -346,7 +347,9 @@ async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillR
     const desired = TRUTHY.has(ins.proposedValue.toLowerCase().trim())
     setChecked(el as HTMLInputElement, desired)
     await settle()
-    return (el as HTMLInputElement).checked === desired && isValid(el)
+    return checkedState(el) === desired &&
+      el.getAttribute('aria-checked') !== 'mixed' &&
+      isValid(el)
       ? success(ins.detectedFieldId, String(desired))
       : fail(ins.detectedFieldId, 'Checkbox/radio did not accept the toggle.')
   }
@@ -422,7 +425,7 @@ function capture(ins: FillInstruction, el: Fillable): UndoEntry {
     frame: ins.frame,
     shadow: ins.shadow,
     previousValue: readValue(el),
-    previousChecked: isToggle(el) ? (el as HTMLInputElement).checked : undefined,
+    previousChecked: isToggle(el) ? checkedState(el) : undefined,
   }
 }
 
@@ -447,10 +450,10 @@ async function fillRadioGroup(
   if (radios.length === 0) {
     return { result: skip(ins.detectedFieldId, 'Element not found on the page.') }
   }
-  const previous = radios.find((r) => r.checked) ?? null
+  const previous = radios.find(checkedState) ?? null
   const want = norm(ins.proposedValue)
   const target =
-    radios.find((r) => r.value === ins.proposedValue) ??
+    radios.find((r) => toggleValue(r) === ins.proposedValue) ??
     radios.find((r) => norm(radioLabel(r)) === want)
   if (!target) {
     return { result: fail(ins.detectedFieldId, `No "${ins.proposedValue}" option in the group.`) }
@@ -464,13 +467,14 @@ async function fillRadioGroup(
     frame: ins.frame,
     shadow: ins.shadow,
     inputType: 'radiogroup',
-    previousValue: previous?.value ?? '',
+    previousValue: previous ? toggleValue(previous) : '',
   }
-  setChecked(target, true)
+  activateToggle(target, true)
   await settle()
-  entry.appliedValue = radios.find((r) => r.checked)?.value ?? ''
-  return target.checked && isValid(target)
-    ? { result: success(ins.detectedFieldId, target.value), entry }
+  const selected = radios.find(checkedState)
+  entry.appliedValue = selected ? toggleValue(selected) : ''
+  return checkedState(target) && isValid(target)
+    ? { result: success(ins.detectedFieldId, toggleValue(target)), entry }
     : { result: fail(ins.detectedFieldId, 'Radio option did not accept the selection.'), entry }
 }
 
@@ -487,11 +491,11 @@ async function undoRadioGroup(
     // alone would falsely restore the DOM while a controlled framework stays set.
     return skip(entry.detectedFieldId, 'A previously empty radio group must be cleared manually.')
   }
-  const target = radios.find((r) => r.value === prev)
+  const target = radios.find((r) => toggleValue(r) === prev)
   if (!target) return skip(entry.detectedFieldId, `Couldn't restore previous selection "${prev}".`)
-  setChecked(target, true) // checking one radio unchecks its siblings natively
+  activateToggle(target, true)
   await settle()
-  return target.checked
+  return checkedState(target)
     ? success(entry.detectedFieldId, prev)
     : fail(entry.detectedFieldId, 'Radio group did not accept its previous selection.')
 }
@@ -513,9 +517,9 @@ function resolveSelectOption(select: HTMLSelectElement, want: string): string | 
 }
 
 /** A radio's visible label (wrapping `<label>` text), falling back to its value. */
-function radioLabel(radio: HTMLInputElement): string {
+function radioLabel(radio: Element): string {
   const wrap = radio.closest('label')?.textContent?.replace(/\s+/g, ' ').trim()
-  return wrap || radio.value
+  return wrap || toggleValue(radio)
 }
 
 /** Every radio matching any selector, across open shadow roots and same-origin iframes. */
@@ -526,12 +530,12 @@ function collectRadios(root: FillRoot, selectors: string[]): HTMLInputElement[] 
   return out
 }
 
-function ownedRadios(
-  root: FillRoot,
-  selectors: string[],
-  anchor: Fillable | null,
-): HTMLInputElement[] {
+function ownedRadios(root: FillRoot, selectors: string[], anchor: Fillable | null): Element[] {
   if (!anchor) return []
+  if (anchor.getAttribute('role') === 'radiogroup')
+    return Array.from(anchor.querySelectorAll('[role="radio"]')).filter(
+      (r) => r.closest('[role="radiogroup"]') === anchor,
+    )
   const radio = anchor as HTMLInputElement
   return collectRadios(root, selectors).filter(
     (r) =>
@@ -1295,13 +1299,7 @@ function displayValue(el: Element): string {
 
 // --- DOM primitives -------------------------------------------------------
 
-function isToggle(el: Element): boolean {
-  if (el.tagName.toLowerCase() !== 'input') return false
-  const t = (el as HTMLInputElement).type.toLowerCase()
-  return t === 'checkbox' || t === 'radio'
-}
-
-function isDisabled(el: Fillable): boolean {
+function isDisabled(el: Element): boolean {
   return (
     el.matches(':disabled') ||
     el.getAttribute('aria-disabled') === 'true' ||
@@ -1332,6 +1330,7 @@ function isReadonly(el: Fillable): boolean {
 }
 
 function readValue(el: Fillable): string {
+  if (isAriaToggle(el)) return el.getAttribute('aria-checked') ?? ''
   const tag = el.tagName.toLowerCase()
   if (tag === 'input' || tag === 'textarea' || tag === 'select') {
     return (el as HTMLInputElement).value ?? ''
@@ -1356,12 +1355,7 @@ function setValue(el: Fillable, value: string): void {
 }
 
 function setChecked(el: HTMLInputElement, checked: boolean): void {
-  if (el.checked === checked) return
-  if (el.type === 'radio' && !checked) {
-    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'checked')?.set?.call(el, false)
-    dispatch(el, 'input')
-    dispatch(el, 'change')
-  } else el.click()
+  activateToggle(el, checked)
 }
 
 function setNativeValue(el: Fillable, value: string): void {

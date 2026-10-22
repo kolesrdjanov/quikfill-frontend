@@ -118,7 +118,7 @@ export function classifyField(field: DetectedField): FieldClassification {
   if (type === 'select' || type === 'customselect' || (field.options?.length ?? 0) > 0) {
     return classification(field.id, 'enum', 0.9)
   }
-  if (type === 'checkbox' || type === 'radio') {
+  if (type === 'checkbox' || type === 'radio' || type === 'switch') {
     return classification(field.id, 'boolean', 0.85)
   }
 

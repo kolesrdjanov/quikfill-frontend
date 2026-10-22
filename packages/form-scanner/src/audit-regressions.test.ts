@@ -45,7 +45,25 @@ describe('audit regressions', () => {
     expect(field.inputType).toBe('customSelect')
     expect(field.customWidget?.kind).toBe('select')
   })
-  it.todo('A02: detect and drive ARIA-only checkbox and switch adapters (Phase 2)')
+  it('A02: detect and drive ARIA-only checkbox and switch adapters', async () => {
+    document.body.innerHTML =
+      '<form><button id="check" type="button" role="checkbox" aria-checked="false" aria-required="true">Terms</button><button id="switch" type="button" role="switch" aria-checked="false" aria-required="true">Updates</button></form>'
+    for (const el of document.querySelectorAll('[aria-checked]'))
+      el.addEventListener('click', () =>
+        el.setAttribute('aria-checked', String(el.getAttribute('aria-checked') !== 'true')),
+      )
+    const fields = scanForms().fields
+    expect(fields.map((f) => f.inputType)).toEqual(['checkbox', 'switch'])
+    const instructions = fields.map((f) =>
+      instruction(f.domId!, 'true', {
+        fillStrategy: 'clickToggle',
+        inputType: f.inputType,
+        tagName: f.tagName,
+      }),
+    )
+    const outcome = await applyFill(instructions)
+    expect(outcome.results.map((r) => r.status)).toEqual(['success', 'success'])
+  })
   it('A03: two forms with the same radio name have separate groups', () => {
     document.body.innerHTML =
       '<form><label><input type="radio" name="status" value="a">A</label></form><form><label><input type="radio" name="status" value="b">B</label></form>'
