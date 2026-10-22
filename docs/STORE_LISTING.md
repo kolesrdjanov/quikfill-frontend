@@ -1,120 +1,80 @@
-# Chrome Web Store — listing copy & review answers
+# Chrome Web Store listing and review answers
 
-Paste-ready text for the QuikFill listing in the
-[CWS Developer Dashboard](https://chrome.google.com/webstore/devconsole). The
-listing is **Public** (verified in the publisher dashboard on 2026-10-22) — see
-[`DEPLOY_EXTENSION.md`](./DEPLOY_EXTENSION.md) for the full publish procedure.
+Updated in the QuikFill CWS draft on 2026-10-22 for the local-first release.
+Item: `nnfiaaapphfcenegcppgdoehdalmnhce`; publisher:
+`d2259aca-32f7-43f4-9960-a9dd6ac5214c`. See [deployment](./DEPLOY_EXTENSION.md).
 
-> Updates preserve the visibility configured in CWS and pass Google review. The
-> workflow does not change listing visibility or bypass review.
+Visibility remains **Public**, category **Tools**, language **English (United
+States)**. Name and summary come from the extension manifest. Homepage, official
+site and support URL remain `https://quikfill.io`. The existing icon, three
+screenshots and promo tiles are retained; review their visual freshness separately.
+The release workflow uploads the package and submits the saved CWS draft. It does
+not update metadata itself or bypass Google review.
 
----
+## Detailed description
 
-## Store listing tab
+```text
+QuikFill helps developers and QA teams fill web forms with sample data and repeatable test scenarios.
 
-| Field                      | Value                                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Item / product name**    | `QuikFill — Form Autofill` (≤ 75 chars)                                                                |
-| **Summary** (≤ 132 chars)  | `Scan, map, and fill any web form. Save reusable profiles, preview every fill, and undo in one click.` |
-| **Category**               | `Productivity`                                                                                         |
-| **Language**               | `English (United States)`                                                                              |
-| **Website / Homepage URL** | `https://quikfill.io`                                                                                  |
+Start locally
+Open QuikFill on a page and use Fill to generate sample values. Basic filling works without an account, AI, or a network connection. Choose a seed for repeatable data, keep existing values by default, and use local QA scenarios with fixed, generated, or skipped fields. Import and export scenarios as JSON.
 
-> **Website link (manual one-time step).** Set `https://quikfill.io` under **Store
-> listing → Additional fields → Official URL / Homepage URL** in the CWS Developer
-> Dashboard. The deploy pipeline (`wxt submit`, `.github/workflows/deploy-extension.yml`)
-> only uploads the extension package — it never pushes listing metadata — so this
-> field must be entered by hand. The extension manifest also declares
-> `homepage_url: https://quikfill.io` (`wxt.config.ts`), which links back to the
-> site from `chrome://extensions` and dev installs.
+Inspect the result
+See which fields were filled, skipped, or unsupported. Retry failed fields and use Undo for values QuikFill changed. Undo preserves later edits. QuikFill never submits the form.
 
-### Detailed description (≤ 16,000 chars)
+Optional AI assistance
+Sign in and explicitly request AI assistance for fields that need help. Review the proposed values and select which suggestions to apply. QuikFill sends bounded field metadata, such as labels, input types, options, constraints, and locale, through its backend to Google Gemini. It omits current field values, saved-record values, full page HTML, page title, and page description. Labels and options can contain personal information; this minimization does not guarantee anonymization. AI usage is subject to your plan and quota.
 
-```
-QuikFill fills web forms for you — on any site — without losing control.
+Optional saved data
+Manage records at https://app.quikfill.io, select a record in the extension, and fill matching fields while preserving existing values. Saved records are stored in your QuikFill account and cached locally for the signed-in account.
 
-How it works:
-1. Open the QuikFill popup on any page with a form.
-2. QuikFill scans the page and detects the fields.
-3. It matches them to the profiles you've saved (name, contact, address, and
-   your own custom fields).
-4. For anything it can't map, you can optionally ask AI for a suggestion — it
-   only ever sees a redacted summary of the field, never the page or your data.
-5. You get a preview of exactly what will be filled before anything happens.
-6. Confirm, and QuikFill fills the form. One click undoes it.
+QuikFill supports native form controls and selected custom widgets. Some widgets, embedded frames, restricted pages, and application-specific validation may need manual input. Check generated data and the result before submitting a form.
 
-Why QuikFill:
-• Review-first — AI suggests, you confirm. QuikFill never fills a page on its own.
-• Privacy-aware — your saved data lives on your device; only redacted field
-  summaries are ever sent for AI help.
-• Works anywhere — a general-purpose form filler, not tied to any one site.
-• Reusable profiles — save once, reuse across every form.
-• Full preview + one-click undo on every fill.
-
-Manage your profiles and settings at https://app.quikfill.io.
-Learn more about QuikFill at https://quikfill.io.
+Learn more: https://quikfill.io
+Privacy: https://quikfill.io/privacy
 ```
 
-### Graphic assets (YOU must create these — not in the repo)
+## Single purpose
 
-| Asset              | Spec                                    | Required?                                                |
-| ------------------ | --------------------------------------- | -------------------------------------------------------- |
-| Store icon         | 128×128 PNG                             | ✅ have it (`apps/chrome-extension/public/icon/128.png`) |
-| **Screenshot(s)**  | **1280×800** (or 640×400) PNG/JPEG, 1–5 | ✅ **at least 1 — this is the blocker**                  |
-| Small promo tile   | 440×280 PNG                             | optional (recommended)                                   |
-| Marquee promo tile | 1400×560 PNG                            | optional                                                 |
-
-> Screenshots can't be generated from the repo (the in-page overlay doesn't
-> render in any dev server — see the `reference-ce-overlay-visual-harness`
-> note). Capture them from the real extension: the popup over a sample form, the
-> fill-plan preview, and a filled result. For a private listing they can be
-> simple — 1 clean screenshot unblocks submission.
-
----
-
-## Privacy tab (required — review hinges on this)
-
-### Single purpose
-
-```
-QuikFill detects, maps, and fills web forms. On the page the user is on, it
-scans the form, matches it to the user's saved profiles, optionally asks AI for
-help with unmapped fields (using a redacted field summary only), previews a fill
-plan, and fills the form on the user's confirmation, with one-click undo.
+```text
+Help users fill web forms with locally generated sample data, repeatable QA scenarios, or an explicitly selected saved record. Optional AI assistance proposes values for review before the user applies them. Filling is user initiated, reports field outcomes, supports guarded Undo, and never submits forms.
 ```
 
-### Permission justifications
+## Permission explanations
 
-Paste one per permission. Each is grounded in `wxt.config.ts` / the manifest.
+### activeTab
 
-| Permission                                                                                                                          | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `activeTab`                                                                                                                         | Granted on the user's gesture of opening the popup, so the popup can read the active tab's hostname for the per-site activation toggle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `scripting`                                                                                                                         | Injects the content script that scans and fills the form on the page the user is actively working with, only on user action.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `storage`                                                                                                                           | Persists the user's saved form profiles and extension settings locally on their device.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `alarms`                                                                                                                            | Schedules a periodic background sync so a signed-in user's dashboard-managed settings stay up to date without waiting for a sign-in or service-worker restart.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| **Host permissions** — ⚠️ ONE field in CWS, must justify BOTH `https://api.quikfill.io/*` AND the content-script `<all_urls>` match | QuikFill requests two host scopes: (1) `https://api.quikfill.io/*` — the background service worker calls the QuikFill backend for user-initiated sign-in, settings sync, and optional AI assistance. (2) All sites (`content_scripts` matches `<all_urls>`) — QuikFill is a general-purpose form filler that must work on whatever site the user is on. The content script runs on the page to detect forms and show an in-page "Fill" button (the user can disable QuikFill per-site or globally). It scans, fills, and contacts the backend only on the user's explicit action, sending only redacted field summaries (field labels and input types — never field values or full page content). |
+Accesses the current tab after the user opens QuikFill, reads its hostname for site preferences, and supports user-initiated activation on that tab.
 
-> ⚠️ The `<all_urls>` content-script match is the single most-scrutinized part of
-> this listing. The justification above is the honest reason; expect Google to
-> read it carefully even for a private item.
+### scripting
 
-### Data usage disclosures — **verify against the real privacy policy at `https://quikfill.io/privacy` before submitting**
+Injects or restores the bundled form-filling content script on the active tab when the user activates QuikFill, including recovery after an extension update or reload. No remote executable code is loaded.
 
-- **Privacy policy URL:** `https://quikfill.io/privacy` (confirm the exact host)
-- Data handled (recommended starting point — confirm it matches your policy):
-  - _Personally identifiable information_ — the profile data the user saves to fill forms (name, email, address, etc.).
-  - _Authentication information_ — passwordless email sign-in.
-- Certifications (all three must be true — confirm):
-  - ✅ Not selling or transferring user data to third parties outside approved use cases.
-  - ✅ Not using or transferring user data for purposes unrelated to the item's single purpose.
-  - ✅ Not using or transferring user data to determine creditworthiness or for lending.
-- **Remote code:** `No, I am not using remote code` (MV3, everything is bundled in the zip).
+### storage
 
----
+Stores device-local preferences and QA scenarios, sign-in session tokens, pending account settings, and account-scoped saved-record caches. Logout and account changes isolate saved records; cached libraries expire after 24 hours. Local sample filling does not require an account.
 
-## Distribution tab
+### alarms
 
-- **Visibility:** `Private`
-- **Trusted testers:** add the Google account emails that may install (one per line).
-- **Regions:** all (or restrict as you like — irrelevant while private).
+Wakes the background worker to synchronize signed-in account settings and prune expired account-scoped saved-record caches. Local sample filling does not require this network sync.
+
+### Host permissions
+
+https://api.quikfill.io/* lets the background worker authenticate users, sync account settings and saved records, read entitlements, and request optional AI assistance. The content script matches <all_urls> to detect supported forms and offer user-initiated Fill across sites; it does not submit forms. Local sample filling works without network access. AI is an explicit action and sends bounded field labels, types, names, options, constraints, and locale, not current values, saved-record values, or full HTML. Labels and options can contain personal information. AI suggestions require review before application. Signed-in saved records are stored in the QuikFill account and cached locally. Users can disable the extension globally or per site.
+
+## Existing disclosures verified in CWS
+
+- Personally identifiable information, authentication information and website
+  content are selected. The field metadata sent for optional AI is website content;
+  labels/options may themselves contain identifying text.
+- No remotely hosted executable code; all JavaScript is bundled in the extension.
+- Privacy policy URL: `https://quikfill.io/privacy`.
+- Existing limited-use certifications remain selected: no sale/transfer outside
+  approved use cases, no unrelated use, no creditworthiness/lending use.
+- The other existing data-category checkboxes were not changed. This is a record
+  of the current listing, not authorization to expand collection.
+
+The detailed description and permission explanations distinguish device-local QA
+scenarios, account-backed saved records, and explicit Gemini requests. They do not
+promise universal widget compatibility, a preview before every local fill, or
+complete anonymization of field metadata.
