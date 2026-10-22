@@ -15,10 +15,13 @@ import {
 } from '@quikfill/browser-adapter'
 import {
   applyFill,
+  applyUndo,
+  captureFillTargets,
   isOccludingHit,
   probeFields,
   qualifiesForFill,
   scanFormsGrouped,
+  type FillTarget,
 } from '@quikfill/form-scanner'
 import {
   DEFAULT_EXTENSION_SETTINGS,
@@ -27,8 +30,10 @@ import {
   type DetectedForm,
   type Entitlements,
   type ExtensionSettings,
+  type UndoSnapshot,
 } from '@quikfill/schemas'
 import { buttonDiameter, shouldShowOverlay } from '../../lib/overlay-gate'
+import { summarizeFill } from '../../lib/fill-summary'
 
 /**
  * User-facing copy per AI failure cause (mirrors lib/display-maps `AI_REASON_MESSAGE`;
@@ -65,6 +70,7 @@ export interface OverlayHandle {
 
 const HOST_ID = 'quikfill-overlay-host'
 const RESCAN_DEBOUNCE_MS = 300
+const FILL_TIMEOUT_MS = 30_000
 
 /**
  * False once THIS content script's extension context has been invalidated — i.e.
@@ -80,7 +86,7 @@ const isExtensionAlive = (): boolean => {
   }
 }
 
-type ButtonStatus = 'idle' | 'loading' | 'success' | 'error'
+type ButtonStatus = 'idle' | 'loading' | 'success' | 'partial' | 'error'
 
 interface FormButton {
   groupRoot: Element
@@ -91,6 +97,12 @@ interface FormButton {
   el: HTMLButtonElement
   label: HTMLSpanElement
   status: ButtonStatus
+  panel: HTMLElement
+  summary: HTMLElement
+  details: HTMLUListElement
+  undo: HTMLButtonElement
+  dismiss: HTMLButtonElement
+  statusTimer?: number
 }
 
 /**
@@ -118,6 +130,15 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   // form group-root element → its button. Keyed by element identity so a re-scan
   // reconciles against live DOM rather than the positional formId.
   const buttons = new Map<Element, FormButton>()
+  let disposed = false
+  let activeController: AbortController | null = null
+  let activeRoot: Element | null = null
+  let activeUrl = ''
+  let lastUndo: {
+    button: FormButton
+    snapshot: UndoSnapshot
+    targets: Map<string, FillTarget>
+  } | null = null
 
   // The on-page button is the AI-budget signal: it appears only while the user has
   // budget. Over-quota → no button (all usage detail lives in the side panel).
@@ -143,6 +164,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   function removeAllButtons(): void {
     for (const [root, button] of buttons) {
       button.el.remove()
+      button.panel.remove()
+      anchorResize?.unobserve(button.panel)
+      if (button.statusTimer) win.clearTimeout(button.statusTimer)
       if (button.anchorEl) anchorResize?.unobserve(button.anchorEl)
       buttons.delete(root)
     }
@@ -152,11 +176,12 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // A debounce armed BEFORE a fill started can fire mid-probe — re-stamping the
     // data-qf-id markers the in-flight fill resolves by. Skip; the fill schedules
     // a fresh scan when it completes.
-    if (busy) return
+    if (busy || disposed) return
     // Gate: disabled globally, hidden by preference, on a blocked host, or over
     // the AI budget → no buttons (the side panel surfaces any budget detail).
     if (!shouldShowOverlay(settings, pageHostname(), overQuota)) {
-      removeAllButtons()
+      // A quota or setting change must not remove access to the last undo.
+      for (const button of buttons.values()) button.el.hidden = true
       return
     }
     let result: ReturnType<typeof scanFormsGrouped>
@@ -188,6 +213,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       seen.add(groupRoot)
       const existing = buttons.get(groupRoot)
       if (existing) {
+        existing.el.hidden = false
         existing.anchorEl = groupRoot
         existing.formId = form.formId
       } else {
@@ -199,6 +225,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     for (const [root, button] of buttons) {
       if (!seen.has(root) || !root.isConnected) {
         button.el.remove()
+        button.panel.remove()
+        anchorResize?.unobserve(button.panel)
+        if (button.statusTimer) win.clearTimeout(button.statusTimer)
+        if (lastUndo?.button === button) lastUndo = null
         if (button.anchorEl) anchorResize?.unobserve(button.anchorEl)
         buttons.delete(root)
       }
@@ -226,36 +256,152 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     label.className = 'qf-label'
     label.textContent = 'QuikFill'
     el.append(mark, label)
-    const button: FormButton = { groupRoot, formId, anchorEl, el, label, status: 'idle' }
+    const panel = ownerDoc.createElement('section')
+    panel.className = 'qf-result'
+    panel.setAttribute('aria-label', 'QuikFill result')
+    panel.hidden = true
+    const summary = ownerDoc.createElement('p')
+    summary.setAttribute('role', 'status')
+    summary.setAttribute('aria-live', 'polite')
+    summary.setAttribute('aria-atomic', 'true')
+    const disclosure = ownerDoc.createElement('details')
+    const heading = ownerDoc.createElement('summary')
+    heading.textContent = 'Field details'
+    const details = ownerDoc.createElement('ul')
+    disclosure.append(heading, details)
+    const undo = ownerDoc.createElement('button')
+    undo.type = 'button'
+    undo.className = 'qf-undo'
+    undo.textContent = 'Undo fill'
+    undo.hidden = true
+    const dismiss = ownerDoc.createElement('button')
+    dismiss.type = 'button'
+    dismiss.className = 'qf-undo'
+    dismiss.textContent = 'Dismiss result'
+    panel.append(summary, disclosure, undo, dismiss)
+    const button: FormButton = {
+      groupRoot,
+      formId,
+      anchorEl,
+      el,
+      label,
+      status: 'idle',
+      panel,
+      summary,
+      details,
+      undo,
+      dismiss,
+    }
     el.addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
       void onFill(button)
     })
     shadowRoot.appendChild(el)
+    shadowRoot.appendChild(panel)
+    undo.addEventListener('click', () => {
+      void onUndo(button)
+    })
+    dismiss.addEventListener('click', () => {
+      button.panel.hidden = true
+    })
     // Track this form's box so the button follows its edge the instant the form
     // grows/shrinks (see the ResizeObserver note below). Unobserved on removal.
     anchorResize?.observe(anchorEl)
+    anchorResize?.observe(panel)
     return button
   }
 
   async function onFill(button: FormButton): Promise<void> {
-    if (button.status === 'loading') return
-    setStatus(button, 'loading')
+    if (
+      busy ||
+      disposed ||
+      !button.groupRoot.isConnected ||
+      !shouldShowOverlay(settings, pageHostname(), overQuota)
+    )
+      return
     // The probe (and the fill itself) churns the DOM — dropdowns open, option
     // lists mount/unmount — and every mutation/focus would otherwise schedule a
     // re-scan that re-stamps data-qf-id markers MID-FLIGHT, breaking the very
     // ids the probe/fill resolve by. Hold re-scans until this fill completes.
     busy = true
+    activeController = new AbortController()
+    const controller = activeController
+    const timeout = win.setTimeout(
+      () => controller.abort('Fill timed out. Try again.'),
+      FILL_TIMEOUT_MS,
+    )
+    const startUrl = doc.URL
+    activeRoot = button.groupRoot
+    activeUrl = startUrl
+    setLocked(true)
+    setStatus(button, 'loading')
+    button.panel.hidden = true
+    button.summary.textContent = ''
+    button.details.replaceChildren()
     try {
-      await runFill(button)
+      await runFill(button, controller.signal, startUrl)
+    } catch (error) {
+      if (!disposed) {
+        setStatus(button, 'error', {
+          label: 'Fill stopped',
+          title: controller.signal.aborted
+            ? String(controller.signal.reason)
+            : error instanceof Error
+              ? error.message
+              : 'Fill failed.',
+        })
+        button.panel.hidden = false
+        button.summary.textContent = button.el.title
+      }
     } finally {
+      win.clearTimeout(timeout)
+      activeController = null
+      activeRoot = null
       busy = false
+      setLocked(false)
       scheduleScan()
     }
   }
 
-  async function runFill(button: FormButton): Promise<void> {
+  function setLocked(locked: boolean): void {
+    for (const button of buttons.values()) {
+      button.el.disabled = locked
+      button.el.setAttribute('aria-busy', String(locked && button.status === 'loading'))
+      button.undo.disabled = locked
+    }
+  }
+
+  async function onUndo(button: FormButton): Promise<void> {
+    const undo = lastUndo
+    if (busy || disposed || !undo || undo.button !== button) return
+    busy = true
+    setLocked(true)
+    try {
+      const results = await applyUndo(undo.snapshot, button.groupRoot, { targets: undo.targets })
+      const restored = results.filter((r) => r.status === 'success').length
+      button.summary.textContent = `${restored}/${results.length} restored`
+      button.details.replaceChildren(
+        ...results.map((result) => {
+          const item = doc.createElement('li')
+          item.textContent = result.reason ?? 'Previous value restored.'
+          return item
+        }),
+      )
+      button.panel.hidden = false
+      lastUndo = null
+      button.undo.hidden = true
+      setStatus(button, 'idle')
+    } catch {
+      button.summary.textContent = 'Undo failed. Your remaining fields were left unchanged.'
+    } finally {
+      busy = false
+      setLocked(false)
+      scheduleScan()
+    }
+  }
+
+  async function runFill(button: FormButton, signal: AbortSignal, startUrl: string): Promise<void> {
     // Re-scan for fresh fields (the DOM may have changed since injection).
     let result: ReturnType<typeof scanFormsGrouped>
     try {
@@ -265,9 +411,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       return
     }
     const fieldById = new Map<string, DetectedField>(result.fields.map((f) => [f.id, f]))
-    const form =
-      result.forms.find((f) => resolveGroupRoot(f, fieldById, doc) === button.groupRoot) ??
-      result.forms.find((f) => f.formId === button.formId)
+    const form = result.forms.find((f) => resolveGroupRoot(f, fieldById, doc) === button.groupRoot)
     if (!form) {
       setStatus(button, 'error')
       return
@@ -288,7 +432,19 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // options (and each datepicker input to read its calendar's min/max), so
     // dropdowns are picked from values that exist and dates land inside the
     // picker's range. Enriches `fields` in place; never throws.
-    await probeFields(fields, doc)
+    const targets = captureFillTargets(fields, button.groupRoot)
+    const isCurrent = (): boolean =>
+      !disposed &&
+      !signal.aborted &&
+      button.groupRoot.isConnected &&
+      doc.URL === startUrl &&
+      shouldShowOverlay(settings, pageHostname(), false)
+    const ensureCurrent = (): void => {
+      if (!isCurrent()) throw new Error('The form or page changed. Scan the current form again.')
+    }
+    ensureCurrent()
+    await probeFields(fields, button.groupRoot, { signal, isCurrent })
+    ensureCurrent()
 
     // Custom selects are picked locally (random, from the probed options) — only
     // the remaining fields (text inputs, native selects, datepickers) need the AI.
@@ -299,10 +455,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     })
     if (!request) {
       // Nothing for the AI (a form of only dropdowns) — apply the local picks.
-      await applyInstructions(button, localPicks)
+      await applyInstructions(button, localPicks, fields, targets, signal, isCurrent)
       return
     }
-    const reply = await requestAiFill(request)
+    const reply = await waitForReply(requestAiFill(request), signal)
+    ensureCurrent()
     if (!reply.ok) {
       // The AI round-trip failed (quota / rate-limit / offline / a dead extension
       // context after an update). Custom-select picks are LOCAL and need no AI, so
@@ -310,13 +467,6 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       // never owned. applyFill is pure DOM and works even when messaging is dead; a
       // truly dead context can still make DOM writes throw, so guard it. The button
       // then reports the AI failure below.
-      if (localPicks.length > 0) {
-        try {
-          await applyFill(localPicks, doc)
-        } catch {
-          /* dead context — nothing to apply; surface the AI error instead */
-        }
-      }
       // A dead extension context (the tab predates an update/reload) makes every
       // message throw, which `requestAiFill` reports as `offline` — but that's not a
       // connectivity problem, so point the user at the real fix rather than a
@@ -329,7 +479,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
               title: 'QuikFill was updated — reload this page to keep filling.',
             }
           : ERROR_COPY[reply.reason]
+      await applyInstructions(button, localPicks, fields, targets, signal, isCurrent)
       setStatus(button, 'error', copy)
+      button.summary.textContent = `${button.summary.textContent} · ${copy.title ?? copy.label}`
       // A fill that tipped the user over budget: refresh the snapshot so the
       // buttons disappear (the side panel shows the depleted budget).
       if (reply.reason === 'quota') {
@@ -342,27 +494,39 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     }
 
     const instructions = [...valuesToFillInstructions(reply.response.values, fields), ...localPicks]
-    await applyInstructions(button, instructions)
+    await applyInstructions(button, instructions, fields, targets, signal, isCurrent)
   }
 
   /** Apply a merged instruction batch and reflect the outcome on the button. */
   async function applyInstructions(
     button: FormButton,
     instructions: Parameters<typeof applyFill>[0],
+    fields: DetectedField[],
+    targets: Map<string, FillTarget>,
+    signal: AbortSignal,
+    isCurrent: () => boolean,
   ): Promise<void> {
-    if (instructions.length === 0) {
-      setStatus(button, 'error')
-      return
+    const outcome = await applyFill(instructions, button.groupRoot, { targets, signal, isCurrent })
+    if (disposed) return
+    const summary = summarizeFill(fields, outcome.results)
+    button.panel.hidden = false
+    button.summary.textContent = summary.description
+    button.details.replaceChildren(
+      ...summary.results.map((result) => {
+        const item = doc.createElement('li')
+        const field = fields.find((field) => field.id === result.detectedFieldId)
+        item.textContent = `${field?.labelText ?? field?.ariaLabel ?? field?.name ?? 'Field'}: ${result.status}${result.reason ? ` — ${result.reason}` : ''}`
+        return item
+      }),
+    )
+    if (outcome.undoSnapshot.entries.length) {
+      if (lastUndo) lastUndo.button.undo.hidden = true
+      lastUndo = { button, snapshot: outcome.undoSnapshot, targets }
+      button.undo.hidden = false
     }
-    try {
-      const outcome = await applyFill(instructions, doc)
-      const anyFilled = outcome.results.some(
-        (r) => r.status === 'success' || r.status === 'assisted',
-      )
-      setStatus(button, anyFilled ? 'success' : 'error')
-    } catch {
-      setStatus(button, 'error')
-    }
+    setStatus(button, summary.complete ? 'success' : 'partial')
+    button.label.textContent = summary.label
+    reposition()
   }
 
   function setStatus(
@@ -371,7 +535,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     error?: { label: string; title?: string },
   ): void {
     button.status = status
-    button.el.classList.remove('is-loading', 'is-success', 'is-error')
+    if (button.statusTimer) win.clearTimeout(button.statusTimer)
+    button.el.classList.remove('is-loading', 'is-success', 'is-partial', 'is-error')
+    button.el.setAttribute('aria-busy', String(status === 'loading'))
     if (status !== 'error') button.el.removeAttribute('title')
     if (status === 'loading') {
       button.el.classList.add('is-loading')
@@ -379,6 +545,8 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     } else if (status === 'success') {
       button.el.classList.add('is-success')
       button.label.textContent = 'Filled'
+    } else if (status === 'partial') {
+      button.el.classList.add('is-partial')
     } else if (status === 'error') {
       button.el.classList.add('is-error')
       button.label.textContent = error?.label ?? 'Try again'
@@ -389,7 +557,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // Auto-return to idle so the button is reusable; let an error linger longer so
     // an actionable message (e.g. "AI limit reached") is readable before it clears.
     if (status === 'success' || status === 'error') {
-      win.setTimeout(
+      button.statusTimer = win.setTimeout(
         () => {
           if (button.status === status) setStatus(button, 'idle')
         },
@@ -405,12 +573,14 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       const anchor = button.anchorEl
       if (!anchor || !anchor.isConnected) {
         button.el.style.display = 'none'
+        button.panel.style.display = 'none'
         continue
       }
       const rect = anchor.getBoundingClientRect()
       // Hidden / zero-box anchor (e.g. inside a closed tab) → hide the button.
       if (rect.width === 0 && rect.height === 0) {
         button.el.style.display = 'none'
+        button.panel.style.display = 'none'
         continue
       }
       // Occlusion guard: hit-test the form's centre (clamped on-screen so a tall
@@ -423,9 +593,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), vh - 1)
       if (isOccludingHit(anchor, host, doc.elementFromPoint(cx, cy))) {
         button.el.style.display = 'none'
+        button.panel.style.display = 'none'
         continue
       }
       button.el.style.display = ''
+      button.panel.style.display = ''
       // Pin the button just inside the form's chosen corner. `position: fixed`
       // uses viewport coordinates, so re-anchoring on scroll/resize keeps it glued
       // whether the form lives in normal flow or a fixed modal. Clamp so it stays
@@ -442,6 +614,17 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       button.el.style.bottom = pos.startsWith('bottom')
         ? `${Math.max(8, vh - rect.bottom + INSET)}px`
         : 'auto'
+      button.panel.style.left = button.el.style.left
+      button.panel.style.right = button.el.style.right
+      const buttonRect = button.el.getBoundingClientRect()
+      const panelHeight = button.panel.getBoundingClientRect().height
+      const above = buttonRect.top - panelHeight - 8
+      const below = buttonRect.bottom + 8
+      let panelTop = pos.startsWith('top') ? below : above
+      if (panelTop < 8 && below + panelHeight <= vh - 8) panelTop = below
+      if (panelTop + panelHeight > vh - 8 && above >= 8) panelTop = above
+      button.panel.style.top = `${Math.max(8, Math.min(panelTop, vh - panelHeight - 8))}px`
+      button.panel.style.bottom = 'auto'
     }
   }
 
@@ -455,7 +638,12 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   let busy = false
   let debounce: number | undefined
   const scheduleScan = (): void => {
-    if (busy) return
+    if (busy) {
+      if (activeRoot && (!activeRoot.isConnected || doc.URL !== activeUrl)) {
+        activeController?.abort('The form or page changed. Scan the current form again.')
+      }
+      return
+    }
     if (debounce) win.clearTimeout(debounce)
     debounce = win.setTimeout(scan, RESCAN_DEBOUNCE_MS)
   }
@@ -517,6 +705,12 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     if (e.type === 'click') {
       const pressed = [...buttons.values()].find((b) => path.includes(b.el))
       if (pressed) void onFill(pressed)
+      const undo = [...buttons.values()].find((b) => path.includes(b.undo))
+      if (undo) void onUndo(undo)
+      const dismiss = [...buttons.values()].find((b) => path.includes(b.dismiss))
+      if (dismiss) dismiss.panel.hidden = true
+      // Native disclosure activation still runs; capture only shields the host
+      // page's outside-dismiss handlers, not the browser's default action.
     }
   }
   const SWALLOWED = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'] as const
@@ -547,9 +741,18 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
 
   scan()
 
+  const cancel = (): void =>
+    activeController?.abort('The page changed. Scan the current form again.')
+  win.addEventListener('pagehide', cancel)
+  win.addEventListener('popstate', cancel)
+
   return {
     rescan: scan,
     destroy() {
+      disposed = true
+      activeController?.abort('QuikFill was closed.')
+      win.removeEventListener('pagehide', cancel)
+      win.removeEventListener('popstate', cancel)
       observer.disconnect()
       if (debounce) win.clearTimeout(debounce)
       doc.removeEventListener('focusin', onFocusIn, true)
@@ -560,10 +763,16 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         capture: true,
       } as EventListenerOptions)
       win.removeEventListener('resize', scheduleReposition)
-      unsubscribeEntitlements()
-      unsubscribeSettings()
+      for (const unsubscribe of [unsubscribeEntitlements, unsubscribeSettings]) {
+        try {
+          unsubscribe()
+        } catch {
+          /* the extension context may already be invalid */
+        }
+      }
       host.remove()
-      buttons.clear()
+      removeAllButtons()
+      lastUndo = null
     },
   }
 }
@@ -598,8 +807,51 @@ function cssAttr(value: string): string {
   return value.replace(/["\\]/g, '\\$&')
 }
 
+function waitForReply<T>(reply: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = (): void => reject(new Error(String(signal.reason ?? 'Fill cancelled.')))
+    if (signal.aborted) {
+      abort()
+      return
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    reply.then(
+      (value) => {
+        signal.removeEventListener('abort', abort)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', abort)
+        reject(error)
+      },
+    )
+  })
+}
+
 const OVERLAY_CSS = `
 :host { all: initial; }
+[hidden] { display: none !important; }
+.qf-result {
+  position: fixed;
+  z-index: 2147483646;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(320px, 40vh);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #172033;
+  font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+  box-shadow: 0 4px 14px #0002;
+}
+.qf-result p { margin: 0 0 8px; }
+.qf-result ul { margin: 8px 0; padding-left: 20px; overflow-wrap: anywhere; }
+.qf-result summary { cursor: pointer; min-height: 44px; }
+.qf-undo { min-height: 44px; padding: 8px 12px; margin: 8px 8px 0 0; border: 1px solid #94a3b8; border-radius: 8px; background: #fff; color: #172033; cursor: pointer; font: inherit; }
+.qf-fill-btn:focus-visible, .qf-undo:focus-visible, .qf-result summary:focus-visible { outline: 3px solid #3f66e0; outline-offset: 3px; }
+.qf-fill-btn:disabled, .qf-undo:disabled { cursor: wait; }
 .qf-fill-btn {
   position: fixed;
   z-index: 2147483646;
@@ -650,6 +902,7 @@ const OVERLAY_CSS = `
 .qf-fill-btn:hover,
 .qf-fill-btn.is-loading,
 .qf-fill-btn.is-success,
+.qf-fill-btn.is-partial,
 .qf-fill-btn.is-error {
   padding-left: calc((var(--qf-d, 46px) - 24px) / 2 + 7px);
   box-shadow: 0 8px 22px rgba(37, 68, 192, 0.45);
@@ -677,6 +930,7 @@ const OVERLAY_CSS = `
 .qf-fill-btn:hover .qf-label,
 .qf-fill-btn.is-loading .qf-label,
 .qf-fill-btn.is-success .qf-label,
+.qf-fill-btn.is-partial .qf-label,
 .qf-fill-btn.is-error .qf-label {
   max-width: 150px;
   margin-right: 8px;
@@ -684,6 +938,7 @@ const OVERLAY_CSS = `
 }
 .qf-fill-btn.is-success { background: #13c296; box-shadow: 0 8px 22px rgba(19, 194, 150, 0.45); }
 .qf-fill-btn.is-error { background: #e11d48; box-shadow: 0 8px 22px rgba(225, 29, 72, 0.45); }
+.qf-fill-btn.is-partial { background: #855000; }
 .qf-fill-btn.is-loading { cursor: default; }
 `
 

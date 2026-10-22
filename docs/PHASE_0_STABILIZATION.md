@@ -20,6 +20,14 @@ The bound element map is ephemeral, content-script memory only. Optional snapsho
 
 The submit guard prevents DOM submit events during QuikFill interactions; it does not claim to sandbox arbitrary host-page JavaScript, such as a handler directly calling `form.submit()` or issuing a network mutation.
 
+## Overlay session milestone
+
+- One active fill/undo operation across all on-page buttons. A 30-second deadline releases a stuck session; late replies never write to the page.
+- Probe and execution use the selected form and pre-bound targets. Replacing the form, changing the URL, destroying the overlay or invalidating the WXT context cancels the session. A detached legacy scan root also stays detached instead of widening to the document.
+- Every detected target contributes to the result. Missing AI values and remote options count as skipped; assisted autocomplete remains incomplete. The result panel shows counts, per-field reasons and a live status for assistive technology.
+- The last actual mutation snapshot stays in memory with its original target map. Undo survives re-scanning, preserves later edits and reports partial/manual restores explicitly. Undo remains accessible if an AI-quota refresh hides the fill button.
+- The panel follows form resizing and stays inside the viewport as details expand. It can be dismissed before refilling. Keyboard focus remains visible, and actions have explicit labels.
+
 ## Browser test foundation
 
 `apps/e2e/fixtures` runs the actual scanner/filler and overlay source in Chromium. It replaces only the extension transport with a controllable fake. React 19.2.6 is a test-only dependency and is not bundled into the extension.
@@ -43,6 +51,13 @@ WXT_QF_API_BASE_URL=https://api.quikfill.example/api/v1 pnpm build
 `pnpm test` now runs unit packages explicitly, keeping Playwright under its separate commands. A dashboard test setup binds jsdom's `localStorage` explicitly to avoid Node 26's unavailable host storage property; no runtime flag is needed.
 
 These browser fixtures do not yet load a packaged MV3 extension. Background suspension, permissions, isolated-world execution, real AI services and production-site compatibility remain separate integration work. No broad compatibility claim follows from this fixture suite.
+
+## Verification
+
+- Frontend unit tests: 678 passed; two explicit later-phase TODOs.
+- Browser suite: 22 form regressions plus the dashboard smoke test passed in local Chromium 156.0.8078.4. This uses an installed executable override; CI should install Playwright's matching browser revision.
+- Lint, formatting, all frontend typechecks and the full frontend build pass. Build validation uses the documented example API URL and performs no deployment.
+- The partial-result panel is captured as a Playwright attachment and visually checked, including viewport placement after expanding field details.
 
 ## Later phases
 

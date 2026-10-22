@@ -13,6 +13,14 @@ flow revamp. It supersedes the side-panel scan → preview → AI-suggestion →
 
 ---
 
+**2026-10-22 Phase 0 update:** the current overlay executes one session at a time,
+binds the original fields inside the chosen form, preserves edits made while
+waiting, and rejects replies after cancellation, replacement or navigation.
+The result panel counts all detected targets, distinguishes assisted/skipped/failed
+fields, and offers guarded undo for the last mutation snapshot. “Filled” requires
+success on every target. There is no generic submit or random replacement fallback.
+Details: [Phase 0 stabilization](./PHASE_0_STABILIZATION.md).
+
 ## 1. Target flow
 
 1. The user signs in through the **toolbar popup** — the existing email-OTP auth
@@ -164,7 +172,8 @@ When the user clicks **Fill** on a form's button:
 5. Map each `values[].fieldId` → a `FillInstruction` and call the existing
    **`applyFill(instructions, root)`** to prefill. Resolution is by
    `[data-qf-id="…"]` first (exact element), then ranked selector candidates.
-6. Reflect **spinner → success / error** in the shadow UI. The failure cause is
+6. Reflect **spinner → complete / partial / error**, show per-field details and
+   retain the snapshot for guarded undo in the shadow UI. The failure cause is
    surfaced specifically: the background maps the backend error (status + `code`)
    to a coarse reason (`quota` / `rate-limited` / `auth` / `not-configured` /
    `offline` / `error`), and the pill shows matching copy — e.g. a 429

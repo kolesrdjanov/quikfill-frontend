@@ -45,6 +45,13 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
 
 ## Current state
 
+**Phase 0 stabilization (2026-10-22):** the live overlay locks concurrent fills,
+binds original fields within the chosen form, times out/cancels stale requests,
+reports every target (including omitted/assisted ones), and offers guarded undo.
+WXT invalidation destroys the overlay and aborts pending work. Regression browser
+fixtures cover the real engine and overlay; the Chrome transport is mocked.
+See [`../../docs/PHASE_0_STABILIZATION.md`](../../docs/PHASE_0_STABILIZATION.md).
+
 Iterations 3–7 are **done**: scan, fill-plan preview, fill execution + undo,
 local form profiles, and Gemini assistance (privacy-aware AI — redacted
 summaries, schema-validated suggestions, review/accept/reject; the background
@@ -75,7 +82,8 @@ worker owns the api-client call, fails gracefully when the backend is offline).
   marked `remoteOptions` and left blank. Text inputs that open a calendar gain a
   `datepicker` widget descriptor plus the calendar's proven `min`/`max`, which
   ARE sent to the AI so its proposed date lands inside the picker's range (the
-  filler types first, then falls back to clicking the nearest enabled day).
+  filler types first, then attempts the exact requested day in the verified month;
+  it never substitutes a nearby date or activates a generic form submit).
 
 **Live surface (v2): the toolbar popup.** The single live UI is the toolbar
 **popup** — passwordless email-OTP sign-in → a subscription/usage mini-dashboard

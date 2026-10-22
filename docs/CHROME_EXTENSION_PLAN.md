@@ -14,19 +14,24 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 
 ## Status
 
-| #   | Iteration                                                                     | Status  |
-| --- | ----------------------------------------------------------------------------- | ------- |
-| 3   | Scanner prototype (scan + inspect detected fields)                            | ✅ Done |
-| 4   | Fill plan preview (generators + heuristics + preview UI)                      | ✅ Done |
-| 5   | Fill execution + undo (native fill, verify, undo, results)                    | ✅ Done |
-| 6   | Local form profiles (save/match/reuse mappings)                               | ✅ Done |
-| 7   | Gemini assistance (privacy-aware AI, review/accept/reject)                    | ✅ Done |
-| —   | UI design-system pass (popup / side panel / options)¹                         | ✅ Done |
-| —   | In-page fill flow (floating "Fill" buttons + `/ai/fill`)                      | ✅ Done |
-| —   | v2 popup surface (auth + usage mini-dashboard; side panel & settings retired) | ✅ Done |
+| #   | Iteration                                                                     | Status   |
+| --- | ----------------------------------------------------------------------------- | -------- |
+| 3   | Scanner prototype (scan + inspect detected fields)                            | ✅ Done  |
+| 4   | Fill plan preview (generators + heuristics + preview UI)                      | ✅ Done  |
+| 5   | Fill execution + undo (native fill, verify, undo, results)                    | ✅ Done  |
+| 6   | Local form profiles (save/match/reuse mappings)                               | ✅ Done  |
+| 7   | Gemini assistance (privacy-aware AI, review/accept/reject)                    | ✅ Done  |
+| —   | UI design-system pass (popup / side panel / options)¹                         | ✅ Done  |
+| —   | In-page fill flow (floating "Fill" buttons + `/ai/fill`)                      | ✅ Done  |
+| —   | v2 popup surface (auth + usage mini-dashboard; side panel & settings retired) | ✅ Done  |
+| —   | Phase 0: scoped sessions, honest results, guarded undo, browser regressions   | ✅ Local |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)
+
+Phase 0 acceptance and test commands: [PHASE_0_STABILIZATION.md](./PHASE_0_STABILIZATION.md).
+The fixtures test the real engine/overlay with a fake extension transport; packaged
+MV3 lifecycle and permissions are not yet covered by that harness.
 
 ¹ Side panel & options were later retired to `apps/chrome-extension/legacy/` in v2.
 

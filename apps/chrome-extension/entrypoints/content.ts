@@ -13,7 +13,7 @@ import { mountOverlay } from './content/overlay'
 export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_idle',
-  main() {
+  main(ctx) {
     // Thin DOM agent: scan, fill, and undo on request. The only product decision
     // here is resolving which container to scan — it needs the live DOM + focus.
 
@@ -21,7 +21,8 @@ export default defineContentScript({
     // (isolated Shadow DOM). It owns its own lifecycle (observer + listeners) and
     // delegates the backend call to the background worker via requestAiFill. The
     // legacy scan/fill/undo message handlers below stay for the surface's scan form.
-    mountOverlay(document)
+    const overlay = mountOverlay(document)
+    ctx.onInvalidated(() => overlay.destroy())
 
     // Zero-click cross-surface session handoff: only on the QuikFill app origin. A
     // signed-out extension announces itself to the page and adopts any one-time code
@@ -62,13 +63,10 @@ export default defineContentScript({
     onFillRequest((instructions) => applyFill(instructions, fillRoot()))
     onUndoRequest((snapshot) => applyUndo(snapshot, fillRoot()))
 
-    // Reuse the scanned container only while it's still attached. A drawer that was
-    // re-rendered or closed since the scan leaves a detached node, so fall back to
-    // the whole document rather than confine the fill to an orphan and match nothing.
+    // A detached scan root is intentionally retained: the executor reports it as
+    // unavailable instead of retargeting a similar field elsewhere on the page.
     function fillRoot(): Document | Element {
-      if (lastScanRoot === document) return document
-      const el = lastScanRoot as Element
-      return el.isConnected ? el : document
+      return lastScanRoot
     }
   },
 })
