@@ -81,6 +81,8 @@ jobs:
         with:
           name: chrome-extension-${{ github.run_number }}
           path: apps/chrome-extension/.output/*-chrome.zip
+          # WXT writes into a hidden directory; the glob includes only ZIPs.
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 
