@@ -66,11 +66,14 @@ export interface FillOptions {
 export function captureFillTargets(
   fields: DetectedField[],
   root: FillRoot = document,
+  bindings?: ReadonlyMap<string, FillTarget>,
 ): Map<string, FillTarget> {
   const targets = new Map<string, FillTarget>()
   for (const field of fields) {
-    const el = findElement(root, markedSelectors(field.id, field.selectorCandidates))
-    if (!el) continue
+    const el = bindings
+      ? bindings.get(field.id)?.element
+      : findElement(root, markedSelectors(field.id, field.selectorCandidates))
+    if (!el || !el.isConnected || !withinRoot(root, el)) continue
     targets.set(field.id, {
       element: el,
       value: fieldState(field, el, root),
@@ -192,8 +195,24 @@ async function executeFill(
     // value on a toggle is a meaningful "unchecked". A custom select with no proposed
     // value is left untouched too — we never auto-pick its first option (that silently
     // selected garbage, e.g. "United States" on a country list).
-    if (ins.fillStrategy !== 'clickToggle' && ins.proposedValue.trim() === '') {
+    if (
+      ins.fillStrategy !== 'clickToggle' &&
+      ins.proposedValue.trim() === '' &&
+      ins.expectedValidity !== 'invalid'
+    ) {
       results.push(skip(ins.detectedFieldId, 'Nothing to fill — no value was proposed.'))
+      continue
+    }
+
+    if (
+      ins.expectedValidity === 'invalid' &&
+      (ins.customWidget ||
+        ins.inputType === 'radiogroup' ||
+        ins.fillStrategy === 'assistedAutocomplete')
+    ) {
+      results.push(
+        skip(ins.detectedFieldId, 'Expected-invalid case is unsupported by this widget adapter.'),
+      )
       continue
     }
 
@@ -392,6 +411,34 @@ async function executeUndo(
 }
 
 async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillResult> {
+  if (ins.expectedValidity === 'invalid') {
+    if (!el.matches('input, textarea, select') || !(el as HTMLInputElement).willValidate)
+      return skip(
+        ins.detectedFieldId,
+        'Expected-invalid case requires a native validation control.',
+      )
+    const toggle = isToggle(el)
+    const desired = TRUTHY.has(ins.proposedValue.toLowerCase().trim())
+    if (toggle) setChecked(el as HTMLInputElement, desired)
+    else setValue(el, ins.proposedValue)
+    await settle()
+    const accepted = readValue(el)
+    const exact = toggle ? checkedState(el) === desired : accepted === ins.proposedValue
+    const invalid = el.isConnected && !isValid(el)
+    return {
+      detectedFieldId: ins.detectedFieldId,
+      status: exact && invalid ? 'success' : 'failed',
+      acceptedValue: accepted,
+      expectedValidity: 'invalid',
+      actualValidity: invalid ? 'invalid' : 'valid',
+      reason:
+        exact && invalid
+          ? 'Expected invalid constraint reproduced.'
+          : !exact
+            ? 'The control rejected or normalized the invalid test value.'
+            : 'Expected invalid, but the control reports no validation error.',
+    }
+  }
   if (isToggle(el)) {
     const desired = TRUTHY.has(ins.proposedValue.toLowerCase().trim())
     setChecked(el as HTMLInputElement, desired)

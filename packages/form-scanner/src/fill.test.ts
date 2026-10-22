@@ -1592,3 +1592,85 @@ describe('applyFill — datepicker hardening (constrained calendars)', () => {
     expect(display.textContent).toBe('Choose Tuesday, June 1st, 2032')
   })
 })
+
+describe('explicit QA expectations', () => {
+  it('records an expected invalid constraint only when the exact test value lands', async () => {
+    document.body.innerHTML = '<input id="quantity" type="number" min="2" max="10" value="4">'
+    const outcome = await applyFill([
+      instruction({
+        detectedFieldId: 'quantity',
+        inputType: 'number',
+        proposedValue: '12',
+        expectedValidity: 'invalid',
+      }),
+    ])
+    expect(outcome.results[0]).toMatchObject({
+      status: 'success',
+      expectedValidity: 'invalid',
+      actualValidity: 'invalid',
+      acceptedValue: '12',
+    })
+    await applyUndo(outcome.undoSnapshot)
+    expect((document.getElementById('quantity') as HTMLInputElement).value).toBe('4')
+    const valid = await applyFill([
+      instruction({
+        detectedFieldId: 'quantity',
+        inputType: 'number',
+        proposedValue: '5',
+        expectedValidity: 'invalid',
+      }),
+    ])
+    expect(valid.results[0]).toMatchObject({ status: 'failed', actualValidity: 'valid' })
+  })
+  it('does not claim success when number sanitization erases an invalid literal', async () => {
+    document.body.innerHTML = '<input id="quantity" type="number" required>'
+    const { results } = await applyFill([
+      instruction({
+        detectedFieldId: 'quantity',
+        inputType: 'number',
+        proposedValue: 'bad-number',
+        expectedValidity: 'invalid',
+      }),
+    ])
+    expect(results[0]).toMatchObject({ status: 'failed', actualValidity: 'invalid' })
+  })
+  it('allows an explicit missing case while ordinary empty proposals still skip', async () => {
+    document.body.innerHTML = '<input id="email" type="email" required value="old@example.com">'
+    const ordinary = await applyFill([instruction({ detectedFieldId: 'email', proposedValue: '' })])
+    expect(ordinary.results[0].status).toBe('skipped')
+    const qa = await applyFill([
+      instruction({ detectedFieldId: 'email', proposedValue: '', expectedValidity: 'invalid' }),
+    ])
+    expect(qa.results[0]).toMatchObject({ status: 'success', actualValidity: 'invalid' })
+  })
+})
+
+it('does not activate a custom widget for an unsupported invalid expectation', async () => {
+  document.body.innerHTML =
+    '<button id="choice" role="combobox" aria-expanded="false">Choose</button>'
+  let clicks = 0
+  document.getElementById('choice')!.addEventListener('click', () => {
+    clicks++
+  })
+  const { results } = await applyFill([
+    instruction({
+      detectedFieldId: 'choice',
+      tagName: 'button',
+      inputType: 'customSelect',
+      fillStrategy: 'customSelect',
+      proposedValue: 'bad',
+      expectedValidity: 'invalid',
+      customWidget: {
+        kind: 'select',
+        triggerSelectorCandidates: [],
+        valueDisplaySelectorCandidates: [],
+        optionItemSelector: '[role=option]',
+        optionsOpenOnDemand: true,
+        isSearchable: false,
+        isVirtualized: false,
+      },
+    }),
+  ])
+  expect(results[0].status).toBe('skipped')
+  expect(clicks).toBe(0)
+})

@@ -43,6 +43,8 @@ export const fillResultSchema = z.object({
   detectedFieldId: z.string().min(1),
   status: fillResultStatusSchema,
   acceptedValue: z.string().nullable().optional(),
+  expectedValidity: z.enum(['valid', 'invalid']).optional(),
+  actualValidity: z.enum(['valid', 'invalid']).optional(),
   reason: z.string().optional(),
 })
 export type FillResult = z.infer<typeof fillResultSchema>
@@ -134,6 +136,7 @@ export const fillInstructionSchema = z.object({
   customWidget: customWidgetSchema.optional(),
   /** Explicit multi-value tokens; labels containing commas remain one value. */
   proposedValues: z.array(z.string()).optional(),
+  expectedValidity: z.enum(['valid', 'invalid']).optional(),
 })
 export type FillInstruction = z.infer<typeof fillInstructionSchema>
 
