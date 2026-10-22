@@ -12,6 +12,26 @@ const field = (data: Partial<DetectedField> & { name: string }): DetectedField =
   })
 
 describe('offline local planner', () => {
+  it('passes a comma-containing multiselect label as one explicit token', () => {
+    const batch = buildLocalFillPlan([
+      field({
+        name: 'people',
+        inputType: 'customSelect',
+        tagName: 'div',
+        options: [{ value: 'Doe, Jane', label: 'Doe, Jane' }],
+        customWidget: {
+          kind: 'multiselect',
+          optionItemSelector: '[role=option]',
+          triggerSelectorCandidates: [],
+          valueDisplaySelectorCandidates: [],
+          optionsOpenOnDemand: true,
+          isSearchable: false,
+          isVirtualized: false,
+        },
+      }),
+    ])
+    expect(batch.instructions[0].proposedValues).toEqual(['Doe, Jane'])
+  })
   it('ignores malformed HTML numeric/date constraints without aborting the batch', () => {
     const fields = [
       field({ name: 'date', inputType: 'date', min: 'bad', step: 'bad' }),

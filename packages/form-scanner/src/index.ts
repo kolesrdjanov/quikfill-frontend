@@ -19,6 +19,7 @@ export {
   getLabelText,
   getSelectorCandidates,
   isVisible,
+  looksLikeDatepickerInput,
   type FormControl,
 } from './extract'
 export { MIN_FILLABLE_FIELDS, qualifiesForFill, isOccludingHit } from './placement'

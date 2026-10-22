@@ -1,5 +1,7 @@
+import { calendarMonthYear, calendarFormat } from './calendar-date'
 import type { DetectedField, FieldOption } from '@quikfill/schemas'
 import { getSelectorCandidates, looksLikeDatepickerInput } from './extract'
+import { waitForWidget, operationActive, type WidgetOperation } from './widget-wait'
 import { withoutSubmit } from './interaction-guard'
 import {
   calendarHeading,
@@ -12,13 +14,13 @@ import {
   isDayDisabled,
   looksLikeCalendar,
   markedSelectors,
-  MONTH_NAMES,
   norm,
   openOptionNodes,
   optionLabelText,
   ownerDocOf,
   observeWidgetPopup,
   resolveTrigger,
+  widgetPopupRoots,
   textOf,
   type FillRoot,
 } from './widget-dom'
@@ -62,9 +64,9 @@ async function probeAll(
     if (options.signal?.aborted || options.isCurrent?.() === false || !root.isConnected) return
     try {
       if (isProbeableSelect(field)) {
-        await probeSelect(field, root)
+        await probeSelect(field, root, options)
       } else if (isDatepickerCandidateField(field)) {
-        await probeDatepicker(field, root)
+        await probeDatepicker(field, root, options)
       }
     } catch {
       /* a single bad widget never aborts the probe pass */
@@ -73,7 +75,7 @@ async function probeAll(
 }
 
 /** How long one widget may take to render its options/calendar before we move on. */
-const PROBE_BUDGET_MS = 600
+const PROBE_BUDGET_MS = 2500
 /** Poll cadence while waiting on a widget. */
 const PROBE_TICK_MS = 50
 
@@ -95,7 +97,11 @@ function isProbeableSelect(field: DetectedField): boolean {
   return !field.options || field.options.length === 0
 }
 
-async function probeSelect(field: DetectedField, root: FillRoot): Promise<void> {
+async function probeSelect(
+  field: DetectedField,
+  root: FillRoot,
+  options: WidgetOperation,
+): Promise<void> {
   const widget = field.customWidget
   if (!widget) return
   const widgetEl = findElement(root, markedSelectors(field.id, field.selectorCandidates))
@@ -109,10 +115,24 @@ async function probeSelect(field: DetectedField, root: FillRoot): Promise<void> 
     opened = true
     rows = await observeWidgetPopup(widgetEl, doc, async () => {
       clickElement(trigger)
-      return waitForOptions(field, widgetEl, trigger, doc)
+      return waitForOptions(field, widgetEl, trigger, doc, options)
     })
   }
 
+  if (!operationActive(options) || !widgetEl.isConnected) return
+  const roots = widgetPopupRoots(widget, widgetEl, trigger, doc)
+  if (
+    roots.some(
+      (r) =>
+        r.matches('[aria-multiselectable="true"]') ||
+        r.querySelector('[aria-multiselectable="true"]'),
+    )
+  )
+    widget.kind = 'multiselect'
+  if (
+    roots.some((r) => r.matches('[class*="virtual" i]') || r.querySelector('[class*="virtual" i]'))
+  )
+    widget.isVirtualized = true
   if (rows.length > 0) {
     field.options = harvestOptions(rows, field.currentValue)
     widget.optionsProbed = true
@@ -140,16 +160,15 @@ async function waitForOptions(
   widgetEl: Element,
   trigger: Element,
   doc: Document,
+  options: WidgetOperation,
 ): Promise<Element[]> {
-  const widget = field.customWidget
-  if (!widget) return []
-  const deadline = Date.now() + PROBE_BUDGET_MS
-  for (;;) {
-    const bySelector = harvestableRows(openOptionNodes(widget, widgetEl, trigger, doc))
-    if (bySelector.length > 0) return bySelector
-    if (Date.now() >= deadline) return []
-    await delay(PROBE_TICK_MS)
-  }
+  return (
+    (await waitForWidget(() => {
+      if (!widgetEl.isConnected) return null
+      const rows = harvestableRows(openOptionNodes(field.customWidget!, widgetEl, trigger, doc))
+      return rows.length ? rows : null
+    }, options)) ?? []
+  )
 }
 
 /** Drop chrome rows (loading/empty/prompt states) — only real values are options. */
@@ -235,7 +254,11 @@ function isDatepickerCandidateField(field: DetectedField): boolean {
   return !field.disabled && field.visible
 }
 
-async function probeDatepicker(field: DetectedField, root: FillRoot): Promise<void> {
+async function probeDatepicker(
+  field: DetectedField,
+  root: FillRoot,
+  options: WidgetOperation,
+): Promise<void> {
   const el = findElement(root, markedSelectors(field.id, field.selectorCandidates))
   if (!el || el.tagName.toLowerCase() !== 'input') return
   if (!looksLikeDatepickerInput(el)) return
@@ -252,14 +275,14 @@ async function probeDatepicker(field: DetectedField, root: FillRoot): Promise<vo
   observe(observer, doc)
   const calendar = await observeWidgetPopup(el, doc, async () => {
     clickElement(el)
-    return waitForCalendar(added)
+    return waitForCalendar(added, options)
   })
   observer.disconnect()
-  if (!calendar) return // never opened a calendar — it's just a text input
+  if (!calendar || !operationActive(options)) return // never opened a calendar — it's just a text input
 
   // Read the calendar's allowed range so the AI proposes a date the picker will
   // actually accept (e.g. a "paid through" picker whose min is years away).
-  const range = readCalendarRange(doc, calendar)
+  const range = readCalendarRange(calendar)
   if (range.min && !field.min) field.min = range.min
   if (range.max && !field.max) field.max = range.max
 
@@ -267,6 +290,10 @@ async function probeDatepicker(field: DetectedField, root: FillRoot): Promise<vo
   // date first, fall back to navigating the calendar and clicking the day cell.
   field.customWidget = {
     kind: 'datepicker',
+    dateFormat: calendarFormat(
+      el.getAttribute('placeholder'),
+      el.closest('[lang]')?.getAttribute('lang') ?? doc.documentElement.lang,
+    ),
     triggerSelectorCandidates: getSelectorCandidates(el),
     valueDisplaySelectorCandidates: [],
     optionItemSelector: '[role="option"], [role="gridcell"]',
@@ -283,15 +310,19 @@ async function probeDatepicker(field: DetectedField, root: FillRoot): Promise<vo
 }
 
 /** Poll the added subtrees for one that reads as a calendar. */
-async function waitForCalendar(added: Element[]): Promise<Element | null> {
+async function waitForCalendar(
+  added: Element[],
+  options: WidgetOperation,
+): Promise<Element | null> {
   const deadline = Date.now() + PROBE_BUDGET_MS
-  for (;;) {
+  while (operationActive(options)) {
     for (const el of added) {
       if (el.isConnected && looksLikeCalendar(el)) return el
     }
     if (Date.now() >= deadline) return null
     await delay(PROBE_TICK_MS)
   }
+  return null
 }
 
 /**
@@ -300,10 +331,10 @@ async function waitForCalendar(added: Element[]): Promise<Element | null> {
  * first enabled day of the visible month is the minimum (analogously for max). A
  * calendar that can page further has an unknown range — nothing is claimed.
  */
-function readCalendarRange(doc: Document, calendar: Element): { min?: string; max?: string } {
-  const parsed = parseMonthYear(calendarHeading(doc, calendar))
+function readCalendarRange(calendar: Element): { min?: string; max?: string } {
+  const parsed = calendarMonthYear(calendarHeading(calendar, calendar))
   if (!parsed) return {}
-  const days = dayCellNodes(doc, calendar)
+  const days = dayCellNodes(calendar, calendar)
     .filter((c) => !isAdjacentMonth(c) && !isDayDisabled(c))
     .map((c) => Number(norm(textOf(c))))
     .filter((n) => Number.isInteger(n) && n >= 1 && n <= 31)
@@ -316,16 +347,6 @@ function readCalendarRange(doc: Document, calendar: Element): { min?: string; ma
     out.max = isoDate(parsed.year, parsed.month, Math.max(...days))
   }
   return out
-}
-
-/** Month + year parsed from a heading like "June 2032" (3-letter abbreviations OK). */
-function parseMonthYear(heading: string | null): { year: number; month: number } | null {
-  if (!heading) return null
-  const h = norm(heading)
-  const month = MONTH_NAMES.findIndex((m) => new RegExp(`\\b${m.slice(0, 3)}`).test(h))
-  const year = Number((/\b(\d{4})\b/.exec(h) ?? [])[1])
-  if (month < 0 || !Number.isFinite(year)) return null
-  return { year, month }
 }
 
 /** Whether the calendar's prev/next month nav is absent or disabled (a range edge). */

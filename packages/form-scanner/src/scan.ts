@@ -415,6 +415,7 @@ function buildCustomField(info: CustomSelectInfo, ctx: FrameContext, id: string)
     optionValueAttr: info.optionValueAttr ?? undefined,
     isSearchable: info.isSearchable,
     isVirtualized: info.isVirtualized,
+    selectionItemSelector: info.selectionItemSelector,
   }
 
   return {

@@ -132,6 +132,8 @@ export const fillInstructionSchema = z.object({
   proposedValue: z.string(),
   /** Click-driving descriptor; required when fillStrategy is 'customSelect'. */
   customWidget: customWidgetSchema.optional(),
+  /** Explicit multi-value tokens; labels containing commas remain one value. */
+  proposedValues: z.array(z.string()).optional(),
 })
 export type FillInstruction = z.infer<typeof fillInstructionSchema>
 
@@ -153,6 +155,8 @@ export const undoEntrySchema = z.object({
   previousDisplayText: z.string().nullable().optional(),
   /** Echoed so undo can re-drive a custom widget if needed. */
   customWidget: customWidgetSchema.optional(),
+  previousSelectedValues: z.array(z.string()).optional(),
+  appliedSelectedValues: z.array(z.string()).optional(),
 })
 export type UndoEntry = z.infer<typeof undoEntrySchema>
 

@@ -54,6 +54,9 @@ export const customWidgetSchema = z.object({
   isSearchable: z.boolean().default(false),
   /** Whether the option list is virtualized (only visible rows are rendered). */
   isVirtualized: z.boolean().default(false),
+  /** Proven library selection nodes, distinct from its transient filter input. */
+  selectionItemSelector: z.string().optional(),
+  dateFormat: z.enum(['YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY', 'DD.MM.YYYY']).optional(),
   /**
    * The scan-time probe opened this widget and harvested its options into
    * `DetectedField.options`. A changed value set requires manual selection;

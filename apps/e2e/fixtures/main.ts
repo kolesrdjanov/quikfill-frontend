@@ -1,6 +1,7 @@
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import {
+  probeFields,
   applyFill,
   applyUndo,
   captureFillTargets,
@@ -16,7 +17,10 @@ import { transport } from './browser-adapter'
 import { createApp, type App } from 'vue'
 import ControlledForm from './ControlledForm.vue'
 import RekaWidgets from './RekaWidgets.vue'
+import RekaSelect from './RekaSelect.vue'
 import { mountReactWidgets } from './react-widgets'
+import { mountDependentWidgets } from './dependent-widgets'
+import { mountCalendarWidget } from './calendar-widget'
 
 let overlay: OverlayHandle | null = null
 let reactRoot: Root | null = null
@@ -28,13 +32,21 @@ const harness = {
   applyUndo,
   captureFillTargets,
   scanForms,
+  probeFields,
   valuesToFillInstructions,
   transport,
   reactState,
   mountReactWidgets,
+  mountDependentWidgets,
+  mountCalendarWidget,
   mountRekaWidgets() {
     vueApp?.unmount()
     vueApp = createApp(RekaWidgets)
+    vueApp.mount(document.getElementById('fixtures')!)
+  },
+  mountRekaSelect() {
+    vueApp?.unmount()
+    vueApp = createApp(RekaSelect)
     vueApp.mount(document.getElementById('fixtures')!)
   },
   mountOverlay() {

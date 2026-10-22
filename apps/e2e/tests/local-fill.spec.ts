@@ -241,3 +241,26 @@ test('signed-out popup exposes local preferences and keeps sign-in optional', as
   expect(errors).toEqual([])
   await page.screenshot({ path: test.info().outputPath('signed-out-popup.png'), fullPage: true })
 })
+
+test('dependent per-control planning keeps one synthetic identity without a configured seed', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.waitForFunction(() => !!window.qf)
+  await html(
+    page,
+    '<form><input name="first_name"><input name="last_name"><input name="full_name"><input type="email" name="email"></form>',
+  )
+  await page.evaluate(() => window.qf.mountOverlay())
+  await buttons(page).click()
+  await expect(page.getByRole('status')).toHaveText('4/4 filled')
+  const values = await page
+    .locator('form')
+    .evaluate((form) => Object.fromEntries(new FormData(form as HTMLFormElement)))
+  expect(values.full_name).toBe(`${values.first_name} ${values.last_name}`)
+  expect(String(values.email)).toMatch(
+    new RegExp(
+      `^${String(values.first_name).toLowerCase()}\\.${String(values.last_name).toLowerCase()}[0-9]+@example\\.com$`,
+    ),
+  )
+})

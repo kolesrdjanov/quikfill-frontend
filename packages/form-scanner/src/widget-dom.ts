@@ -1,3 +1,4 @@
+import { calendarMonthYear } from './calendar-date'
 import type { CustomWidget } from '@quikfill/schemas'
 import { isVisible } from './extract'
 
@@ -444,9 +445,6 @@ export const MONTH_NAMES = [
   'december',
 ]
 
-/** Matches "June 2032" / "Jun 2032" — a month name (or abbreviation) plus a year. */
-const MONTH_YEAR_RE = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+\d{4}\b/i
-
 /**
  * Text of the calendar's month/year header, or null. Prefers a match whose text
  * actually names a month + year — an empty `[aria-live]` region (react-datepicker
@@ -466,7 +464,7 @@ export function calendarHeading(doc: ParentNode, widgetEl: Element): string | nu
     for (const el of queryAllIn(scope, sel)) {
       const text = el.getAttribute('aria-label') || textOf(el)
       if (!text) continue
-      if (MONTH_YEAR_RE.test(text)) return text
+      if (calendarMonthYear(text) !== null) return text
       fallback = fallback ?? text
     }
   }
@@ -474,7 +472,7 @@ export function calendarHeading(doc: ParentNode, widgetEl: Element): string | nu
     for (const header of queryAllIn(scope, '[class*="header" i]')) {
       for (const el of Array.from(header.querySelectorAll('*')).slice(0, 60)) {
         const text = textOf(el)
-        if (text !== '' && text.length <= 40 && MONTH_YEAR_RE.test(text)) return text
+        if (text !== '' && text.length <= 40 && calendarMonthYear(text) !== null) return text
       }
     }
   }

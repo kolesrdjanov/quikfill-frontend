@@ -45,6 +45,12 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
 
 ## Current state
 
+**Phase 2 widgets (2026-10-22):** `fillLocalSession` refreshes scoped metadata
+between dependent fields while retaining original DOM bindings, waits for async
+options/enablement and includes conditional controls. Fill and Undo verify actual
+widget state. Tested libraries and limits:
+[widget adapters](../../docs/PHASE_2_WIDGET_ADAPTERS.md).
+
 **Phase 1 local fill (2026-10-22):** the main overlay action composes
 `buildLocalFillPlan` and `applyFill`, with no AI/auth/entitlements/history call.
 Only-empty is the default; popup local preferences expose locale, optional seed,

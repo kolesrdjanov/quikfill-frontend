@@ -52,6 +52,9 @@ export function planToFillInstructions(plan: FillPlan, fields: DetectedField[]):
         fillStrategy: item.fillStrategy,
         proposedValue: item.proposedValue,
         customWidget: field.customWidget,
+        ...(field.customWidget?.kind === 'multiselect'
+          ? { proposedValues: [item.proposedValue] }
+          : {}),
       },
     ]
   })

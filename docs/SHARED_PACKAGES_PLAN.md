@@ -12,8 +12,9 @@ surface, dependency rules, and tests. Parent roadmap:
 
 ## Dependency rules (enforced)
 
-**2026-10-22 Phase 2:** ARIA toggle activation and owner-scoped radio adapters
-are covered by real Radix/Reka browser fixtures. See
+**2026-10-22 Phase 2:** ARIA toggles/radios, owned portal selection, structured
+multiselect Undo, cancellable async waits, virtual scrolling and localized dates
+are covered by real library and reduced DOM browser fixtures. See
 [widget adapters](./PHASE_2_WIDGET_ADAPTERS.md) for current coverage and boundaries.
 
 **2026-10-22 stabilization:** critical execution, identity, verification and undo

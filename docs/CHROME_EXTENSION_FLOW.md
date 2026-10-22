@@ -5,6 +5,8 @@
 > with no account/network/quota requirement. Popup local preferences are always
 > available; AI assist and sign-in are explicit optional actions. The Phase 0
 > scoped execution, result details and undo protections remain in place.
+> [Phase 2](./PHASE_2_WIDGET_ADAPTERS.md) adds widget adapters, cancellable waits
+> and scoped rescans between dependent controls.
 
 This is the reference for **how filling works** in the Chrome extension after the
 flow revamp. It supersedes the side-panel scan → preview → AI-suggestion → fill

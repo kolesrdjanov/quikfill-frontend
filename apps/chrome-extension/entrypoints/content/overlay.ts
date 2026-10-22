@@ -17,6 +17,7 @@ import {
   qualifiesForFill,
   scanFormsGrouped,
   type FillTarget,
+  type FillOutcome,
 } from '@quikfill/form-scanner'
 import {
   DEFAULT_EXTENSION_SETTINGS,
@@ -30,6 +31,7 @@ import {
 } from '@quikfill/schemas'
 import { buttonDiameter, shouldShowOverlay } from '../../lib/overlay-gate'
 import { summarizeFill } from '../../lib/fill-summary'
+import { fillLocalSession } from '../../lib/local-fill-session'
 
 /**
  * User-facing copy per AI failure cause (mirrors lib/display-maps `AI_REASON_MESSAGE`;
@@ -384,9 +386,23 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     const undo = lastUndo
     if (busy || disposed || !undo || undo.button !== button) return
     busy = true
+    const controller = new AbortController()
+    activeController = controller
+    activeRoot = button.groupRoot
+    activeUrl = doc.URL
+    const startUrl = doc.URL
+    const timeout = win.setTimeout(() => controller.abort('Undo timed out.'), FILL_TIMEOUT_MS)
     setLocked(true)
     try {
-      const results = await applyUndo(undo.snapshot, button.groupRoot, { targets: undo.targets })
+      const results = await applyUndo(undo.snapshot, button.groupRoot, {
+        targets: undo.targets,
+        signal: controller.signal,
+        isCurrent: () =>
+          !disposed &&
+          !controller.signal.aborted &&
+          button.groupRoot.isConnected &&
+          doc.URL === startUrl,
+      })
       const restored = results.filter((r) => r.status === 'success').length
       button.summary.textContent = `${restored}/${results.length} restored`
       button.details.replaceChildren(
@@ -403,6 +419,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     } catch {
       button.summary.textContent = 'Undo failed. Your remaining fields were left unchanged.'
     } finally {
+      win.clearTimeout(timeout)
+      activeController = null
+      activeRoot = null
       busy = false
       setLocked(false)
       scheduleScan()
@@ -418,7 +437,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // Re-scan for fresh fields (the DOM may have changed since injection).
     let result: ReturnType<typeof scanFormsGrouped>
     try {
-      result = scanFormsGrouped(doc)
+      result = scanFormsGrouped(doc, { includeHidden: false, includeNonFillable: mode === 'local' })
     } catch {
       setStatus(button, 'error')
       return
@@ -453,7 +472,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       if (reason) skipped.push({ detectedFieldId: field.id, status: 'skipped', reason })
       return !reason
     })
-    const targets = captureFillTargets(eligible, button.groupRoot)
+    const targets = captureFillTargets(mode === 'local' ? fields : eligible, button.groupRoot)
     const isCurrent = (): boolean =>
       !disposed &&
       !signal.aborted &&
@@ -464,17 +483,17 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       if (!isCurrent()) throw new Error('The form or page changed. Scan the current form again.')
     }
     ensureCurrent()
-    await probeFields(eligible, button.groupRoot, { signal, isCurrent })
-    ensureCurrent()
-
     if (mode === 'local') {
-      const batch = buildLocalFillPlan(eligible, options)
-      await applyInstructions(button, batch.instructions, fields, targets, signal, isCurrent, [
-        ...skipped,
-        ...batch.skipped,
-      ])
+      const outcome = await fillLocalSession(fields, button.groupRoot, options, {
+        targets,
+        signal,
+        isCurrent,
+      })
+      showOutcome(button, fields, targets, outcome)
       return
     }
+    await probeFields(eligible, button.groupRoot, { signal, isCurrent })
+    ensureCurrent()
 
     // AI is a separate user action. Preserve existing/sensitive fields here too;
     // custom option lists still use the same local planner and exact executor.
@@ -539,6 +558,16 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     skipped: FillResult[] = [],
   ): Promise<void> {
     const outcome = await applyFill(instructions, button.groupRoot, { targets, signal, isCurrent })
+    showOutcome(button, fields, targets, outcome, skipped)
+  }
+
+  function showOutcome(
+    button: FormButton,
+    fields: DetectedField[],
+    targets: Map<string, FillTarget>,
+    outcome: FillOutcome,
+    skipped: FillResult[] = [],
+  ): void {
     if (disposed) return
     const summary = summarizeFill(fields, [...skipped, ...outcome.results])
     button.panel.hidden = false

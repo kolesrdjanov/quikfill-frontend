@@ -26,11 +26,13 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 | —   | v2 popup surface (auth + usage mini-dashboard; side panel & settings retired) | ✅ Done  |
 | —   | Phase 0: scoped sessions, honest results, guarded undo, browser regressions   | ✅ Local |
 | —   | Phase 1: local Fill by default, optional account/AI, offline popup controls   | ✅ Local |
+| —   | Phase 2: widget adapters, dependent rescans, async waits, browser matrix      | ✅ Local |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)
 
 Phase 0 acceptance and test commands: [PHASE_0_STABILIZATION.md](./PHASE_0_STABILIZATION.md).
+Widget coverage and boundaries: [PHASE_2_WIDGET_ADAPTERS.md](./PHASE_2_WIDGET_ADAPTERS.md).
 Current live flow: [PHASE_1_LOCAL_FILL.md](./PHASE_1_LOCAL_FILL.md). The main button
 uses the shared local planner; AI/account UI is optional. Earlier revamp/v2 notes
 below describe the historical AI-first/auth-first implementation.

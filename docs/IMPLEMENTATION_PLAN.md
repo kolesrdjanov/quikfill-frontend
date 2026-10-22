@@ -43,6 +43,12 @@ repo's iterations 4–6.
 
 ## Status
 
+**2026-10-22 — Phase 2 widget adapters complete locally.** Real Radix, Reka,
+React Select, MUI and Headless UI fixtures cover committed portal selections;
+scoped rescans handle dependent/conditional fields, and localized calendars verify
+actual dates. Cancellable waits and guarded Undo retain session protections.
+Coverage and explicit limits: [Phase 2](./PHASE_2_WIDGET_ADAPTERS.md).
+
 **2026-10-22 — Phase 1 local flow restored.** The main Fill action uses the shared
 local planner/generators without AI, account, network or quota. Only-empty defaults,
 seeded personas, local popup preferences and offline activation writes are wired

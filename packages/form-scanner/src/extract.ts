@@ -412,6 +412,7 @@ export interface CustomSelectInfo {
   /** Currently displayed selection text, if any. */
   selectedLabel: string | null
   disabledOptionLabels: string[]
+  selectionItemSelector?: string
   /** The open list's element id (trigger's aria-controls/aria-owns), for portal resolution. */
   listboxId: string | null
   /** The widget's typeahead/filter input, when it has one. */
@@ -535,8 +536,22 @@ export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
   const options = optionNodes.filter((o) => o !== trigger && !trigger.contains(o))
 
   // 2) Current selection display: a value-ish child of the trigger, else trigger text.
-  const valueDisplay = trigger.querySelector('[class*="value" i], [class*="selected" i]') ?? trigger
-  const displayText = normalizeWidgetText(valueDisplay)
+  const libraryRoot = trigger.matches('input[role="combobox"]')
+    ? trigger.closest('[class*="-control"], [class*="__control"]')
+    : null
+  const selectionItemSelector = libraryRoot
+    ? '[class*="-singleValue"], [class*="__single-value"], [class*="-multiValue"] > :first-child, [class*="__multi-value__label"]'
+    : undefined
+  const valueDisplay =
+    (libraryRoot ?? trigger).querySelector('[class*="value" i], [class*="selected" i]') ?? trigger
+  const selectedItems = selectionItemSelector
+    ? Array.from(libraryRoot!.querySelectorAll(selectionItemSelector))
+    : []
+  const displayText = libraryRoot
+    ? selectedItems.map(normalizeWidgetText).join(', ')
+    : trigger.matches('input')
+      ? (trigger as HTMLInputElement).value
+      : normalizeWidgetText(valueDisplay)
   const selectedOption = options.some((o) => o.getAttribute('aria-selected') === 'true')
   const hasPlaceholder =
     trigger.hasAttribute('data-placeholder') || valueDisplay.hasAttribute('data-placeholder')
@@ -549,7 +564,11 @@ export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
   // role=combobox input). Drives the type-to-filter fill tier.
   const searchInput = findSearchInput(trigger, optionsScope)
   const base = {
-    kind: classifyWidgetKind(trigger, optionsScope),
+    kind:
+      libraryRoot?.querySelector('[class*="multiValue"], [class*="multi-value"]') ||
+      optionsScope?.getAttribute('aria-multiselectable') === 'true'
+        ? ('multiselect' as const)
+        : classifyWidgetKind(trigger, optionsScope),
     trigger,
     valueDisplay: valueDisplay === trigger ? null : valueDisplay,
     optionItemSelector: CUSTOM_OPTION_SELECTOR,
@@ -557,6 +576,7 @@ export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
     disabledOptionLabels: options
       .filter((o) => o.matches(':disabled') || o.getAttribute('aria-disabled') === 'true')
       .map(normalizeWidgetText),
+    selectionItemSelector,
     listboxId: trigger.getAttribute('aria-controls') ?? trigger.getAttribute('aria-owns') ?? null,
     searchInput,
     optionValueAttr: detectOptionValueAttr(options[0] ?? null),
@@ -642,6 +662,7 @@ function findOptionsScope(trigger: Element): Element | null {
   // Climb until an ancestor contains option nodes (siblings of the trigger).
   let node: Element | null = trigger
   for (let depth = 0; node && depth < 6; depth++) {
+    if (node.matches('form, body, html')) break
     if (node.querySelector(CUSTOM_OPTION_SELECTOR)) return node
     node = node.parentElement
   }
@@ -654,18 +675,22 @@ function findOptionsScope(trigger: Element): Element | null {
  * the first match so we never over-climb into a form/page wrapper.
  */
 function resolveWidgetRoot(trigger: Element, optionsScope: Element | null): Element {
-  if (trigger.matches('input[role="combobox"]')) return trigger
+  if (trigger.matches('input[role="combobox"]')) {
+    const control = trigger.closest('[class*="-control"], [class*="__control"]')
+    return control && control.querySelectorAll('[role="combobox"]').length === 1 ? control : trigger
+  }
   // Climb from the options scope when we have one, else from the trigger (closed
   // on-demand selects expose no list at scan time).
   let node: Element | null = optionsScope ?? trigger
   for (let i = 0; i < 4 && node; i++) {
+    if (node.matches('form, body, html')) break
     const wrapsOneWidget = node.contains(trigger) && countTriggers(node) <= 1
     const hasOwnIdentity = hasStableIdentity(node) || !!node.querySelector(':scope > label')
     if (wrapsOneWidget && hasOwnIdentity) return node
     node = node.parentElement
   }
   if (optionsScope?.contains(trigger)) return optionsScope
-  return trigger.parentElement ?? trigger
+  return trigger
 }
 
 function countTriggers(el: Element): number {
@@ -689,7 +714,10 @@ function hasStableIdentity(el: Element): boolean {
 function normalizeWidgetText(el: Element): string {
   const clone = el.cloneNode(true) as Element
   for (const svg of Array.from(clone.querySelectorAll('svg'))) svg.remove()
-  return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
+  return (clone.textContent ?? '')
+    .replace(/[\u200b\ufeff]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 /** Selectors that locate a custom-select trigger again at fill time. */
