@@ -129,6 +129,7 @@ export function buildAiFillRequest(
 }
 
 function strategyFor(field: DetectedField): FillStrategy {
+  if (field.autocompleteHint) return 'assistedAutocomplete'
   // Any field with a widget descriptor is click-driven — including a probed
   // datepicker whose element is a native `<input>` (the descriptor's kind routes
   // it to the type-or-click-a-date path inside the filler).

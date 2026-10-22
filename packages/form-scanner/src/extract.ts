@@ -582,6 +582,7 @@ function classifyWidgetKind(
 
 /** The widget's typeahead/filter input (a text/search input or role=combobox), if any. */
 function findSearchInput(trigger: Element, optionsScope: Element | null): Element | null {
+  if (trigger.matches('input[role="combobox"]')) return trigger
   for (const scope of [trigger, optionsScope]) {
     const input = scope?.querySelector(
       'input[type="text"], input[type="search"], input:not([type]), [role="combobox"] input, input[role="combobox"]',
@@ -629,6 +630,7 @@ function findOptionsScope(trigger: Element): Element | null {
  * the first match so we never over-climb into a form/page wrapper.
  */
 function resolveWidgetRoot(trigger: Element, optionsScope: Element | null): Element {
+  if (trigger.matches('input[role="combobox"]')) return trigger
   // Climb from the options scope when we have one, else from the trigger (closed
   // on-demand selects expose no list at scan time).
   let node: Element | null = optionsScope ?? trigger
@@ -676,6 +678,7 @@ export function getWidgetLabel(
   widgetRoot: Element,
   root: Document | ShadowRoot,
 ): string | undefined {
+  if (isFormControl(widgetRoot)) return getLabelText(widgetRoot, root)
   const inner = widgetRoot.querySelector('input[id], [id]')
   const id = inner?.getAttribute('id')
   if (id) {

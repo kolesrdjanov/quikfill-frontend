@@ -145,6 +145,10 @@ export const undoEntrySchema = z.object({
   inputType: z.string().optional(),
   previousValue: z.string().nullable(),
   previousChecked: z.boolean().optional(),
+  /** State left by this fill; undo preserves subsequent user edits. */
+  appliedValue: z.string().nullable().optional(),
+  appliedChecked: z.boolean().optional(),
+  appliedDisplayText: z.string().optional(),
   /** For custom widgets: the displayed selection text before the fill. */
   previousDisplayText: z.string().nullable().optional(),
   /** Echoed so undo can re-drive a custom widget if needed. */

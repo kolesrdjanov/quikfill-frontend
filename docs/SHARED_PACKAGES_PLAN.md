@@ -12,6 +12,11 @@ surface, dependency rules, and tests. Parent roadmap:
 
 ## Dependency rules (enforced)
 
+**2026-10-22 stabilization:** critical execution, identity, verification and undo
+failures identified by the audit are fixed in the shared engine. Browser fixtures
+now verify real React state, DOM submission side effects and scoped execution.
+Details and remaining limits: [Phase 0](./PHASE_0_STABILIZATION.md).
+
 ```txt
 schemas        → (no deps) pure Zod + inferred types
 generators     → schemas

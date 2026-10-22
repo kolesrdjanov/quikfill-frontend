@@ -1,10 +1,12 @@
 import type {
   CustomWidget,
+  DetectedField,
   FillInstruction,
   FillResult,
   UndoEntry,
   UndoSnapshot,
 } from '@quikfill/schemas'
+import { withoutSubmit } from './interaction-guard'
 import { coerceToMask, getMaskSpec, valuesMatch } from './mask'
 import {
   calendarHeading,
@@ -20,6 +22,7 @@ import {
   MONTH_NAMES,
   norm,
   openOptionNodes,
+  observeWidgetPopup,
   optionAutomationValues,
   optionLabelText,
   ownerDocOf,
@@ -27,6 +30,8 @@ import {
   resolveTrigger,
   settle,
   textOf,
+  widgetPopupRoots,
+  looksLikeCalendar,
   type Fillable,
   type FillRoot,
 } from './widget-dom'
@@ -34,6 +39,50 @@ import {
 export interface FillOutcome {
   results: FillResult[]
   undoSnapshot: UndoSnapshot
+}
+
+export interface FillTarget {
+  element: Fillable
+  value: string
+  checked?: boolean
+}
+
+export interface FillOptions {
+  signal?: AbortSignal
+  isCurrent?: () => boolean
+  /** Bound before asynchronous work; never retarget a replacement control. */
+  targets?: ReadonlyMap<string, FillTarget>
+}
+
+export function captureFillTargets(
+  fields: DetectedField[],
+  root: FillRoot = document,
+): Map<string, FillTarget> {
+  const targets = new Map<string, FillTarget>()
+  for (const field of fields) {
+    const el = findElement(root, markedSelectors(field.id, field.selectorCandidates))
+    if (!el) continue
+    targets.set(field.id, {
+      element: el,
+      value: fieldState(field, el, root),
+      checked:
+        isToggle(el) && field.inputType !== 'radiogroup'
+          ? (el as HTMLInputElement).checked
+          : undefined,
+    })
+  }
+  return targets
+}
+
+function fieldState(
+  field: Pick<FillInstruction, 'inputType' | 'customWidget' | 'selectorCandidates'>,
+  el: Fillable,
+  root: FillRoot,
+): string {
+  if (field.inputType === 'radiogroup') {
+    return ownedRadios(root, field.selectorCandidates, el).find((r) => r.checked)?.value ?? ''
+  }
+  return field.customWidget ? readDisplay(el, field.customWidget, ownerDocOf(el)) : readValue(el)
 }
 
 export type { FillRoot } from './widget-dom'
@@ -45,8 +94,20 @@ export type { FillRoot } from './widget-dom'
  * different realms, so the page's Element fails the script's `instanceof Element`.
  */
 function withinRoot(root: FillRoot, node: Node): boolean {
-  if (root.nodeType !== 1) return true
-  return (root as Element).contains(node)
+  let current: Node | null = node
+  while (current) {
+    if (root === current || root.contains(current)) return true
+    const tree = current.getRootNode() as Document | ShadowRoot
+    if ('host' in tree) current = tree.host
+    else {
+      try {
+        current = tree.defaultView?.frameElement ?? null
+      } catch {
+        return false
+      }
+    }
+  }
+  return false
 }
 
 const TRUTHY = new Set(['true', 'on', 'yes', '1', 'checked'])
@@ -61,6 +122,15 @@ const TRUTHY = new Set(['true', 'on', 'yes', '1', 'checked'])
 export async function applyFill(
   instructions: FillInstruction[],
   root: FillRoot = document,
+  options: FillOptions = {},
+): Promise<FillOutcome> {
+  return withoutSubmit(root, () => executeFill(instructions, root, options))
+}
+
+async function executeFill(
+  instructions: FillInstruction[],
+  root: FillRoot,
+  options: FillOptions,
 ): Promise<FillOutcome> {
   const results: FillResult[] = []
   const entries: UndoEntry[] = []
@@ -86,6 +156,31 @@ export async function applyFill(
   ]
 
   for (const ins of ordered) {
+    if (
+      options.signal?.aborted ||
+      options.isCurrent?.() === false ||
+      (root.nodeType === 1 && !root.isConnected)
+    ) {
+      results.push(skip(ins.detectedFieldId, 'Fill cancelled — the form is no longer active.'))
+      continue
+    }
+    const bound = options.targets?.get(ins.detectedFieldId)
+    if (options.targets) {
+      if (!bound || !bound.element.isConnected || !withinRoot(root, bound.element)) {
+        results.push(skip(ins.detectedFieldId, 'The original field was removed or replaced.'))
+        continue
+      }
+      if (
+        fieldState(ins, bound.element, root) !== bound.value ||
+        (bound.checked !== undefined &&
+          (bound.element as HTMLInputElement).checked !== bound.checked)
+      ) {
+        results.push(
+          skip(ins.detectedFieldId, 'Field changed since scanning — your edit was preserved.'),
+        )
+        continue
+      }
+    }
     // No value to write (unknown field, AI-draft stub, missing generator) — skip
     // rather than write "" and falsely report success. Toggles are exempt: an empty
     // value on a toggle is a meaningful "unchecked". A custom select with no proposed
@@ -97,34 +192,46 @@ export async function applyFill(
     }
 
     if (ins.fillStrategy === 'customSelect' && ins.customWidget) {
-      const { result, entry } = await fillCustomSelect(ins, ins.customWidget, root, claimed)
-      results.push(result)
-      if (entry) entries.push(entry)
+      try {
+        const { result, entry } = await fillCustomSelect(
+          ins,
+          ins.customWidget,
+          root,
+          claimed,
+          bound?.element,
+        )
+        results.push(result)
+        if (
+          entry?.appliedDisplayText !== undefined &&
+          entry.appliedDisplayText !== entry.previousDisplayText
+        )
+          entries.push(entry)
+      } catch (error) {
+        results.push(
+          fail(
+            ins.detectedFieldId,
+            error instanceof Error ? error.message : 'Widget interaction failed.',
+          ),
+        )
+      }
       continue
     }
 
     if (ins.inputType === 'radiogroup') {
-      const { result, entry } = fillRadioGroup(ins, root, claimed)
+      const { result, entry } = await fillRadioGroup(ins, root, claimed, bound?.element)
       results.push(result)
-      if (entry) entries.push(entry)
+      if (entry && entry.previousValue !== entry.appliedValue) entries.push(entry)
       continue
     }
 
-    const el = findElement(
-      root,
-      markedSelectors(ins.detectedFieldId, ins.selectorCandidates),
-      claimed,
-    )
+    const el =
+      bound?.element ??
+      findElement(root, markedSelectors(ins.detectedFieldId, ins.selectorCandidates), claimed)
     if (!el) {
       results.push(skip(ins.detectedFieldId, 'Element not found on the page.'))
       continue
     }
     claimed.add(el)
-    if (ins.fillStrategy === 'assistedAutocomplete') {
-      entries.push(capture(ins, el))
-      results.push(assistAutocomplete(ins, el))
-      continue
-    }
     if (isDisabled(el)) {
       results.push(skip(ins.detectedFieldId, 'Field is disabled.'))
       continue
@@ -134,12 +241,24 @@ export async function applyFill(
       continue
     }
 
-    entries.push(capture(ins, el))
+    const entry = capture(ins, el)
 
     try {
-      results.push(await writeAndVerify(ins, el))
+      results.push(
+        ins.fillStrategy === 'assistedAutocomplete'
+          ? assistAutocomplete(ins, el)
+          : await writeAndVerify(ins, el),
+      )
     } catch (e) {
       results.push(fail(ins.detectedFieldId, e instanceof Error ? e.message : 'Fill failed.'))
+    }
+    entry.appliedValue = readValue(el)
+    entry.appliedChecked = isToggle(el) ? (el as HTMLInputElement).checked : undefined
+    if (
+      entry.previousValue !== entry.appliedValue ||
+      entry.previousChecked !== entry.appliedChecked
+    ) {
+      entries.push(entry)
     }
   }
 
@@ -150,20 +269,53 @@ export async function applyFill(
 export async function applyUndo(
   snapshot: UndoSnapshot,
   root: FillRoot = document,
+  options: FillOptions = {},
+): Promise<FillResult[]> {
+  return withoutSubmit(root, () => executeUndo(snapshot, root, options))
+}
+
+async function executeUndo(
+  snapshot: UndoSnapshot,
+  root: FillRoot,
+  options: FillOptions,
 ): Promise<FillResult[]> {
   const results: FillResult[] = []
   for (const entry of snapshot.entries) {
+    const bound = options.targets?.get(entry.detectedFieldId)
+    const el =
+      bound?.element ??
+      (options.targets
+        ? null
+        : findElement(root, markedSelectors(entry.detectedFieldId, entry.selectorCandidates)))
+    if (!el || !el.isConnected || !withinRoot(root, el) || options.signal?.aborted) {
+      results.push(skip(entry.detectedFieldId, 'The original field is no longer available.'))
+      continue
+    }
+    if (isDisabled(el) || (isReadonly(el) && !entry.customWidget)) {
+      results.push(skip(entry.detectedFieldId, 'Field is now disabled or read-only.'))
+      continue
+    }
+    const changed = entry.customWidget
+      ? entry.appliedDisplayText !== undefined &&
+        readDisplay(el, entry.customWidget, ownerDocOf(el)) !== entry.appliedDisplayText
+      : entry.inputType === 'radiogroup'
+        ? entry.appliedValue !== undefined &&
+          fieldState({ ...entry, inputType: 'radiogroup' }, el, root) !== entry.appliedValue
+        : (entry.appliedValue !== undefined && readValue(el) !== entry.appliedValue) ||
+          (entry.appliedChecked !== undefined &&
+            (el as HTMLInputElement).checked !== entry.appliedChecked)
+    if (changed) {
+      results.push(
+        skip(entry.detectedFieldId, 'Field changed after filling — your edit was preserved.'),
+      )
+      continue
+    }
     if (entry.customWidget) {
-      results.push(await undoCustomSelect(entry, entry.customWidget, root))
+      results.push(await undoCustomSelect(entry, entry.customWidget, root, el))
       continue
     }
     if (entry.inputType === 'radiogroup') {
-      results.push(undoRadioGroup(entry, root))
-      continue
-    }
-    const el = findElement(root, markedSelectors(entry.detectedFieldId, entry.selectorCandidates))
-    if (!el) {
-      results.push(skip(entry.detectedFieldId, 'Element not found on the page.'))
+      results.push(await undoRadioGroup(entry, root, el))
       continue
     }
     try {
@@ -172,7 +324,16 @@ export async function applyUndo(
       } else {
         setValue(el, entry.previousValue ?? '')
       }
-      results.push(success(entry.detectedFieldId, entry.previousValue))
+      await settle()
+      const restored =
+        isToggle(el) && entry.previousChecked !== undefined
+          ? (el as HTMLInputElement).checked === entry.previousChecked
+          : readValue(el) === (entry.previousValue ?? '')
+      results.push(
+        restored
+          ? success(entry.detectedFieldId, entry.previousValue)
+          : fail(entry.detectedFieldId, 'Field did not accept its previous value.'),
+      )
     } catch (e) {
       results.push(fail(entry.detectedFieldId, e instanceof Error ? e.message : 'Undo failed.'))
     }
@@ -184,7 +345,8 @@ async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillR
   if (isToggle(el)) {
     const desired = TRUTHY.has(ins.proposedValue.toLowerCase().trim())
     setChecked(el as HTMLInputElement, desired)
-    return (el as HTMLInputElement).checked === desired
+    await settle()
+    return (el as HTMLInputElement).checked === desired && isValid(el)
       ? success(ins.detectedFieldId, String(desired))
       : fail(ins.detectedFieldId, 'Checkbox/radio did not accept the toggle.')
   }
@@ -193,13 +355,19 @@ async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillR
   // often a human *label* (from a saved record or AI). Resolve label → value so
   // those fills land instead of silently failing.
   if (el.tagName.toLowerCase() === 'select') {
+    if ((el as HTMLSelectElement).multiple) {
+      return skip(
+        ins.detectedFieldId,
+        'Multiple selection needs manual input — existing choices were preserved.',
+      )
+    }
     const value = resolveSelectOption(el as HTMLSelectElement, ins.proposedValue)
     if (value === null) {
       return fail(ins.detectedFieldId, `No option matching "${ins.proposedValue}" in the dropdown.`)
     }
     setValue(el, value)
     await settle()
-    return readValue(el) === value
+    return readValue(el) === value && isValid(el)
       ? success(ins.detectedFieldId, value)
       : fail(ins.detectedFieldId, `Select did not accept "${value}".`)
   }
@@ -214,10 +382,15 @@ async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillR
   setValue(el, target)
   await settle()
   const accepted = readValue(el)
-  if (valuesMatch(accepted, target)) {
+  if (valuesMatch(accepted, target, spec) && isValid(el)) {
     return success(ins.detectedFieldId, accepted)
   }
-  return fail(ins.detectedFieldId, `Value not accepted (wanted "${target}", got "${accepted}").`)
+  return fail(
+    ins.detectedFieldId,
+    isValid(el)
+      ? `Value not accepted (wanted "${target}", got "${accepted}").`
+      : 'The entered value does not satisfy the field validation constraints.',
+  )
 }
 
 /**
@@ -260,12 +433,17 @@ function capture(ins: FillInstruction, el: Fillable): UndoEntry {
  * value, and capture the previously-selected value for undo. The group is resolved
  * by the name selector, so every member is considered — not just the first match.
  */
-function fillRadioGroup(
+async function fillRadioGroup(
   ins: FillInstruction,
   root: FillRoot,
   claimed: Set<Element>,
-): { result: FillResult; entry?: UndoEntry } {
-  const radios = collectRadios(root, ins.selectorCandidates).filter((r) => !claimed.has(r))
+  anchor?: Fillable,
+): Promise<{ result: FillResult; entry?: UndoEntry }> {
+  const radios = ownedRadios(
+    root,
+    ins.selectorCandidates,
+    anchor ?? findElement(root, markedSelectors(ins.detectedFieldId, ins.selectorCandidates)),
+  ).filter((r) => !claimed.has(r))
   if (radios.length === 0) {
     return { result: skip(ins.detectedFieldId, 'Element not found on the page.') }
   }
@@ -289,24 +467,33 @@ function fillRadioGroup(
     previousValue: previous?.value ?? '',
   }
   setChecked(target, true)
-  return target.checked
+  await settle()
+  entry.appliedValue = radios.find((r) => r.checked)?.value ?? ''
+  return target.checked && isValid(target)
     ? { result: success(ins.detectedFieldId, target.value), entry }
     : { result: fail(ins.detectedFieldId, 'Radio option did not accept the selection.'), entry }
 }
 
-function undoRadioGroup(entry: UndoEntry, root: FillRoot): FillResult {
-  const radios = collectRadios(root, entry.selectorCandidates)
+async function undoRadioGroup(
+  entry: UndoEntry,
+  root: FillRoot,
+  anchor: Fillable,
+): Promise<FillResult> {
+  const radios = ownedRadios(root, entry.selectorCandidates, anchor)
   if (radios.length === 0) return skip(entry.detectedFieldId, 'Element not found on the page.')
   const prev = entry.previousValue ?? ''
   if (prev === '') {
-    // Nothing was selected before — clear whatever the fill checked.
-    for (const r of radios) if (r.checked) setChecked(r, false)
-    return success(entry.detectedFieldId, '')
+    // A radio cannot be unselected through native activation. Assigning checked
+    // alone would falsely restore the DOM while a controlled framework stays set.
+    return skip(entry.detectedFieldId, 'A previously empty radio group must be cleared manually.')
   }
   const target = radios.find((r) => r.value === prev)
   if (!target) return skip(entry.detectedFieldId, `Couldn't restore previous selection "${prev}".`)
   setChecked(target, true) // checking one radio unchecks its siblings natively
-  return success(entry.detectedFieldId, prev)
+  await settle()
+  return target.checked
+    ? success(entry.detectedFieldId, prev)
+    : fail(entry.detectedFieldId, 'Radio group did not accept its previous selection.')
 }
 
 /**
@@ -315,7 +502,7 @@ function undoRadioGroup(entry: UndoEntry, root: FillRoot): FillResult {
  * value, or null when nothing matches.
  */
 function resolveSelectOption(select: HTMLSelectElement, want: string): string | null {
-  const options = Array.from(select.options)
+  const options = Array.from(select.options).filter((o) => !o.matches(':disabled'))
   const wantNorm = norm(want)
   const match =
     options.find((o) => o.value === want) ??
@@ -337,6 +524,19 @@ function collectRadios(root: FillRoot, selectors: string[]): HTMLInputElement[] 
   const seen = new Set<Element>()
   for (const selector of selectors) collectRadiosInto(root, selector, out, seen)
   return out
+}
+
+function ownedRadios(
+  root: FillRoot,
+  selectors: string[],
+  anchor: Fillable | null,
+): HTMLInputElement[] {
+  if (!anchor) return []
+  const radio = anchor as HTMLInputElement
+  return collectRadios(root, selectors).filter(
+    (r) =>
+      r.name === radio.name && r.form === radio.form && r.getRootNode() === radio.getRootNode(),
+  )
 }
 
 function collectRadiosInto(
@@ -384,13 +584,15 @@ async function fillCustomSelect(
   widget: CustomWidget,
   root: FillRoot,
   claimed: Set<Element>,
+  bound?: Fillable,
 ): Promise<{ result: FillResult; entry?: UndoEntry }> {
-  const widgetEl = findElement(
-    root,
-    markedSelectors(ins.detectedFieldId, ins.selectorCandidates),
-    claimed,
-  )
+  const widgetEl =
+    bound ??
+    findElement(root, markedSelectors(ins.detectedFieldId, ins.selectorCandidates), claimed)
   if (!widgetEl) return { result: skip(ins.detectedFieldId, 'Element not found on the page.') }
+  if (isDisabled(widgetEl) || widgetEl.getAttribute('aria-disabled') === 'true') {
+    return { result: skip(ins.detectedFieldId, 'Field is disabled.') }
+  }
   claimed.add(widgetEl)
 
   // The widget is resolved within the scoped root, but its option list is often
@@ -410,7 +612,9 @@ async function fillCustomSelect(
   }
 
   if (widget.kind === 'datepicker') {
-    return { result: await fillDatePicker(ins, widgetEl, trigger, root, doc), entry }
+    const result = await fillDatePicker(ins, widgetEl, trigger, root, doc)
+    entry.appliedDisplayText = readDisplay(widgetEl, widget, doc)
+    return { result, entry }
   }
 
   // The scan-time probe may have failed to close this widget (some only close on
@@ -419,26 +623,22 @@ async function fillCustomSelect(
   // nodes findable in the DOM" would also match pre-rendered-but-hidden lists,
   // which DO still need the opening press.
   if (trigger.getAttribute('aria-expanded') !== 'true') {
-    clickElement(trigger)
-    await settle()
+    await observeWidgetPopup(widgetEl, doc, async () => {
+      clickElement(trigger)
+      await settle()
+    })
   }
 
   // Multi-select is detected from the OPEN list too (checkbox rows / aria-multiselectable),
   // not just the scan-time kind — a closed ARIA-less widget can't reveal it earlier.
   if (isMultiSelect(widget, widgetEl, trigger, doc)) {
-    return { result: await selectMultiple(ins, widget, widgetEl, trigger, root, doc), entry }
+    const result = await selectMultiple(ins, widget, widgetEl, trigger, root, doc)
+    entry.appliedDisplayText = readDisplay(widgetEl, widget, doc)
+    return { result, entry }
   }
 
   // --- Single select ---
-  let option = await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
-
-  // Probed widget: its options were harvested at scan time and the proposed value
-  // came from that set — when the re-rendered list no longer matches it (labels
-  // changed, async re-fetch), pick a random enabled option instead of degrading
-  // to assisted. The user opted into random selection for these widgets.
-  if (!option && widget.optionsProbed) {
-    option = randomOption(openOptionNodes(widget, widgetEl, trigger, doc))
-  }
+  const option = await resolveOption(widget, widgetEl, trigger, doc, ins.proposedValue)
 
   if (!option) {
     // No match. LEAVE THE LIST OPEN — never try to close it. Confirmed against the
@@ -459,8 +659,13 @@ async function fillCustomSelect(
   }
   const chosenLabel = optionLabelText(option)
 
+  if (!widgetEl.isConnected || !option.isConnected) {
+    return { result: skip(ins.detectedFieldId, 'The widget was replaced during filling.'), entry }
+  }
+
   clickOption(option, trigger, root)
   await settle()
+  entry.appliedDisplayText = readDisplay(widgetEl, widget, doc)
   if (selectionLanded(widgetEl, widget, doc, previousDisplayText, chosenLabel, option)) {
     return { result: success(ins.detectedFieldId, chosenLabel || null), entry }
   }
@@ -469,6 +674,7 @@ async function fillCustomSelect(
   // aria-activedescendant widgets whose option element ignores synthetic clicks).
   selectByKeyboard(trigger, option)
   await settle()
+  entry.appliedDisplayText = readDisplay(widgetEl, widget, doc)
   if (selectionLanded(widgetEl, widget, doc, previousDisplayText, chosenLabel, option)) {
     return { result: success(ins.detectedFieldId, chosenLabel || null), entry }
   }
@@ -482,13 +688,6 @@ async function fillCustomSelect(
     ),
     entry,
   }
-}
-
-/** A uniformly random enabled option from the open list, or null when none. */
-function randomOption(nodes: Element[]): Element | null {
-  const enabled = nodes.filter((n) => !isDayDisabled(n))
-  if (enabled.length === 0) return null
-  return enabled[Math.floor(Math.random() * enabled.length)]
 }
 
 /**
@@ -593,8 +792,9 @@ function resolveSearchInput(
   doc: Document,
 ): Fillable | null {
   if (widget.searchInputSelector) {
-    const byScan =
-      queryIn(widgetEl, widget.searchInputSelector) ?? queryIn(doc, widget.searchInputSelector)
+    const byScan = widgetPopupRoots(widget, widgetEl, resolveTrigger(widgetEl), doc)
+      .map((scope) => queryIn(scope, widget.searchInputSelector!))
+      .find(Boolean)
     if (byScan) return byScan as Fillable
   }
   const linked = widget.listboxId ? doc.getElementById(widget.listboxId) : null
@@ -666,7 +866,7 @@ function optionIsSelected(option: Element): boolean {
   return (
     option.getAttribute('aria-selected') === 'true' ||
     option.getAttribute('aria-checked') === 'true' ||
-    /(^|[\s_-])(selected|checked|active)([\s_-]|$)/i.test(option.getAttribute('class') ?? '')
+    /(^|[\s_-])(selected|checked)([\s_-]|$)/i.test(option.getAttribute('class') ?? '')
   )
 }
 
@@ -710,8 +910,6 @@ function optionTier(node: Element, widget: CustomWidget, want: string, ariaLabel
   // segment does) — the Playwright-style locator, strongest when present.
   if (optionAutomationValues(node, widget).includes(want)) return 1
   if (names.some((n) => n === want)) return 2 // exact accessible name
-  if (names.some((n) => n.includes(want) || want.includes(n))) return 3 // contains
-  if (names.some((n) => n.startsWith(want) || want.startsWith(n))) return 4 // prefix
   return 0
 }
 
@@ -751,8 +949,10 @@ function selectionLanded(
   option: Element,
 ): boolean {
   const got = readDisplay(widgetEl, widget, doc)
-  if (norm(got) !== norm(previous) || norm(got) === norm(chosenLabel)) return true
-  return optionIsSelected(option)
+  if (!widgetEl.isConnected) return false
+  if (norm(got) === norm(chosenLabel) && chosenLabel.trim() !== '') return true
+  // A removed option's stale aria-selected is not evidence of a committed pick.
+  return option.isConnected && optionIsSelected(option) && norm(got) !== norm(previous)
 }
 
 /**
@@ -819,9 +1019,20 @@ async function fillDatePicker(
     if (dateLanded(got, date)) return success(ins.detectedFieldId, got)
   }
 
-  clickElement(trigger)
-  await settle()
-  const cell = await navigateCalendar(widgetEl, doc, date, root, trigger)
+  await observeWidgetPopup(widgetEl, doc, async () => {
+    if (trigger.getAttribute('aria-expanded') !== 'true') clickElement(trigger)
+    await settle()
+  })
+  const calendar = widgetPopupRoots(ins.customWidget!, widgetEl, trigger, doc).find(
+    looksLikeCalendar,
+  )
+  if (!calendar)
+    return assisted(
+      ins.detectedFieldId,
+      ins.proposedValue,
+      'Calendar could not be associated with this field — pick the date manually.',
+    )
+  const cell = await navigateCalendar(widgetEl, calendar, date, root, trigger)
   if (!cell) {
     return assisted(
       ins.detectedFieldId,
@@ -830,13 +1041,19 @@ async function fillDatePicker(
     )
   }
   // Some pickers need an explicit Apply (e.g. @vuepic without auto-apply).
-  const apply = queryIn(doc, '.dp__action_select, [data-test="apply"], button[type="submit"]')
+  const apply = queryIn(calendar, '.dp__action_select, [data-test="apply"]')
   if (apply) {
     clickElement(apply)
     await settle()
   }
-  const accepted = input ? readValue(input) : textOf(cell)
-  return success(ins.detectedFieldId, accepted || ins.proposedValue)
+  const accepted = input ? readValue(input) : readDisplay(widgetEl, ins.customWidget!, doc)
+  return dateLanded(accepted, date) && isValid(input ?? widgetEl)
+    ? success(ins.detectedFieldId, accepted)
+    : assisted(
+        ins.detectedFieldId,
+        accepted,
+        'Calendar interaction could not be verified — confirm the selected date.',
+      )
 }
 
 /**
@@ -844,11 +1061,13 @@ async function fillDatePicker(
  * the year (4- or 2-digit) must both survive as standalone number tokens.
  */
 function dateLanded(got: string, date: TargetDate): boolean {
-  if (norm(got) === '') return false
-  const hasDay = new RegExp(`(^|\\D)0?${date.day}(\\D|$)`).test(got)
-  const year = String(date.year)
-  const hasYear = got.includes(year) || new RegExp(`(^|\\D)${year.slice(-2)}(\\D|$)`).test(got)
-  return hasDay && hasYear
+  const accepted = parseDate(got)
+  return (
+    !!accepted &&
+    accepted.day === date.day &&
+    accepted.month === date.month &&
+    accepted.year === date.year
+  )
 }
 
 /**
@@ -857,7 +1076,7 @@ function dateLanded(got: string, date: TargetDate): boolean {
  */
 async function navigateCalendar(
   widgetEl: Element,
-  doc: Document,
+  doc: ParentNode,
   date: TargetDate,
   root: FillRoot,
   trigger: Element,
@@ -870,6 +1089,8 @@ async function navigateCalendar(
     clickOption(nav, trigger, root)
     await settle()
   }
+  const heading = calendarHeading(doc, widgetEl)
+  if (!heading || !headingMatches(heading, date)) return null
   const cell = dayCell(doc, widgetEl, date)
   if (!cell) return null
   clickOption(cell, trigger, root)
@@ -890,7 +1111,7 @@ function headingMatches(heading: string, date: TargetDate): boolean {
  * disabled, and pressing it forever would just spin the loop.
  */
 function navButton(
-  doc: Document,
+  doc: ParentNode,
   widgetEl: Element,
   heading: string | null,
   date: TargetDate,
@@ -928,12 +1149,10 @@ function headingIsAfter(heading: string, date: TargetDate): boolean {
 
 /**
  * The day cell for the target date: matched by full-date aria-label (ordinal
- * suffixes tolerated — "June 1st, 2032"), else day-number text. When the exact day
- * is disabled or absent (a constrained picker, e.g. a min date mid-month), falls
- * back to the NEAREST enabled day in the visible month — a valid nearby date beats
- * leaving the field empty.
+ * suffixes tolerated — "June 1st, 2032"), else day-number text in the verified
+ * target month. A disabled or absent day is never replaced with another date.
  */
-function dayCell(doc: Document, widgetEl: Element, date: TargetDate): Element | null {
+function dayCell(doc: ParentNode, widgetEl: Element, date: TargetDate): Element | null {
   const cells = dayCellNodes(doc, widgetEl)
   if (cells.length === 0) return null
   const day = String(date.day)
@@ -956,26 +1175,7 @@ function dayCell(doc: Document, widgetEl: Element, date: TargetDate): Element | 
     (c) => !isDayDisabled(c) && !isAdjacentMonth(c) && norm(textOf(c)) === day,
   )
   if (byText) return byText
-  return nearestEnabledDay(cells, date.day)
-}
-
-/** The enabled, in-month numeric day cell closest to `target`; later days win ties. */
-function nearestEnabledDay(cells: Element[], target: number): Element | null {
-  let best: Element | null = null
-  let bestDist = Infinity
-  for (const cell of cells) {
-    if (isDayDisabled(cell) || isAdjacentMonth(cell)) continue
-    const num = Number(norm(textOf(cell)))
-    if (!Number.isInteger(num) || num < 1 || num > 31) continue
-    // Constraints usually disable the PAST, so a later day is likelier valid —
-    // subtract half a step so it beats the equally-distant earlier day.
-    const dist = num > target ? num - target - 0.5 : target - num
-    if (dist < bestDist) {
-      bestDist = dist
-      best = cell
-    }
-  }
-  return best
+  return null
 }
 
 /** Parse common date formats to a target Y/M/D, or null when unrecognized. */
@@ -983,36 +1183,71 @@ function parseDate(value: string): TargetDate | null {
   const t = value.trim()
   if (!t) return null
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t) // ISO 8601 YYYY-MM-DD
-  if (m) return { year: +m[1], month: +m[2] - 1, day: +m[3] }
+  if (m) return validDate(+m[1], +m[2] - 1, +m[3])
   m = /^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})$/.exec(t) // US M/D/Y (loose spacing)
   if (m) {
     const year = +m[3] < 100 ? 2000 + +m[3] : +m[3]
-    return { year, month: +m[1] - 1, day: +m[2] }
+    return validDate(year, +m[1] - 1, +m[2])
   }
-  const parsed = new Date(t) // free-text fallback (e.g. "May 15, 2026")
+  const cleaned = t
+    .replace(
+      /^(?:choose\s+)?(?:(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday),?\s+)?/i,
+      '',
+    )
+    .replace(/(\d)(st|nd|rd|th)\b/gi, '$1')
+  if (!/[a-z]/i.test(cleaned)) return null
+  const parsed = new Date(cleaned)
   if (!Number.isNaN(parsed.getTime())) {
     return { year: parsed.getFullYear(), month: parsed.getMonth(), day: parsed.getDate() }
   }
   return null
 }
 
+function validDate(year: number, month: number, day: number): TargetDate | null {
+  const date = new Date(0)
+  date.setFullYear(year, month, day)
+  return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day
+    ? { year, month, day }
+    : null
+}
+
 async function undoCustomSelect(
   entry: UndoEntry,
   widget: CustomWidget,
   root: FillRoot,
+  bound?: Fillable,
 ): Promise<FillResult> {
   const prev = entry.previousDisplayText
   if (!prev) {
     return skip(entry.detectedFieldId, "Couldn't auto-undo this dropdown — reset it manually.")
   }
-  const widgetEl = findElement(
-    root,
-    markedSelectors(entry.detectedFieldId, entry.selectorCandidates),
-  )
+  const widgetEl =
+    bound ?? findElement(root, markedSelectors(entry.detectedFieldId, entry.selectorCandidates))
   if (!widgetEl) return skip(entry.detectedFieldId, 'Element not found on the page.')
 
   const doc = ownerDocOf(widgetEl)
   const trigger = resolveTrigger(widgetEl)
+  if (widget.kind === 'datepicker') {
+    return fillDatePicker(
+      {
+        ...entry,
+        tagName: widgetEl.tagName.toLowerCase(),
+        inputType: 'customSelect',
+        fillStrategy: 'customSelect',
+        proposedValue: prev,
+      },
+      widgetEl,
+      trigger,
+      root,
+      doc,
+    )
+  }
+  if (widget.kind === 'multiselect') {
+    return skip(
+      entry.detectedFieldId,
+      'Reset this multiselect manually — automatic restore is not supported.',
+    )
+  }
   clickElement(trigger)
   await settle()
   const option = matchOption(openOptionNodes(widget, widgetEl, trigger, doc), widget, prev)
@@ -1021,12 +1256,21 @@ async function undoCustomSelect(
   }
   clickOption(option, trigger, root)
   await settle()
-  return success(entry.detectedFieldId, prev)
+  return selectionLanded(
+    widgetEl,
+    widget,
+    doc,
+    entry.appliedDisplayText ?? '',
+    optionLabelText(option),
+    option,
+  )
+    ? success(entry.detectedFieldId, prev)
+    : fail(entry.detectedFieldId, 'Dropdown did not accept its previous selection.')
 }
 
-function readDisplay(widgetEl: Element, widget: CustomWidget, doc: Document): string {
+function readDisplay(widgetEl: Element, widget: CustomWidget, _doc: Document): string {
   for (const sel of widget.valueDisplaySelectorCandidates) {
-    const m = queryIn(widgetEl, sel) ?? queryIn(doc, sel)
+    const m = queryIn(widgetEl, sel)
     if (m) return displayValue(m)
   }
   return displayValue(resolveTrigger(widgetEl))
@@ -1058,7 +1302,30 @@ function isToggle(el: Element): boolean {
 }
 
 function isDisabled(el: Fillable): boolean {
-  return el.hasAttribute('disabled') || (el as HTMLInputElement).disabled === true
+  return (
+    el.matches(':disabled') ||
+    el.getAttribute('aria-disabled') === 'true' ||
+    el.hasAttribute('disabled') ||
+    (el as HTMLInputElement).disabled === true
+  )
+}
+function isValid(el: Element): boolean {
+  if (el.matches('input, textarea')) {
+    const control = el as HTMLInputElement
+    // Browsers do not set tooLong/tooShort for values assigned by script.
+    if (
+      (control.maxLength >= 0 && control.value.length > control.maxLength) ||
+      (control.minLength > 0 &&
+        control.value.length > 0 &&
+        control.value.length < control.minLength)
+    )
+      return false
+  }
+  return (
+    el.isConnected &&
+    (el as HTMLInputElement).validity?.valid !== false &&
+    el.getAttribute('aria-invalid') !== 'true'
+  )
 }
 function isReadonly(el: Fillable): boolean {
   return el.hasAttribute('readonly') || (el as HTMLInputElement).readOnly === true
@@ -1089,9 +1356,12 @@ function setValue(el: Fillable, value: string): void {
 }
 
 function setChecked(el: HTMLInputElement, checked: boolean): void {
-  el.checked = checked
-  dispatch(el, 'input')
-  dispatch(el, 'change')
+  if (el.checked === checked) return
+  if (el.type === 'radio' && !checked) {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'checked')?.set?.call(el, false)
+    dispatch(el, 'input')
+    dispatch(el, 'change')
+  } else el.click()
 }
 
 function setNativeValue(el: Fillable, value: string): void {
@@ -1102,7 +1372,7 @@ function setNativeValue(el: Fillable, value: string): void {
 }
 
 function dispatch(el: Element, type: 'input' | 'change' | 'blur'): void {
-  el.dispatchEvent(new Event(type, { bubbles: true }))
+  el.dispatchEvent(new Event(type, { bubbles: true, composed: true }))
 }
 
 const success = (detectedFieldId: string, acceptedValue: string | null): FillResult => ({

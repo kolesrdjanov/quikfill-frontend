@@ -1,0 +1,54 @@
+{
+  "chromium": "156.0.8078.4",
+  "react": "19.2.6",
+  "kind": "engine characterization, not full extension E2E",
+  "results": {
+    "datepickerSubmit": {
+      "submissions": 1,
+      "result": {
+        "detectedFieldId": "date",
+        "status": "success",
+        "acceptedValue": "2032-06-15"
+      }
+    },
+    "invalidNumber": {
+      "valid": false,
+      "result": {
+        "detectedFieldId": "age",
+        "status": "success",
+        "acceptedValue": "200"
+      }
+    },
+    "customDetection": [
+      {
+        "inputType": "text",
+        "customWidget": null
+      }
+    ],
+    "shadowInput": {
+      "outsideEvents": 0,
+      "result": {
+        "detectedFieldId": "inside",
+        "status": "success",
+        "acceptedValue": "hello"
+      }
+    },
+    "reactCheckbox": {
+      "result": {
+        "detectedFieldId": "check",
+        "status": "success",
+        "acceptedValue": "true"
+      },
+      "beforeRerender": {
+        "checked": true,
+        "state": false,
+        "changes": 0
+      },
+      "afterRerender": {
+        "checked": false,
+        "state": false,
+        "changes": 0
+      }
+    }
+  }
+}

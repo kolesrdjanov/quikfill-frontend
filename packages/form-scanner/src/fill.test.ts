@@ -1454,7 +1454,7 @@ describe('applyFill — probed custom select hardening', () => {
     expect(results[0].status).toBe('success')
   })
 
-  it('falls back to a RANDOM enabled option when a probed widget no longer matches the pick', async () => {
+  it('leaves a probed widget for manual selection when its options change', async () => {
     document.body.innerHTML = `
       <div id="w" data-test-id="w" name="role">
         <div role="button" id="t" aria-expanded="false"><span class="d">—</span></div>
@@ -1479,8 +1479,8 @@ describe('applyFill — probed custom select hardening', () => {
       }
     })
     const { results } = await applyFill([ins('Stale Label', widget({ optionsProbed: true }))])
-    expect(results[0].status).toBe('success')
-    expect(['Fresh A', 'Fresh B']).toContain(display.textContent) // never the disabled row
+    expect(results[0].status).toBe('assisted')
+    expect(display.textContent).toBe('—')
   })
 
   it('still reports assisted on no match when the widget was NOT probed (no random surprises)', async () => {
@@ -1544,7 +1544,7 @@ describe('applyFill — datepicker hardening (constrained calendars)', () => {
     return () => display.textContent ?? ''
   }
 
-  it('clicks the NEAREST enabled day when the target day is disabled (later wins ties)', async () => {
+  it('preserves the date when the requested day is disabled', async () => {
     const picked = mountCalendar([
       { day: 3 },
       { day: 4, disabled: true },
@@ -1553,11 +1553,11 @@ describe('applyFill — datepicker hardening (constrained calendars)', () => {
       { day: 7 },
     ])
     const { results } = await applyFill([dpIns('2032-06-05')])
-    expect(results[0].status).toBe('success')
-    expect(picked()).toBe('7') // 3 and 7 are equally near — the later day wins
+    expect(results[0].status).toBe('assisted')
+    expect(picked()).toBe('—')
   })
 
-  it('lands a min-constrained picker on the first enabled day when the target is in the disabled past', async () => {
+  it('leaves an out-of-range date for manual selection', async () => {
     const picked = mountCalendar([
       { day: 1, disabled: true },
       { day: 2, disabled: true },
@@ -1565,8 +1565,8 @@ describe('applyFill — datepicker hardening (constrained calendars)', () => {
       { day: 10 },
     ])
     const { results } = await applyFill([dpIns('2032-06-01')])
-    expect(results[0].status).toBe('success')
-    expect(picked()).toBe('9')
+    expect(results[0].status).toBe('assisted')
+    expect(picked()).toBe('—')
   })
 
   it('matches a day cell by an ORDINAL aria-label ("June 1st, 2032")', async () => {

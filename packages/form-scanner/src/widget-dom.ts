@@ -1,4 +1,5 @@
 import type { CustomWidget } from '@quikfill/schemas'
+import { isVisible } from './extract'
 
 /**
  * DOM primitives shared by the fill executor (`fill.ts`) and the scan-time
@@ -111,11 +112,95 @@ const ARIA_OPTION_SELECTORS = [
   '[role="button"][aria-label*="option" i]',
 ]
 
+const observedPopups = new WeakMap<Element, Set<Element>>()
+
+/** Portal discovery is limited to changes caused while opening this widget. */
+export async function observeWidgetPopup<T>(
+  widgetEl: Element,
+  doc: Document,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const remember = (records: MutationRecord[]): void => {
+    const roots = observedPopups.get(widgetEl) ?? new Set<Element>()
+    for (const record of records) {
+      const nodes = record.type === 'attributes' ? [record.target] : Array.from(record.addedNodes)
+      for (const node of nodes) {
+        if (node.nodeType !== 1) continue
+        const el = node as Element
+        if (el !== widgetEl && !el.contains(widgetEl) && !widgetEl.contains(el)) {
+          roots.add(el)
+          const parent = el.parentElement
+          if (
+            parent &&
+            parent !== doc.body &&
+            parent !== doc.documentElement &&
+            !parent.contains(widgetEl)
+          )
+            roots.add(parent)
+        }
+      }
+    }
+    observedPopups.set(widgetEl, new Set([...roots].filter((r) => r.isConnected)))
+  }
+  const observer = new MutationObserver(remember)
+  const config = {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['hidden', 'style', 'aria-hidden'],
+  }
+  observer.observe(doc.documentElement, config)
+  const tree = widgetEl.getRootNode()
+  if (tree !== doc) observer.observe(tree, config)
+  try {
+    return await operation()
+  } finally {
+    remember(observer.takeRecords())
+    observer.disconnect()
+  }
+}
+
+export function widgetPopupRoots(
+  widget: CustomWidget,
+  widgetEl: Element,
+  trigger: Element,
+  doc: Document,
+): Element[] {
+  const currentLink = trigger.getAttribute('aria-controls') ?? trigger.getAttribute('aria-owns')
+  const ids = [currentLink ?? widget.listboxId]
+    .filter((id): id is string => !!id)
+    .flatMap((id) => id.split(/\s+/))
+  const tree = trigger.getRootNode() as Document | ShadowRoot
+  const linked = ids
+    .map((id) => tree.getElementById(id) ?? doc.getElementById(id))
+    .filter((el): el is HTMLElement => !!el)
+  const visible = (el: Element): boolean =>
+    el.isConnected && !el.closest('[hidden], [aria-hidden="true"]') && isVisible(el)
+  const candidates = [...(observedPopups.get(widgetEl) ?? [])].filter(visible)
+  const outermost = candidates.filter(
+    (el) => !candidates.some((other) => other !== el && other.contains(el)),
+  )
+  const observed = outermost.filter(
+    (el) =>
+      looksLikeCalendar(el) ||
+      el.matches('[role="listbox"], [role="option"]') ||
+      el.querySelector('[role="option"], [role="menuitemcheckbox"], [role="menuitemradio"]') ||
+      repeatingSiblingOptions(el, trigger).length > 0,
+  )
+  // Multiple unlinked popups are ambiguous: never guess which one belongs here.
+  return [
+    ...new Set([
+      ...linked,
+      widgetEl,
+      ...(linked.length === 0 && observed.length === 1 ? observed : []),
+    ]),
+  ].filter(visible)
+}
+
 /**
  * Option nodes in the now-open list. Tries the widget's stored selector and the ARIA
- * option roles first (in the aria-controls listbox / widget / whole document, since
- * lists are often portaled to <body>); then falls back to STRUCTURAL options scoped
- * to the widget only — list items, or rows wrapping a single checkbox/radio — because
+ * option roles first in the linked listbox, widget, or unambiguous observed portal;
+ * then falls back to STRUCTURAL options in those same owned roots because
  * many real dropdowns expose no ARIA at all, just `<li>`/checkbox rows whose text is
  * the value; then to automation-tagged rows; and finally to REPEATING SIBLINGS — the
  * weakest signal (rows that merely look alike), so every stronger tier gets a chance
@@ -127,8 +212,7 @@ export function openOptionNodes(
   trigger: Element,
   doc: Document,
 ): Element[] {
-  const linked = widget.listboxId ? doc.getElementById(widget.listboxId) : null
-  const ariaScopes = [linked, widgetEl, doc].filter((s) => s !== null) as ParentNode[]
+  const ariaScopes = widgetPopupRoots(widget, widgetEl, trigger, doc)
   for (const selector of [widget.optionItemSelector, ...ARIA_OPTION_SELECTORS]) {
     for (const scope of ariaScopes) {
       const nodes = queryOptions(scope, selector, trigger)
@@ -137,13 +221,13 @@ export function openOptionNodes(
   }
   // Structural fallback — scope to the widget / linked panel ONLY (never document-wide,
   // or unrelated page lists would match).
-  for (const scope of [linked, widgetEl].filter((s) => s !== null) as ParentNode[]) {
+  for (const scope of ariaScopes) {
     const rows = structuralOptions(scope, trigger)
     if (rows.length) return rows
     const tagged = automationOptions(scope, trigger, widgetEl)
     if (tagged.length) return tagged
   }
-  for (const scope of [linked, widgetEl].filter((s) => s !== null) as ParentNode[]) {
+  for (const scope of ariaScopes) {
     const alike = repeatingSiblingOptions(scope, trigger)
     if (alike.length) return alike
   }
@@ -154,11 +238,19 @@ function queryOptions(scope: ParentNode, selector: string, trigger: Element): El
   let nodes: Element[]
   try {
     nodes = Array.from(scope.querySelectorAll(selector))
+    if ((scope as Element).nodeType === 1 && (scope as Element).matches(selector))
+      nodes.unshift(scope as Element)
   } catch {
     return []
   }
   return nodes.filter(
-    (n) => n !== trigger && !trigger.contains(n) && !n.contains(trigger) && textOf(n) !== '',
+    (n) =>
+      n !== trigger &&
+      !trigger.contains(n) &&
+      !n.contains(trigger) &&
+      textOf(n) !== '' &&
+      !n.closest('[hidden], [aria-hidden="true"]') &&
+      isVisible(n),
   )
 }
 
@@ -363,9 +455,9 @@ const MONTH_YEAR_RE = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*
  * `<p>June 2032</p>`) are found by scanning header containers for a short
  * month+year text node.
  */
-export function calendarHeading(doc: Document, widgetEl: Element): string | null {
+export function calendarHeading(doc: ParentNode, widgetEl: Element): string | null {
   const sel =
-    '[class*="header" i] [class*="title" i], [class*="month" i][class*="year" i], ' +
+    '[class*="title" i], [class*="month" i][class*="year" i], ' +
     '[class*="current-month" i], [aria-live], .dp__month_year_wrap, ' +
     '.mat-calendar-period-button, [role="grid"]'
   const scopes: ParentNode[] = [widgetEl, doc]
@@ -394,7 +486,7 @@ export const DAY_CELL_SELECTOR =
   '[role="gridcell"], .dp__cell_inner, .mat-calendar-body-cell, td[role] button, [class*="day" i]'
 
 /** All candidate day cells, scoped to the widget when it holds the calendar, else the document. */
-export function dayCellNodes(doc: Document, widgetEl: Element): Element[] {
+export function dayCellNodes(doc: ParentNode, widgetEl: Element): Element[] {
   const scope: ParentNode = (
     widgetEl.querySelector(DAY_CELL_SELECTOR) ? widgetEl : doc
   ) as ParentNode
@@ -439,6 +531,15 @@ export function isAdjacentMonth(cell: Element): boolean {
  * a real PointerEvent at the element's center makes the press read as inside.
  */
 export function clickElement(el: Element, anchor: Element = el): void {
+  // A widget's omitted button type defaults to submit inside a form. Never
+  // activate a submit control, including submit buttons found by a weak selector.
+  const submit = el.closest('button, input') as HTMLButtonElement | HTMLInputElement | null
+  if (
+    submit &&
+    /^(submit|image)$/i.test(submit.type) &&
+    (submit.form || submit.hasAttribute('type'))
+  )
+    return
   // Events fire on `el`; the press COORDINATES come from `anchor`. They differ only
   // when `el` is portaled outside the drawer — then `anchor` is an in-drawer node so
   // the geometry reads as inside (see fillCustomSelect). Same element by default.
@@ -532,6 +633,8 @@ export function settle(): Promise<void> {
 
 export function queryIn(scope: ParentNode, selector: string): Element | null {
   try {
+    if ((scope as Element).nodeType === 1 && (scope as Element).matches(selector))
+      return scope as Element
     return scope.querySelector(selector)
   } catch {
     return null
@@ -602,6 +705,9 @@ function deepQuery(root: FillRoot, selector: string, claimed?: Set<Element>): Fi
   let matches: Element[]
   try {
     matches = Array.from(root.querySelectorAll(selector))
+    if (root.nodeType === 1 && (root as Element).matches(selector)) {
+      matches.unshift(root as Element)
+    }
   } catch {
     matches = [] // invalid/structural selector — skip
   }

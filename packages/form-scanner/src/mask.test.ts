@@ -77,9 +77,11 @@ describe('valuesMatch', () => {
     expect(valuesMatch('abc', 'abc')).toBe(true)
   })
 
-  it('matches across formatting differences', () => {
-    expect(valuesMatch('(976) 729-2722', '9767292722')).toBe(true)
-    expect(valuesMatch('A1 B2', 'a1b2')).toBe(true)
+  it('normalizes formatting only with the field explicit mask', () => {
+    expect(valuesMatch('(976) 729-2722', '9767292722', phone)).toBe(true)
+    expect(valuesMatch('A1 B2', 'a1b2')).toBe(false)
+    expect(valuesMatch('-100', '100')).toBe(false)
+    expect(valuesMatch('Secret!', 'secret')).toBe(false)
   })
 
   it('does not match when the alphanumeric core differs', () => {

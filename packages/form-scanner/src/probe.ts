@@ -1,5 +1,6 @@
 import type { DetectedField, FieldOption } from '@quikfill/schemas'
 import { getSelectorCandidates, looksLikeDatepickerInput } from './extract'
+import { withoutSubmit } from './interaction-guard'
 import {
   calendarHeading,
   clickElement,
@@ -16,7 +17,7 @@ import {
   openOptionNodes,
   optionLabelText,
   ownerDocOf,
-  repeatingSiblingOptions,
+  observeWidgetPopup,
   resolveTrigger,
   textOf,
   type FillRoot,
@@ -47,8 +48,18 @@ import {
 export async function probeFields(
   fields: DetectedField[],
   root: FillRoot = document,
+  options: { signal?: AbortSignal; isCurrent?: () => boolean } = {},
+): Promise<void> {
+  return withoutSubmit(root, () => probeAll(fields, root, options))
+}
+
+async function probeAll(
+  fields: DetectedField[],
+  root: FillRoot,
+  options: { signal?: AbortSignal; isCurrent?: () => boolean },
 ): Promise<void> {
   for (const field of fields) {
+    if (options.signal?.aborted || options.isCurrent?.() === false || !root.isConnected) return
     try {
       if (isProbeableSelect(field)) {
         await probeSelect(field, root)
@@ -92,30 +103,15 @@ async function probeSelect(field: DetectedField, root: FillRoot): Promise<void> 
   const doc = ownerDocOf(widgetEl)
   const trigger = resolveTrigger(widgetEl)
 
-  // Record what the open click ADDS to the DOM — for widgets with zero ARIA and no
-  // list structure, the appeared subtree itself is the only signal of where the
-  // options live (the user-visible "what changed when I clicked?").
-  const added: Element[] = []
-  const observer = new MutationObserver((records) => {
-    for (const record of records) {
-      for (const node of Array.from(record.addedNodes)) {
-        if (node.nodeType === 1) added.push(node as Element)
-      }
-    }
-  })
-  observe(observer, doc)
-
   let opened = false
   let rows = harvestableRows(openOptionNodes(widget, widgetEl, trigger, doc))
-  let via: 'selector' | 'diff' = 'selector'
   if (rows.length === 0) {
-    clickElement(trigger)
     opened = true
-    const found = await waitForOptions(field, widgetEl, trigger, doc, added)
-    rows = found.rows
-    via = found.via
+    rows = await observeWidgetPopup(widgetEl, doc, async () => {
+      clickElement(trigger)
+      return waitForOptions(field, widgetEl, trigger, doc)
+    })
   }
-  observer.disconnect()
 
   if (rows.length > 0) {
     field.options = harvestOptions(rows, field.currentValue)
@@ -125,7 +121,7 @@ async function probeSelect(field: DetectedField, root: FillRoot): Promise<void> 
     // open list exposed.
     const wrapper = rows[0].parentElement
     if (wrapper?.id && !widget.listboxId) widget.listboxId = wrapper.id
-    if (via === 'diff') {
+    if (rows.every((row) => !row.hasAttribute('role'))) {
       const derived = deriveOptionSelector(rows)
       if (derived) widget.optionItemSelector = `${derived}, ${widget.optionItemSelector}`
     }
@@ -138,48 +134,22 @@ async function probeSelect(field: DetectedField, root: FillRoot): Promise<void> 
   if (opened) await closeWidget(field, widgetEl, trigger, doc)
 }
 
-/** Poll for option rows: the shared discovery tiers first, then the mutation diff. */
+/** Poll only inside roots associated with this widget, including observed portals. */
 async function waitForOptions(
   field: DetectedField,
   widgetEl: Element,
   trigger: Element,
   doc: Document,
-  added: Element[],
-): Promise<{ rows: Element[]; via: 'selector' | 'diff' }> {
+): Promise<Element[]> {
   const widget = field.customWidget
-  if (!widget) return { rows: [], via: 'selector' }
+  if (!widget) return []
   const deadline = Date.now() + PROBE_BUDGET_MS
   for (;;) {
     const bySelector = harvestableRows(openOptionNodes(widget, widgetEl, trigger, doc))
-    if (bySelector.length > 0) return { rows: bySelector, via: 'selector' }
-    const byDiff = harvestableRows(diffOptions(added, trigger))
-    if (byDiff.length > 0) return { rows: byDiff, via: 'diff' }
-    if (Date.now() >= deadline) return { rows: [], via: 'selector' }
+    if (bySelector.length > 0) return bySelector
+    if (Date.now() >= deadline) return []
     await delay(PROBE_TICK_MS)
   }
-}
-
-/**
- * The options wrapper among the subtrees the open click added: the container whose
- * children are the largest group of repeating similar, clickable, short-text rows.
- * Calendars are excluded — a day grid repeats too, but it is a datepicker.
- */
-function diffOptions(added: Element[], trigger: Element): Element[] {
-  const scopes = new Set<Element>()
-  for (const el of added) {
-    if (!el.isConnected || el === trigger || trigger.contains(el)) continue
-    scopes.add(el)
-    // The click may append rows ONE BY ONE — then each added node is a row, and the
-    // repeating group only shows on its parent.
-    if (el.parentElement) scopes.add(el.parentElement)
-  }
-  let best: Element[] = []
-  for (const scope of scopes) {
-    if (looksLikeCalendar(scope)) continue
-    const rows = repeatingSiblingOptions(scope, trigger)
-    if (rows.length > best.length) best = rows
-  }
-  return best
 }
 
 /** Drop chrome rows (loading/empty/prompt states) — only real values are options. */
@@ -275,8 +245,10 @@ async function probeDatepicker(field: DetectedField, root: FillRoot): Promise<vo
     }
   })
   observe(observer, doc)
-  clickElement(el) // focus + click — how calendar inputs open their popup
-  const calendar = await waitForCalendar(added)
+  const calendar = await observeWidgetPopup(el, doc, async () => {
+    clickElement(el)
+    return waitForCalendar(added)
+  })
   observer.disconnect()
   if (!calendar) return // never opened a calendar — it's just a text input
 

@@ -8,6 +8,8 @@
   },
   "scripts": {
     "test": "playwright test",
+    "test:forms": "playwright test --config playwright.forms.config.ts",
+    "dev:fixtures": "vite --config vite.fixtures.config.ts",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "typecheck": "tsc --noEmit",
@@ -16,6 +18,11 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.6.0",
-    "typescript": "~6.0.3"
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "typescript": "~6.0.3",
+    "vite": "8.0.14"
   }
 }

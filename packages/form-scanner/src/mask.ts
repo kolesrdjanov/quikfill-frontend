@@ -108,17 +108,12 @@ export function coerceToMask(value: string, spec: MaskSpec): string {
 }
 
 /**
- * Compare two field values ignoring formatting differences (mask delimiters,
- * case, spacing). An exact match always wins; otherwise both must reduce to the
- * same non-empty alphanumeric core — so a reformatted phone passes but a
- * rejected/empty value does not.
+ * Exact equality by default. Only an explicit mask permits delimiter changes;
+ * unmasked numbers, passwords, and other text retain significant characters.
  */
-export function valuesMatch(a: string, b: string): boolean {
+export function valuesMatch(a: string, b: string, spec?: MaskSpec): boolean {
   if (a === b) return true
-  const na = normalizeValue(a)
-  return na !== '' && na === normalizeValue(b)
-}
-
-function normalizeValue(s: string): string {
-  return s.replace(/[^a-z0-9]/gi, '').toLowerCase()
+  if (!spec) return false
+  const na = applyMask(a, spec)
+  return na !== '' && na === applyMask(b, spec)
 }

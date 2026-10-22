@@ -39,7 +39,7 @@ export const customWidgetSchema = z.object({
   triggerSelectorCandidates: z.array(z.string()).default([]),
   /** Node whose text reflects the current selection, for verification. */
   valueDisplaySelectorCandidates: z.array(z.string()).default([]),
-  /** Selector matching each option once the list is open (relative to document). */
+  /** Selector matching options only within the widget's associated popup roots. */
   optionItemSelector: z.string(),
   /** Whether options are only present/visible after the trigger is clicked. */
   optionsOpenOnDemand: z.boolean().default(true),
@@ -55,8 +55,8 @@ export const customWidgetSchema = z.object({
   isVirtualized: z.boolean().default(false),
   /**
    * The scan-time probe opened this widget and harvested its options into
-   * `DetectedField.options`. Such options are trusted as the complete value set
-   * (the filler may fall back to a random open-list option when re-matching fails).
+   * `DetectedField.options`. A changed value set requires manual selection;
+   * an unmatched proposal must never be replaced with a random option.
    */
   optionsProbed: z.boolean().optional(),
   /**

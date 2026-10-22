@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QuikFill browser fixtures</title>
+    <style>
+      body {
+        margin: 32px;
+        font: 16px/1.5 system-ui;
+      }
+      form,
+      section.fixture {
+        width: 400px;
+        min-height: 180px;
+        padding: 24px;
+        margin: 20px;
+        border: 1px solid #ccc;
+      }
+      input,
+      button {
+        font: inherit;
+        margin: 8px;
+      }
+      input:not([type='checkbox']):not([type='radio']) {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="fixtures"></main>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

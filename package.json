@@ -20,7 +20,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm -r test",
+    "test": "pnpm --filter './packages/**' --filter @quikfill/chrome-extension --filter @quikfill/app --filter @quikfill/website -r --if-present test",
+    "test:browser": "pnpm --filter @quikfill/e2e test:forms",
     "e2e": "pnpm --filter @quikfill/e2e test",
     "prepare": "husky"
   },
