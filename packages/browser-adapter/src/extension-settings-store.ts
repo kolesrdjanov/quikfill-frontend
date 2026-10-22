@@ -6,11 +6,10 @@ import {
 } from '@quikfill/schemas'
 
 /**
- * Dashboard-managed extension settings, cached in `chrome.storage.local` under
- * the same key the in-app `useSettings` composable reads (`settings:extension`).
- * The background worker is the only writer — it hydrates the blob from
- * `GET /users/me` on sign-in/refresh — so the dashboard is the source of truth
- * and every surface (popup, side panel, content overlay) reads + reacts here.
+ * Extension activation/appearance settings cached in chrome.storage.local.
+ * The background accepts local writes without an account, then reconciles its
+ * durable outbox before pulling dashboard settings. All surfaces react here.
+ * Device-local execution preferences use a separate, unsynced store.
  *
  * Keeps the `chrome.storage` dependency inside the adapter, per the layering
  * rule, and stays Vue-free so the content script can use it without bundling Vue.

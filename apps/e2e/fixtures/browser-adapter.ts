@@ -1,5 +1,10 @@
 import {
   DEFAULT_EXTENSION_SETTINGS,
+  DEFAULT_LOCAL_FILL_PREFERENCES,
+  localFillPreferencesSchema,
+  extensionSettingsSchema,
+  type ExtensionSettings,
+  type LocalFillPreferences,
   type AiFillRequest,
   type AiFillResponse,
 } from '../../../packages/schemas/src'
@@ -9,16 +14,64 @@ export type Reply =
   | { ok: false; reason: 'offline' | 'error' | 'quota' }
 export const transport = {
   requests: [] as AiFillRequest[],
+  authReads: 0,
+  entitlementReads: 0,
+  preferences: { ...DEFAULT_LOCAL_FILL_PREFERENCES },
   reply: { ok: true, response: { values: [] } } as Reply,
   pending: false,
   values: null as Record<string, string> | null,
   resolve: null as ((reply: Reply) => void) | null,
 }
-export const requestEntitlements = async () => null
+export const requestEntitlements = async () => {
+  transport.entitlementReads++
+  return null
+}
 export const refreshEntitlements = async () => null
-export const readExtensionSettings = async () => DEFAULT_EXTENSION_SETTINGS
+const settingsListeners = new Set<(s: ExtensionSettings) => void>()
+const preferenceListeners = new Set<(s: LocalFillPreferences) => void>()
+export const readExtensionSettings = async () =>
+  extensionSettingsSchema.parse({
+    ...DEFAULT_EXTENSION_SETTINGS,
+    ...JSON.parse(localStorage.getItem('qf-fixture-settings') ?? '{}'),
+  })
+export const readLocalFillPreferences = async () =>
+  localFillPreferencesSchema.parse({
+    ...transport.preferences,
+    ...JSON.parse(localStorage.getItem('qf-fixture-local') ?? '{}'),
+  })
+export const writeLocalFillPreferences = async (prefs: LocalFillPreferences) => {
+  localStorage.setItem('qf-fixture-local', JSON.stringify(prefs))
+  for (const listener of preferenceListeners) listener(prefs)
+}
+export const onLocalFillPreferencesChange = (listener: (s: LocalFillPreferences) => void) => {
+  preferenceListeners.add(listener)
+  return () => preferenceListeners.delete(listener)
+}
+export const onExtensionSettingsChange = (listener: (s: ExtensionSettings) => void) => {
+  settingsListeners.add(listener)
+  return () => settingsListeners.delete(listener)
+}
+export const requestSettingsUpdate = async (settings: ExtensionSettings) => {
+  localStorage.setItem('qf-fixture-settings', JSON.stringify(settings))
+  for (const listener of settingsListeners) listener(settings)
+  return settings
+}
+export const AUTH_STATE_KEY = 'auth-state'
+export const ENTITLEMENTS_STATE_KEY = 'entitlements'
+export const requestAuthState = async () => {
+  transport.authReads++
+  return { status: 'signed-out' as const }
+}
+export const requestAuthCode = async () => ({ ok: false as const, error: 'network' as const })
+export const verifyAuthCode = requestAuthCode
+export const logoutAuth = async () => ({ ok: true as const })
+export const requestSettingsSync = async () => null
+export const getActiveTab = async () => ({
+  id: 1,
+  url: 'https://example.com/form',
+  title: 'Fixture',
+})
 export const onEntitlementsChange = () => () => {}
-export const onExtensionSettingsChange = () => () => {}
 export async function requestAiFill(request: AiFillRequest): Promise<Reply> {
   transport.requests.push(request)
   if (transport.pending)

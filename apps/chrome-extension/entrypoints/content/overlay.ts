@@ -1,18 +1,13 @@
+import { buildAiFillRequest, isFillableField, valuesToFillInstructions } from '@quikfill/ai'
 import {
-  buildAiFillRequest,
-  isFillableField,
-  localPickInstructions,
-  valuesToFillInstructions,
-} from '@quikfill/ai'
-import {
-  onEntitlementsChange,
+  onLocalFillPreferencesChange,
+  readLocalFillPreferences,
   onExtensionSettingsChange,
   readExtensionSettings,
-  refreshEntitlements,
   requestAiFill,
-  requestEntitlements,
   type AiClassifyReason,
 } from '@quikfill/browser-adapter'
+import { buildLocalFillPlan, localFillSkipReason } from '@quikfill/autofill-core'
 import {
   applyFill,
   applyUndo,
@@ -25,10 +20,11 @@ import {
 } from '@quikfill/form-scanner'
 import {
   DEFAULT_EXTENSION_SETTINGS,
-  isOverQuota,
+  DEFAULT_LOCAL_FILL_PREFERENCES,
   type DetectedField,
   type DetectedForm,
-  type Entitlements,
+  type FillResult,
+  type LocalFillPreferences,
   type ExtensionSettings,
   type UndoSnapshot,
 } from '@quikfill/schemas'
@@ -49,7 +45,10 @@ const ERROR_COPY: Record<AiClassifyReason, { label: string; title: string }> = {
     label: 'Slow down',
     title: 'Too many AI requests just now — wait a moment and try again.',
   },
-  auth: { label: 'Sign in again', title: 'Your session expired — sign in again to use AI.' },
+  auth: {
+    label: 'Sign in for AI',
+    title: 'Open the QuikFill popup and sign in to use optional AI assist.',
+  },
   'not-configured': {
     label: 'AI unavailable',
     title: 'QuikFill AI isn’t enabled on the server right now.',
@@ -102,13 +101,14 @@ interface FormButton {
   details: HTMLUListElement
   undo: HTMLButtonElement
   dismiss: HTMLButtonElement
+  ai: HTMLButtonElement
   statusTimer?: number
 }
 
 /**
  * Mount the in-page fill overlay: auto-detect each form, inject an isolated
  * Shadow-DOM floating button near its submit control, and on click collect
- * redacted metadata → /ai/fill → applyFill. Re-detects via a debounced
+ * a local sample plan → applyFill. Optional AI assist sends redacted metadata. Re-detects via a debounced
  * MutationObserver so buttons follow SPA / modal forms. DOM-only feature UI; the
  * backend call is delegated to the background worker via requestAiFill.
  */
@@ -130,6 +130,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   // form group-root element → its button. Keyed by element identity so a re-scan
   // reconciles against live DOM rather than the positional formId.
   const buttons = new Map<Element, FormButton>()
+  let ready = false
   let disposed = false
   let activeController: AbortController | null = null
   let activeRoot: Element | null = null
@@ -140,15 +141,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     targets: Map<string, FillTarget>
   } | null = null
 
-  // The on-page button is the AI-budget signal: it appears only while the user has
-  // budget. Over-quota → no button (all usage detail lives in the side panel).
-  // Unknown entitlements (null) are treated optimistically — show the button — to
-  // match the surfaces; an actual over-budget click then fails with "AI limit
-  // reached" and refreshes the snapshot, which hides the button.
-  let overQuota = false
-  const applyEntitlements = (e: Entitlements | null): void => {
-    overQuota = e !== null && isOverQuota(e.fillsUsed, e.fillLimit)
-  }
+  let preferences: LocalFillPreferences = DEFAULT_LOCAL_FILL_PREFERENCES
 
   // Dashboard-managed settings, synced into chrome.storage.local by the background
   // worker. Defaults until the first read resolves; the overlay reads them to gate
@@ -176,10 +169,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // A debounce armed BEFORE a fill started can fire mid-probe — re-stamping the
     // data-qf-id markers the in-flight fill resolves by. Skip; the fill schedules
     // a fresh scan when it completes.
-    if (busy || disposed) return
-    // Gate: disabled globally, hidden by preference, on a blocked host, or over
-    // the AI budget → no buttons (the side panel surfaces any budget detail).
-    if (!shouldShowOverlay(settings, pageHostname(), overQuota)) {
+    if (busy || disposed || !ready) return
+    // Local filling depends only on activation preferences, never on AI budget.
+    if (!shouldShowOverlay(settings, pageHostname())) {
       // A quota or setting change must not remove access to the last undo.
       for (const button of buttons.values()) button.el.hidden = true
       return
@@ -246,7 +238,8 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     const el = ownerDoc.createElement('button')
     el.type = 'button'
     el.className = 'qf-fill-btn'
-    el.setAttribute('aria-label', 'Fill this form with QuikFill')
+    el.setAttribute('aria-label', 'Fill this form with local sample data')
+    el.title = 'Generate local test data · only empty fields by default'
     const mark = ownerDoc.createElement('span')
     mark.className = 'qf-mark'
     // Inline the brand glyph (decorative — the button itself carries the aria-label).
@@ -278,7 +271,17 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     dismiss.type = 'button'
     dismiss.className = 'qf-undo'
     dismiss.textContent = 'Dismiss result'
-    panel.append(summary, disclosure, undo, dismiss)
+    const ai = ownerDoc.createElement('button')
+    ai.type = 'button'
+    ai.className = 'qf-undo qf-ai'
+    ai.textContent = 'AI assist'
+    ai.title =
+      'Optional: sends empty field labels and page context to QuikFill AI. Requires an account.'
+    const note = ownerDoc.createElement('p')
+    note.className = 'qf-note'
+    note.textContent =
+      'Fill uses local test data. AI assist sends field metadata and requires sign-in.'
+    panel.append(summary, disclosure, undo, dismiss, ai, note)
     const button: FormButton = {
       groupRoot,
       formId,
@@ -291,6 +294,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       details,
       undo,
       dismiss,
+      ai,
     }
     el.addEventListener('click', (e) => {
       e.preventDefault()
@@ -299,6 +303,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     })
     shadowRoot.appendChild(el)
     shadowRoot.appendChild(panel)
+    ai.addEventListener('click', () => {
+      void onFill(button, 'ai')
+    })
     undo.addEventListener('click', () => {
       void onUndo(button)
     })
@@ -312,12 +319,12 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     return button
   }
 
-  async function onFill(button: FormButton): Promise<void> {
+  async function onFill(button: FormButton, mode: 'local' | 'ai' = 'local'): Promise<void> {
     if (
       busy ||
       disposed ||
       !button.groupRoot.isConnected ||
-      !shouldShowOverlay(settings, pageHostname(), overQuota)
+      !shouldShowOverlay(settings, pageHostname())
     )
       return
     // The probe (and the fill itself) churns the DOM — dropdowns open, option
@@ -340,7 +347,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     button.summary.textContent = ''
     button.details.replaceChildren()
     try {
-      await runFill(button, controller.signal, startUrl)
+      await runFill(button, controller.signal, startUrl, mode)
     } catch (error) {
       if (!disposed) {
         setStatus(button, 'error', {
@@ -369,6 +376,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       button.el.disabled = locked
       button.el.setAttribute('aria-busy', String(locked && button.status === 'loading'))
       button.undo.disabled = locked
+      button.ai.disabled = locked
     }
   }
 
@@ -401,7 +409,12 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     }
   }
 
-  async function runFill(button: FormButton, signal: AbortSignal, startUrl: string): Promise<void> {
+  async function runFill(
+    button: FormButton,
+    signal: AbortSignal,
+    startUrl: string,
+    mode: 'local' | 'ai',
+  ): Promise<void> {
     // Re-scan for fresh fields (the DOM may have changed since injection).
     let result: ReturnType<typeof scanFormsGrouped>
     try {
@@ -417,9 +430,6 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       return
     }
 
-    // Every fillable field in the form is always sent — no settings-driven
-    // skipping. (The previous behaviour filter dropped already-filled and
-    // "sensitive"-classified fields, which silently swallowed most of a form.)
     const fields = form.fieldIds
       .map((id) => fieldById.get(id))
       .filter((f): f is DetectedField => !!f && isFillableField(f))
@@ -432,30 +442,56 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // options (and each datepicker input to read its calendar's min/max), so
     // dropdowns are picked from values that exist and dates land inside the
     // picker's range. Enriches `fields` in place; never throws.
-    const targets = captureFillTargets(fields, button.groupRoot)
+    const options = {
+      onlyEmpty: preferences.onlyEmpty,
+      seed: preferences.seed || undefined,
+      locale: preferences.locale ?? settings.locale,
+    }
+    const skipped: FillResult[] = []
+    const eligible = fields.filter((field) => {
+      const reason = localFillSkipReason(field, options)
+      if (reason) skipped.push({ detectedFieldId: field.id, status: 'skipped', reason })
+      return !reason
+    })
+    const targets = captureFillTargets(eligible, button.groupRoot)
     const isCurrent = (): boolean =>
       !disposed &&
       !signal.aborted &&
       button.groupRoot.isConnected &&
       doc.URL === startUrl &&
-      shouldShowOverlay(settings, pageHostname(), false)
+      shouldShowOverlay(settings, pageHostname())
     const ensureCurrent = (): void => {
       if (!isCurrent()) throw new Error('The form or page changed. Scan the current form again.')
     }
     ensureCurrent()
-    await probeFields(fields, button.groupRoot, { signal, isCurrent })
+    await probeFields(eligible, button.groupRoot, { signal, isCurrent })
     ensureCurrent()
 
-    // Custom selects are picked locally (random, from the probed options) — only
-    // the remaining fields (text inputs, native selects, datepickers) need the AI.
-    const localPicks = localPickInstructions(fields)
-    const request = buildAiFillRequest(pageGlobals(doc), fields, {
-      locale: settings.locale,
+    if (mode === 'local') {
+      const batch = buildLocalFillPlan(eligible, options)
+      await applyInstructions(button, batch.instructions, fields, targets, signal, isCurrent, [
+        ...skipped,
+        ...batch.skipped,
+      ])
+      return
+    }
+
+    // AI is a separate user action. Preserve existing/sensitive fields here too;
+    // custom option lists still use the same local planner and exact executor.
+    const custom = buildLocalFillPlan(
+      eligible.filter(
+        (f) => f.customWidget?.kind === 'select' || f.customWidget?.kind === 'multiselect',
+      ),
+      options,
+    )
+    const localPicks = custom.instructions
+    skipped.push(...custom.skipped)
+    const request = buildAiFillRequest(pageGlobals(doc), eligible, {
+      locale: options.locale,
       dateFormat: settings.dateFormat,
     })
     if (!request) {
-      // Nothing for the AI (a form of only dropdowns) — apply the local picks.
-      await applyInstructions(button, localPicks, fields, targets, signal, isCurrent)
+      await applyInstructions(button, localPicks, fields, targets, signal, isCurrent, skipped)
       return
     }
     const reply = await waitForReply(requestAiFill(request), signal)
@@ -479,22 +515,17 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
               title: 'QuikFill was updated — reload this page to keep filling.',
             }
           : ERROR_COPY[reply.reason]
-      await applyInstructions(button, localPicks, fields, targets, signal, isCurrent)
+      await applyInstructions(button, localPicks, fields, targets, signal, isCurrent, skipped)
       setStatus(button, 'error', copy)
       button.summary.textContent = `${button.summary.textContent} · ${copy.title ?? copy.label}`
-      // A fill that tipped the user over budget: refresh the snapshot so the
-      // buttons disappear (the side panel shows the depleted budget).
-      if (reply.reason === 'quota') {
-        void refreshEntitlements().then((e) => {
-          applyEntitlements(e)
-          scan()
-        })
-      }
       return
     }
 
-    const instructions = [...valuesToFillInstructions(reply.response.values, fields), ...localPicks]
-    await applyInstructions(button, instructions, fields, targets, signal, isCurrent)
+    const instructions = [
+      ...valuesToFillInstructions(reply.response.values, eligible),
+      ...localPicks,
+    ]
+    await applyInstructions(button, instructions, fields, targets, signal, isCurrent, skipped)
   }
 
   /** Apply a merged instruction batch and reflect the outcome on the button. */
@@ -505,10 +536,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     targets: Map<string, FillTarget>,
     signal: AbortSignal,
     isCurrent: () => boolean,
+    skipped: FillResult[] = [],
   ): Promise<void> {
     const outcome = await applyFill(instructions, button.groupRoot, { targets, signal, isCurrent })
     if (disposed) return
-    const summary = summarizeFill(fields, outcome.results)
+    const summary = summarizeFill(fields, [...skipped, ...outcome.results])
     button.panel.hidden = false
     button.summary.textContent = summary.description
     button.details.replaceChildren(
@@ -705,6 +737,8 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     if (e.type === 'click') {
       const pressed = [...buttons.values()].find((b) => path.includes(b.el))
       if (pressed) void onFill(pressed)
+      const ai = [...buttons.values()].find((b) => path.includes(b.ai))
+      if (ai) void onFill(ai, 'ai')
       const undo = [...buttons.values()].find((b) => path.includes(b.undo))
       if (undo) void onUndo(undo)
       const dismiss = [...buttons.values()].find((b) => path.includes(b.dismiss))
@@ -716,30 +750,26 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   const SWALLOWED = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'] as const
   for (const type of SWALLOWED) win.addEventListener(type, swallowFromHost, true)
 
-  // Seed the AI-budget gate from the background and stay in sync: a usage bump,
-  // plan change, or monthly reset flips the buttons on/off without a page reload.
-  void requestEntitlements().then((e) => {
-    applyEntitlements(e)
-    scan()
-  })
-  const unsubscribeEntitlements = onEntitlementsChange((e) => {
-    applyEntitlements(e)
-    scan()
-  })
-
-  // Seed + stay in sync with the dashboard-managed settings: a save in the
-  // dashboard is synced down by the background, flips the gate / appearance /
-  // field filters, and re-scans without a page reload.
-  void readExtensionSettings().then((s) => {
+  // Hydrate local preferences before exposing a fill action. Storage failure
+  // falls back to offline defaults; account/network hydration is never awaited.
+  void Promise.all([
+    readExtensionSettings().catch(() => DEFAULT_EXTENSION_SETTINGS),
+    readLocalFillPreferences().catch(() => DEFAULT_LOCAL_FILL_PREFERENCES),
+  ]).then(([s, prefs]) => {
+    if (disposed) return
     applySettings(s)
+    preferences = prefs
+    ready = true
     scan()
+  })
+  const unsubscribePreferences = onLocalFillPreferencesChange((prefs) => {
+    activeController?.abort('Fill preferences changed. Try again.')
+    preferences = prefs
   })
   const unsubscribeSettings = onExtensionSettingsChange((s) => {
     applySettings(s)
     scan()
   })
-
-  scan()
 
   const cancel = (): void =>
     activeController?.abort('The page changed. Scan the current form again.')
@@ -763,7 +793,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         capture: true,
       } as EventListenerOptions)
       win.removeEventListener('resize', scheduleReposition)
-      for (const unsubscribe of [unsubscribeEntitlements, unsubscribeSettings]) {
+      for (const unsubscribe of [unsubscribePreferences, unsubscribeSettings]) {
         try {
           unsubscribe()
         } catch {
@@ -846,6 +876,7 @@ const OVERLAY_CSS = `
   font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
   box-shadow: 0 4px 14px #0002;
 }
+.qf-result .qf-note { font-size: 12px; color: #475569; margin-top: 10px; }
 .qf-result p { margin: 0 0 8px; }
 .qf-result ul { margin: 8px 0; padding-left: 20px; overflow-wrap: anywhere; }
 .qf-result summary { cursor: pointer; min-height: 44px; }

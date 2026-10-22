@@ -45,6 +45,14 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
 
 ## Current state
 
+**Phase 1 local fill (2026-10-22):** the main overlay action composes
+`buildLocalFillPlan` and `applyFill`, with no AI/auth/entitlements/history call.
+Only-empty is the default; popup local preferences expose locale, optional seed,
+and explicit overwrite. Sign-in is optional; AI assist lives in the result panel
+and never gates local filling. Activation settings persist locally through a
+background outbox; execution preferences remain device-local. See
+[`../../docs/PHASE_1_LOCAL_FILL.md`](../../docs/PHASE_1_LOCAL_FILL.md).
+
 **Phase 0 stabilization (2026-10-22):** the live overlay locks concurrent fills,
 binds original fields within the chosen form, times out/cancels stale requests,
 reports every target (including omitted/assisted ones), and offers guarded undo.
@@ -74,35 +82,20 @@ worker owns the api-client call, fails gracefully when the backend is offline).
   `DetectedField.autocompleteHint`) use the **`assistedAutocomplete`** strategy:
   type the value to surface the suggestion dropdown for the user to pick, never
   auto-completing them. Reported with the `assisted` fill-result status.
-- The overlay Fill flow runs a **scan-time probe** (`probeFields`) before the AI
-  call: each on-demand custom select is briefly opened, its REAL options are
-  harvested (ARIA → structural → mutation-diff tiers), and it is closed again.
-  Custom selects are then picked **locally at random** from the harvested set —
-  they never go to the AI; a list that renders no options (async/remote) is
-  marked `remoteOptions` and left blank. Text inputs that open a calendar gain a
-  `datepicker` widget descriptor plus the calendar's proven `min`/`max`, which
-  ARE sent to the AI so its proposed date lands inside the picker's range (the
-  filler types first, then attempts the exact requested day in the verified month;
-  it never substitutes a nearby date or activates a generic form submit).
+- The overlay probes only eligible empty/explicit-overwrite widgets before local
+  planning. Custom choices come from enabled harvested options; remote options
+  remain manual. Datepicker bounds feed the local date generator. The executor
+  verifies the exact date/option and never substitutes a nearby value or submits.
 
-**Live surface (v2): the toolbar popup.** The single live UI is the toolbar
-**popup** — passwordless email-OTP sign-in → a subscription/usage mini-dashboard
-with a **Manage** link to the dashboard app and a Sign out. There is no
-in-extension scan/settings UI. Auth screens live in `components/auth/`; a
-`useAuthGate` composable (`lib/useAuthGate.ts`) wraps the background session
-(`createBackgroundAuth` + `useAuth`) and drives the screen machine (sign-in →
-sending → OTP → verifying → success → app) plus the blocking states (error /
-subscription / offline / session / ratelimit / update). Forms validate via Zod +
-VeeValidate through the shared `useFormValidation` (now in `@quikfill/ui`).
+**Live surfaces:** filling happens in the in-page Shadow-DOM overlay. The toolbar
+popup opens directly to local sample preferences and a collapsed per-site control
+section. Auth screens remain in `components/auth/`, entered only by the optional
+sign-in action. Signed-in users also see account usage/dashboard controls.
+Forms use Zod + VeeValidate via shared `useFormValidation`.
 
-**Filling happens on the page**, not in the popup: the content script
-(`content.ts` + `content/overlay.ts`) auto-detects forms and injects an isolated
-Shadow-DOM floating **Fill** button that calls the backend `POST /ai/fill` and
-prefills via the existing `applyFill`. Full reference:
-[`../../docs/CHROME_EXTENSION_FLOW.md`](../../docs/CHROME_EXTENSION_FLOW.md).
-
-**Backend settings-sync is shipped:** `background.ts` wires `createBackgroundSync`
-
-- `hydrateSettings` + a periodic alarm, so dashboard-managed settings hydrate
-  into `chrome.storage` and the overlay applies them — no longer a future
-  iteration.
+**Settings:** `background.ts` composes `createBackgroundSettings` for local-first
+activation/appearance writes and a durable account outbox. Sign-in, periodic
+alarms and manual sync reconcile pending writes before pulling remote settings.
+`settings:local-fill` stores device-local execution preferences separately and
+never syncs to the backend. Chrome transport/global substitution is limited to
+browser fixtures; installed MV3 behavior still needs release verification.

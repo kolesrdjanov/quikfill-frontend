@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // context. Everything else (form-scanner, ai, overlay-gate, schemas) is pure
 // DOM/logic and runs for real, so a genuine `<form>` is detected and earns a button.
 vi.mock('@quikfill/browser-adapter', () => ({
+  readLocalFillPreferences: vi.fn(async () => ({ onlyEmpty: true, seed: '' })),
+  onLocalFillPreferencesChange: vi.fn(() => () => {}),
   requestEntitlements: vi.fn(async () => null),
   refreshEntitlements: vi.fn(async () => null),
   // Imported inside the call (not the factory body) to dodge vi.mock hoisting,

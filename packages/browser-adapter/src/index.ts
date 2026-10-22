@@ -131,3 +131,10 @@ export {
   type EntityDataResponse,
   type EntityDataHandler,
 } from './entity-data-messaging'
+export {
+  LOCAL_FILL_PREFERENCES_KEY,
+  readLocalFillPreferences,
+  writeLocalFillPreferences,
+  onLocalFillPreferencesChange,
+} from './local-fill-preferences-store'
+export { createBackgroundSettings, PENDING_SETTINGS_KEY } from './background-settings'

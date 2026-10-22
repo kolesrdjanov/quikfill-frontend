@@ -12,6 +12,22 @@ const field = (data: Partial<DetectedField> & { name: string }): DetectedField =
   })
 
 describe('offline local planner', () => {
+  it('ignores malformed HTML numeric/date constraints without aborting the batch', () => {
+    const fields = [
+      field({ name: 'date', inputType: 'date', min: 'bad', step: 'bad' }),
+      field({ name: 'quantity', inputType: 'number', min: 'bad', max: 'bad', step: '-1' }),
+      field({ name: 'email' }),
+    ]
+    expect(buildLocalFillPlan(fields, { seed: 'qa' }).instructions).toHaveLength(3)
+  })
+
+  it('leaves sensitive autocomplete fields untouched even with section prefixes', () => {
+    const batch = buildLocalFillPlan([
+      field({ name: 'x', inputType: 'number', autocomplete: 'section-payment cc-number' }),
+    ])
+    expect(batch.instructions).toEqual([])
+    expect(batch.skipped[0].reason).toMatch(/sensitive/i)
+  })
   it('preserves existing values by default and allows explicit overwrite', () => {
     const fields = [
       field({ name: 'email', currentValue: 'mine@example.com' }),

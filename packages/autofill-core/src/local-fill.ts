@@ -19,11 +19,15 @@ export function localFillSkipReason(
   )
     return 'Field is unavailable for editing.'
   if (classifySensitive(field)) return 'Sensitive field — fill it manually.'
+  const selectedRadio =
+    (field.inputType === 'radiogroup' || field.inputType === 'radio') &&
+    field.options?.some((o) => o.selected)
   if (
     (opts.onlyEmpty ?? true) &&
-    field.currentValue !== null &&
-    field.currentValue !== undefined &&
-    field.currentValue !== ''
+    (selectedRadio ||
+      (field.currentValue !== null &&
+        field.currentValue !== undefined &&
+        field.currentValue !== ''))
   )
     return 'Existing value preserved (only empty fields).'
   if (field.customWidget?.remoteOptions)

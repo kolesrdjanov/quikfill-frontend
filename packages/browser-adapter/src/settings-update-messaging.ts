@@ -2,14 +2,10 @@
 import type { ExtensionSettings } from '@quikfill/schemas'
 
 /**
- * Surface → background "save these settings" message. The api-client (and its
- * auth token) live only in the background worker, so a surface that edits settings
- * — e.g. the popup's per-site activation toggle — sends the full settings object
- * here; the background PUTs it to the account (`PATCH /users/me/settings`) and
- * writes the echo into `chrome.storage.local`, which every surface + the overlay
- * watch via `storage.onChanged`. This is the WRITE counterpart to the read-only
- * `settings-sync-messaging` pull. The helper never throws — an unreachable /
- * signed-out background resolves to `null`.
+ * Surface → background local-first activation/appearance write. The background
+ * persists locally and queues best-effort account sync; auth/network failures do
+ * not roll back a successful device write. Local storage/background failure
+ * resolves null. Tokens and account API calls remain in the worker.
  */
 export const SETTINGS_UPDATE_REQUEST = 'SETTINGS_UPDATE_REQUEST'
 
@@ -27,8 +23,8 @@ export function isSettingsUpdateRequest(message: unknown): message is SettingsUp
 }
 
 /**
- * Persist a full settings object to the account. Resolves with the saved settings
- * (the server's echo) or `null` if the background is unreachable / signed out.
+ * Persist settings locally. Returns the saved settings or null when the local
+ * write/background fails. Signed-out and offline writes are supported.
  */
 export async function requestSettingsUpdate(
   settings: ExtensionSettings,

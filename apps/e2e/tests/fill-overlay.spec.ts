@@ -1,5 +1,15 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { html, buttons, replyToPending, twoFields } from './form-fixture'
+
+// Enter the optional AI path through real UI, after undoing the local sample.
+async function startAi(page: Page, index = 0) {
+  await buttons(page).nth(index).click()
+  const panel = page.locator('#quikfill-overlay-host .qf-result').nth(index)
+  const undo = panel.getByRole('button', { name: 'Undo fill', exact: true })
+  await expect(panel).toBeVisible()
+  if (await undo.isVisible()) await undo.click()
+  await panel.getByRole('button', { name: 'AI assist', exact: true }).click()
+}
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
@@ -13,7 +23,7 @@ test('overlay confines filling to one form and blocks a concurrent fill', async 
     window.qf.mountOverlay()
   })
   await expect(buttons(page)).toHaveCount(2)
-  await buttons(page).first().click()
+  await startAi(page)
   await expect.poll(() => page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
   await expect(buttons(page).nth(1)).toBeDisabled()
   await buttons(page)
@@ -33,7 +43,7 @@ test('overlay reports omitted values as partial and exposes field details', asyn
     window.qf.transport.values = { email: 'test@example.com' }
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect(page.getByRole('status')).toHaveText('1/2 filled · 1 skipped')
   await expect(buttons(page)).toHaveText('1/2 filled')
   await page.locator('#quikfill-overlay-host summary').click()
@@ -69,7 +79,7 @@ test('overlay leaves assisted autocomplete pending instead of saying Filled', as
     window.qf.transport.values = { address: 'Main Street', name: 'Ada' }
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect(page.getByRole('status')).toHaveText('1/2 filled · 1 need your input')
   await expect(buttons(page)).not.toHaveText('Filled')
 })
@@ -80,7 +90,7 @@ test('overlay preserves an edit made while the AI request is pending', async ({ 
     window.qf.transport.pending = true
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect.poll(() => page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
   await page.locator('input[name=name]').fill('My manual edit')
   await replyToPending(page)
@@ -94,7 +104,7 @@ test('overlay does not apply a pending reply after the form is replaced', async 
     window.qf.transport.pending = true
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect.poll(() => page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
   await page.locator('#form').evaluate((form) => {
     form.replaceWith(form.cloneNode(true))
@@ -114,10 +124,11 @@ test('undo remains bound after rescanning and preserves subsequent manual edits'
     '<form><input name="email" type="email" value="old@example.com"><input name="name" value="Old name"></form>',
   )
   await page.evaluate(() => {
+    window.qf.transport.preferences.onlyEmpty = false
     window.qf.transport.values = { email: 'test@example.com', name: 'Ada' }
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect(page.getByRole('status')).toHaveText('2/2 filled')
   await page.locator('input[name=name]').fill('My new edit')
   await page.evaluate(() => window.qf.rescan())
@@ -134,7 +145,7 @@ test('a timed-out session releases the lock and ignores its late reply', async (
     window.qf.transport.pending = true
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect.poll(() => page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
   await page.clock.fastForward(30_001)
   await expect(buttons(page)).toBeEnabled()
@@ -151,7 +162,7 @@ test('a route change cancels a pending fill even when the form remains mounted',
     window.qf.transport.pending = true
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect.poll(() => page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
   await page.evaluate(() => window.history.pushState({}, '', '/different-record'))
   await replyToPending(page)
@@ -168,7 +179,7 @@ test('destroying the overlay aborts a pending session and ignores its late respo
     window.qf.transport.pending = true
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect.poll(() => page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
   await page.evaluate(() => window.qf.destroyOverlay())
   await replyToPending(page)
@@ -182,10 +193,11 @@ test('the result can be dismissed and the same form filled again', async ({ page
     window.qf.transport.values = { email: 'test@example.com', name: 'Ada' }
     window.qf.mountOverlay()
   })
-  await buttons(page).click()
+  await startAi(page)
   await expect(page.getByRole('status')).toHaveText('2/2 filled')
   await page.getByRole('button', { name: 'Dismiss result' }).click()
   await expect(page.locator('#quikfill-overlay-host .qf-result')).toBeHidden()
   await buttons(page).click()
-  await expect.poll(() => page.evaluate(() => window.qf.transport.requests.length)).toBe(2)
+  await expect(page.getByRole('status')).toHaveText('0/2 filled · 2 skipped')
+  expect(await page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
 })

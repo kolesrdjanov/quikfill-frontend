@@ -24,6 +24,9 @@ shares one synthetic identity per plan (US/GB/RS), uses stable field metadata fo
 seeded generation, and carries number/date ranges, steps, masks and text length
 constraints through planning. The scanner now distinguishes unchecked checkboxes
 from populated controls and exposes disabled options and HTML step bases.
+The live extension now consumes this entry point; device-local execution
+preferences and a durable account-settings outbox live behind browser adapters.
+Acceptance and remaining boundaries: [Phase 1](./PHASE_1_LOCAL_FILL.md).
 
 ```txt
 schemas        → (no deps) pure Zod + inferred types

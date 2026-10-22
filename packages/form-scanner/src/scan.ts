@@ -350,6 +350,7 @@ function buildCustomField(info: CustomSelectInfo, ctx: FrameContext, id: string)
     value: label,
     label,
     selected: label === info.selectedLabel,
+    ...(info.disabledOptionLabels.includes(label) ? { disabled: true } : {}),
   }))
   const fp = fingerprint({
     label: labelText,

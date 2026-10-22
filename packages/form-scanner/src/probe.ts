@@ -169,7 +169,12 @@ function harvestOptions(rows: Element[], currentValue: string | null | undefined
     const key = norm(label)
     if (!key || seen.has(key)) continue
     seen.add(key)
-    options.push({ value: label, label, selected: norm(currentValue ?? '') === key })
+    options.push({
+      value: label,
+      label,
+      selected: norm(currentValue ?? '') === key,
+      disabled: row.matches(':disabled') || row.getAttribute('aria-disabled') === 'true',
+    })
   }
   return options
 }

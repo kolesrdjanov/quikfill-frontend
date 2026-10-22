@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ExternalLink, X } from 'lucide-vue-next'
+import { X } from 'lucide-vue-next'
 import { Button, Card, CardHeader, CardTitle, Select, Switch } from '@quikfill/ui'
 import {
   getActiveTab,
@@ -16,14 +16,15 @@ import {
 } from '@quikfill/schemas'
 import { activeHostList, isHostActive, removeActiveHost, setHostEnabled } from '../lib/overlay-gate'
 import OptionRow from './options/OptionRow.vue'
-import { DASHBOARD_URL } from '../lib/external-urls'
 
 // Per-site activation, right in the popup. The toggle acts on the CURRENT tab's
 // hostname; the mode switch flips between "all sites except exclusions" and "only
 // my allowlist". Edits go through the background (requestSettingsUpdate → PATCH
-// /users/me/settings), and the on-page overlay reacts live via storage.onChanged.
+// /users/me/settings when signed in), with local-first persistence. The overlay
+// reacts live through storage.onChanged.
 const settings = ref<ExtensionSettings>({ ...DEFAULT_EXTENSION_SETTINGS })
 const hostname = ref('')
+const saveError = ref('')
 let unsubscribe: () => void = () => {}
 
 onMounted(async () => {
@@ -58,13 +59,17 @@ const listEmptyHint = computed(() =>
     : 'No exclusions — QuikFill runs on every site.',
 )
 
-// Reflect the change optimistically (snappy toggle), then persist to the account.
-// On failure (offline / signed out) revert to the previous value.
+// Reflect the change optimistically (snappy toggle), then persist locally. Account sync is best-effort.
+// If local storage fails, revert and explain the failure.
 async function commit(next: ExtensionSettings): Promise<void> {
   const previous = settings.value
   settings.value = next
+  saveError.value = ''
   const saved = await requestSettingsUpdate(next)
-  if (!saved) settings.value = previous
+  if (!saved) {
+    settings.value = previous
+    saveError.value = 'Could not save on this device. Try again.'
+  }
 }
 
 function onToggle(value: boolean): void {
@@ -76,15 +81,19 @@ function onMode(value: string): void {
 function onRemove(host: string): void {
   void commit(removeActiveHost(settings.value, host))
 }
-function openDashboardSetup(): void {
-  void browser.tabs?.create({ url: `${DASHBOARD_URL}/settings/setup` })
-  window.close()
-}
 </script>
 
 <template>
   <Card>
     <CardHeader><CardTitle>This site</CardTitle></CardHeader>
+    <p v-if="saveError" role="alert" class="text-destructive px-4 text-sm">{{ saveError }}</p>
+    <OptionRow title="QuikFill enabled">
+      <Switch
+        :model-value="settings.globalEnabled"
+        aria-label="QuikFill enabled"
+        @update:model-value="(v) => commit({ ...settings, globalEnabled: !!v })"
+      />
+    </OptionRow>
 
     <OptionRow v-if="hostname" stacked :title="hostname" :subtitle="switchHint">
       <Switch
@@ -118,24 +127,19 @@ function openDashboardSetup(): void {
           class="bg-muted/40 flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5"
         >
           <span class="truncate text-[12.5px]">{{ h }}</span>
-          <button
+          <Button
             type="button"
-            class="text-muted-foreground hover:text-foreground shrink-0"
+            variant="ghost"
+            size="icon"
+            class="text-muted-foreground hover:text-foreground size-11 shrink-0"
             :aria-label="`Remove ${h}`"
             @click="onRemove(h)"
           >
             <X class="size-3.5" />
-          </button>
+          </Button>
         </li>
       </ul>
       <p v-else class="text-muted-foreground mt-1 text-[12.5px]">{{ listEmptyHint }}</p>
-    </div>
-
-    <div class="px-4 py-3.5">
-      <Button variant="outline" size="sm" class="w-full" @click="openDashboardSetup">
-        <ExternalLink class="size-4" />
-        Manage sites in dashboard
-      </Button>
     </div>
   </Card>
 </template>

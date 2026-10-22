@@ -43,6 +43,12 @@ repo's iterations 4–6.
 
 ## Status
 
+**2026-10-22 — Phase 1 local flow restored.** The main Fill action uses the shared
+local planner/generators without AI, account, network or quota. Only-empty defaults,
+seeded personas, local popup preferences and offline activation writes are wired
+into the live surfaces. Validation and remaining boundaries:
+[Phase 1](./PHASE_1_LOCAL_FILL.md).
+
 **2026-10-22 — Phase 0 stabilization complete locally.** Critical execution
 failures are fixed, form-scoped sessions now report partial results and offer
 guarded undo, and browser fixtures cover the regressions. Validation: 678 unit

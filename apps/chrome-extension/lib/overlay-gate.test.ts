@@ -17,31 +17,26 @@ const base = (overrides: Partial<ExtensionSettings> = {}): ExtensionSettings => 
 
 describe('shouldShowOverlay', () => {
   it('shows on a normal site with default settings', () => {
-    expect(shouldShowOverlay(base(), 'example.com', false)).toBe(true)
-  })
-  it('hides when over the AI budget', () => {
-    expect(shouldShowOverlay(base(), 'example.com', true)).toBe(false)
+    expect(shouldShowOverlay(base(), 'example.com')).toBe(true)
   })
   it('hides when globally disabled', () => {
-    expect(shouldShowOverlay(base({ globalEnabled: false }), 'example.com', false)).toBe(false)
+    expect(shouldShowOverlay(base({ globalEnabled: false }), 'example.com')).toBe(false)
   })
   it('hides when the button is turned off', () => {
-    expect(shouldShowOverlay(base({ showFillButton: false }), 'example.com', false)).toBe(false)
+    expect(shouldShowOverlay(base({ showFillButton: false }), 'example.com')).toBe(false)
   })
   it('hides on a blocked host', () => {
-    expect(
-      shouldShowOverlay(base({ blockedHostnames: ['bank.example'] }), 'bank.example', false),
-    ).toBe(false)
+    expect(shouldShowOverlay(base({ blockedHostnames: ['bank.example'] }), 'bank.example')).toBe(
+      false,
+    )
   })
   it('allowlist mode: shows only on allowed hosts', () => {
     const s = base({ activationMode: 'allowlist', allowedHostnames: ['app.quikstor.com'] })
-    expect(shouldShowOverlay(s, 'app.quikstor.com', false)).toBe(true)
-    expect(shouldShowOverlay(s, 'example.com', false)).toBe(false)
+    expect(shouldShowOverlay(s, 'app.quikstor.com')).toBe(true)
+    expect(shouldShowOverlay(s, 'example.com')).toBe(false)
   })
   it('allowlist mode with an empty list shows nowhere', () => {
-    expect(shouldShowOverlay(base({ activationMode: 'allowlist' }), 'example.com', false)).toBe(
-      false,
-    )
+    expect(shouldShowOverlay(base({ activationMode: 'allowlist' }), 'example.com')).toBe(false)
   })
 })
 

@@ -122,7 +122,8 @@ function parseNonNegativeInt(raw: string | null): number | undefined {
 export function getCurrentValue(el: FormControl): string | null {
   const tag = el.tagName.toLowerCase()
   if (tag === 'input' && (el as HTMLInputElement).type === 'checkbox') {
-    return (el as HTMLInputElement).checked ? (el as HTMLInputElement).value : null
+    // The submitted value may itself be empty; preserve the actual toggle state.
+    return (el as HTMLInputElement).checked ? 'true' : null
   }
   if (tag === 'input' || tag === 'textarea') return (el as HTMLInputElement).value ?? null
   if (tag === 'select') {
@@ -410,6 +411,7 @@ export interface CustomSelectInfo {
   optionLabels: string[]
   /** Currently displayed selection text, if any. */
   selectedLabel: string | null
+  disabledOptionLabels: string[]
   /** The open list's element id (trigger's aria-controls/aria-owns), for portal resolution. */
   listboxId: string | null
   /** The widget's typeahead/filter input, when it has one. */
@@ -534,6 +536,15 @@ export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
 
   // 2) Current selection display: a value-ish child of the trigger, else trigger text.
   const valueDisplay = trigger.querySelector('[class*="value" i], [class*="selected" i]') ?? trigger
+  const displayText = normalizeWidgetText(valueDisplay)
+  const selectedOption = options.some((o) => o.getAttribute('aria-selected') === 'true')
+  const hasPlaceholder =
+    trigger.hasAttribute('data-placeholder') || valueDisplay.hasAttribute('data-placeholder')
+  const isPlaceholder =
+    !selectedOption &&
+    (hasPlaceholder ||
+      (PLACEHOLDER_TEXT_RE.test(displayText) &&
+        !options.some((o) => normalizeWidgetText(o) === displayText)))
   // A typeahead/filter input inside the widget (the user's `input#_r_ag_` case, or a
   // role=combobox input). Drives the type-to-filter fill tier.
   const searchInput = findSearchInput(trigger, optionsScope)
@@ -542,7 +553,10 @@ export function detectCustomSelect(trigger: Element): CustomSelectInfo | null {
     trigger,
     valueDisplay: valueDisplay === trigger ? null : valueDisplay,
     optionItemSelector: CUSTOM_OPTION_SELECTOR,
-    selectedLabel: normalizeWidgetText(valueDisplay) || null,
+    selectedLabel: isPlaceholder ? null : displayText || null,
+    disabledOptionLabels: options
+      .filter((o) => o.matches(':disabled') || o.getAttribute('aria-disabled') === 'true')
+      .map(normalizeWidgetText),
     listboxId: trigger.getAttribute('aria-controls') ?? trigger.getAttribute('aria-owns') ?? null,
     searchInput,
     optionValueAttr: detectOptionValueAttr(options[0] ?? null),

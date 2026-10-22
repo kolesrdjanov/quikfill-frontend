@@ -65,6 +65,10 @@ describe('catalog kinds', () => {
     expect(runGenerator(rule('date'), { seed: 'a' })).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
+  it('accepts the Unix epoch as a maximum date without a minimum', () => {
+    expect(runGenerator(rule('date', { max: '1970-01-01' }), { seed: 'a' })).toBe('1970-01-01')
+  })
+
   it('currency carries a symbol and 2 decimals', () => {
     expect(runGenerator(rule('currency'), { seed: 'a' })).toMatch(/^\$\d+\.\d{2}$/)
   })

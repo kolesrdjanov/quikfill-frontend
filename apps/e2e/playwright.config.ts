@@ -17,7 +17,7 @@ export default defineConfig({
     { name: 'chromium', testMatch: 'smoke.spec.ts', use: { ...devices['Desktop Chrome'] } },
     {
       name: 'forms',
-      testMatch: ['fill-engine.spec.ts', 'fill-overlay.spec.ts'],
+      testMatch: ['fill-engine.spec.ts', 'fill-overlay.spec.ts', 'local-fill.spec.ts'],
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:4174' },
     },
   ],

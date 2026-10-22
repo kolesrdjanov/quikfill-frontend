@@ -2,9 +2,8 @@ import type { DetectedField } from '@quikfill/schemas'
 
 /**
  * Sensitive field categories: `password` / `otp` (most sensitive) and `payment` /
- * `governmentId` (card / government-ID fields). The in-page overlay no longer
- * gates on these (every field is sent); kept as a pure classifier for reuse if
- * field-level gating is reintroduced.
+ * `governmentId` (card / government-ID fields). The local planner and optional
+ * AI flow leave these fields for the user.
  */
 export type SensitiveCategory = 'password' | 'otp' | 'payment' | 'governmentId'
 
@@ -31,7 +30,7 @@ function haystack(field: DetectedField): string {
  */
 export function classifySensitive(field: DetectedField): SensitiveCategory | null {
   const type = field.inputType.toLowerCase()
-  const ac = field.autocomplete?.toLowerCase().trim() ?? ''
+  const ac = field.autocomplete?.toLowerCase().trim().split(/\s+/).at(-1) ?? ''
   const text = haystack(field)
 
   // Passwords — strongest signal is the input type itself.

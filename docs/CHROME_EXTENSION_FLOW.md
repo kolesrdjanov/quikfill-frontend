@@ -1,5 +1,11 @@
 # Chrome Extension — In-Page Fill Flow (current)
 
+> **Current behavior (2026-10-22):** [Phase 1](./PHASE_1_LOCAL_FILL.md) supersedes
+> the AI-first/auth-first flow below. Main Fill is local, only-empty by default,
+> with no account/network/quota requirement. Popup local preferences are always
+> available; AI assist and sign-in are explicit optional actions. The Phase 0
+> scoped execution, result details and undo protections remain in place.
+
 This is the reference for **how filling works** in the Chrome extension after the
 flow revamp. It supersedes the side-panel scan → preview → AI-suggestion → fill
 **wizard** (which is disabled but kept in the tree behind a `LEGACY` marker — see

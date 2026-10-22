@@ -112,7 +112,9 @@ const GENERATORS: Record<GeneratorKind, (rng: Rng, o: Options, ctx: GenerateCont
     const day = 86_400_000
     const parsedMin = Date.parse(str(o, 'min') ?? '') / day
     const parsedMax = Date.parse(str(o, 'max') ?? '') / day
-    const min = Number.isFinite(parsedMin) ? parsedMin : Math.min(18262, parsedMax || 18262)
+    const min = Number.isFinite(parsedMin)
+      ? parsedMin
+      : Math.min(18262, Number.isFinite(parsedMax) ? parsedMax : 18262)
     const max = Number.isFinite(parsedMax) ? parsedMax : Math.max(22279, min)
     if (min > max) return ''
     const step = num(o, 'step', 1)

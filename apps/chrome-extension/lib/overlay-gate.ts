@@ -3,16 +3,11 @@ import { normalizeHostname, type ExtensionSettings } from '@quikfill/schemas'
 /**
  * Pure decision helpers for the in-page overlay, extracted so the gating logic
  * is unit-testable without a DOM or `chrome`. The overlay supplies the live
- * settings, the current hostname, and the AI-budget flag.
+ * settings and the current hostname.
  */
 
 /** Whether the in-page Fill button should appear at all on this page. */
-export function shouldShowOverlay(
-  settings: ExtensionSettings,
-  hostname: string,
-  overQuota: boolean,
-): boolean {
-  if (overQuota) return false
+export function shouldShowOverlay(settings: ExtensionSettings, hostname: string): boolean {
   if (!settings.globalEnabled) return false
   if (!settings.showFillButton) return false
   return isHostActive(settings, hostname)

@@ -1,8 +1,11 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   root: fileURLToPath(new URL('./fixtures', import.meta.url)),
+  plugins: [vue(), tailwindcss()],
   resolve: {
     // Exercise the real overlay and engine; replace only the extension transport.
     alias: {

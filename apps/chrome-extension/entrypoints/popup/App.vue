@@ -10,18 +10,19 @@ import {
 import BrandLockup from '../../components/BrandLockup.vue'
 import AuthPanel from '../../components/auth/AuthPanel.vue'
 import ThisSiteCard from '../../components/ThisSiteCard.vue'
+import LocalFillCard from '../../components/LocalFillCard.vue'
 import { SUPPORT_MAILTO } from '../../lib/external-urls'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
 import { useEntitlements } from '../../lib/useEntitlements'
 
-// v2 surface: the toolbar popup is auth → success → a mini-dashboard of the user's
-// subscription/usage, with a Manage button that opens the full dashboard app. No
-// settings and no on-page scan live here — filling happens on the page (overlay).
+// Local preferences are always available. Authentication is an optional route
+// for AI and account sync; filling happens on the page.
 const DASHBOARD_URL = import.meta.env.PROD ? 'https://app.quikfill.io' : 'http://localhost:5173'
 
 const { init: initTheme, apply: applyTheme } = useExtensionTheme()
 const gate = useAuthGate()
+const showAuth = ref(false)
 const entitlements = useEntitlements()
 
 // Settings are dashboard-owned and synced down by the background worker. Re-pull
@@ -95,16 +96,6 @@ onMounted(async () => {
   initTheme((await readExtensionSettings()).theme)
   unsubscribeSettings = onExtensionSettingsChange((s) => applyTheme(s.theme))
   await gate.init()
-  await entitlements.init()
-  // init() only reads the background's cached snapshot, which is warmed once at
-  // service-worker startup — usually while still signed out, so it's empty. Fetch
-  // live numbers + re-sync settings whenever the gate is ready (on open) and again
-  // right after an in-popup sign-in, otherwise the mini-dashboard shows "Loading…"
-  // forever and settings stay stale.
-  if (gate.isAppReady.value) {
-    void entitlements.refresh()
-    void syncSettings()
-  }
 })
 
 onUnmounted(() => {
@@ -116,11 +107,17 @@ watch(
   () => gate.isAppReady.value,
   (ready) => {
     if (ready) {
-      void entitlements.refresh()
+      showAuth.value = false
+      void entitlements.init().then(() => entitlements.refresh())
       void syncSettings()
     }
   },
 )
+
+function showSignIn() {
+  gate.showSignIn()
+  showAuth.value = true
+}
 
 function openDashboard() {
   void browser.tabs?.create({ url: `${DASHBOARD_URL}/settings/billing` })
@@ -130,16 +127,17 @@ function openDashboard() {
 
 <template>
   <div class="bg-card text-foreground w-[340px]">
-    <!-- AUTH: log in / sign up → enter code → success (all handled by AuthPanel).
-         PanelShell sizes to content (no forced viewport/full height) so the popup
-         grows to fit each screen — no clipping, no scrollbar. -->
-    <AuthPanel v-if="!gate.isAppReady.value" />
+    <div v-if="showAuth && !gate.isAppReady.value">
+      <Button variant="ghost" class="m-2 min-h-11" @click="showAuth = false"
+        >Back to local fill</Button
+      >
+      <AuthPanel />
+    </div>
 
-    <!-- MINI-DASHBOARD -->
     <div v-else class="flex flex-col gap-4 p-4">
       <div class="flex items-center justify-between">
         <BrandLockup />
-        <div class="flex items-center gap-1">
+        <div v-if="gate.isAppReady.value" class="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -163,7 +161,18 @@ function openDashboard() {
         </div>
       </div>
 
-      <div class="bg-muted/40 flex flex-col gap-3 rounded-[12px] border p-3.5">
+      <LocalFillCard />
+      <details class="rounded-lg border">
+        <summary class="min-h-11 cursor-pointer px-3 py-3 text-sm font-semibold">
+          Site activation and exclusions
+        </summary>
+        <ThisSiteCard />
+      </details>
+
+      <div
+        v-if="gate.isAppReady.value"
+        class="bg-muted/40 flex flex-col gap-3 rounded-[12px] border p-3.5"
+      >
         <div class="flex items-center justify-between gap-2">
           <span class="text-[13px] font-semibold">{{ planLine ?? 'Your plan' }}</span>
           <Badge v-if="entitlements.isOverQuota.value" variant="danger">AI limit reached</Badge>
@@ -189,19 +198,23 @@ function openDashboard() {
         </div>
       </div>
 
-      <!-- Per-site activation: toggle the current site on/off and pick the match mode. -->
-      <ThisSiteCard />
-
-      <p v-if="gate.user.value?.email" class="text-muted-foreground px-1 text-[11px]">
+      <p
+        v-if="gate.isAppReady.value && gate.user.value?.email"
+        class="text-muted-foreground px-1 text-[11px]"
+      >
         Signed in as {{ gate.user.value.email }}
       </p>
 
-      <Button class="w-full" @click="openDashboard">
+      <Button v-if="gate.isAppReady.value" class="min-h-11 w-full" @click="openDashboard">
         Go to Dashboard
         <ArrowUpRight class="size-4" />
       </Button>
 
-      <p class="text-muted-foreground px-1 text-center text-[11px] leading-snug">
+      <Button v-else variant="outline" class="min-h-11 w-full" @click="showSignIn"
+        >Sign in for optional AI &amp; sync</Button
+      >
+
+      <p class="text-muted-foreground px-1 text-center text-[12px] leading-snug">
         Fill happens on the page — look for the QuikFill button near each form.
       </p>
 

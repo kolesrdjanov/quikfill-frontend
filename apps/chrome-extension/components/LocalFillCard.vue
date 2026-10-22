@@ -1,0 +1,116 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+  Select,
+  Switch,
+  useFormValidation,
+} from '@quikfill/ui'
+import { DEFAULT_LOCAL_FILL_PREFERENCES, localFillPreferencesSchema } from '@quikfill/schemas'
+import {
+  readExtensionSettings,
+  readLocalFillPreferences,
+  writeLocalFillPreferences,
+} from '@quikfill/browser-adapter'
+import OptionRow from './options/OptionRow.vue'
+
+const { defineField, handleSubmit, errors, resetForm } = useFormValidation(
+  localFillPreferencesSchema,
+  DEFAULT_LOCAL_FILL_PREFERENCES,
+)
+const [onlyEmpty] = defineField('onlyEmpty')
+const [locale, localeAttrs] = defineField('locale')
+const [seed, seedAttrs] = defineField('seed')
+const loaded = ref(false)
+const saving = ref(false)
+const message = ref('')
+onMounted(async () => {
+  try {
+    const [prefs, settings] = await Promise.all([
+      readLocalFillPreferences(),
+      readExtensionSettings(),
+    ])
+    resetForm({ values: { ...prefs, locale: prefs.locale ?? settings.locale } })
+    loaded.value = true
+  } catch {
+    message.value = 'Could not read local settings. Reopen the popup and try again.'
+  }
+})
+const save = handleSubmit(async (values) => {
+  saving.value = true
+  message.value = ''
+  try {
+    await writeLocalFillPreferences(values)
+    message.value = 'Saved on this device.'
+  } catch {
+    message.value = 'Could not save on this device. Try again.'
+  } finally {
+    saving.value = false
+  }
+})
+</script>
+
+<template>
+  <Card>
+    <CardHeader><CardTitle>Local test data</CardTitle></CardHeader>
+    <p class="text-muted-foreground px-4 pb-3 text-sm">
+      No account or connection needed. Use the QuikFill button beside a form to generate sample
+      values.
+    </p>
+    <form @submit="save">
+      <fieldset :disabled="!loaded || saving">
+        <OptionRow title="Only empty fields" subtitle="Turn off to replace existing values.">
+          <Switch v-model="onlyEmpty" aria-label="Only empty fields" />
+        </OptionRow>
+        <div class="space-y-3 px-4 py-3">
+          <div class="space-y-1.5">
+            <Label for="local-locale">Sample locale</Label>
+            <Select
+              id="local-locale"
+              v-model="locale"
+              v-bind="localeAttrs"
+              :aria-invalid="!!errors.locale"
+              class="min-h-11"
+            >
+              <option value="en-US">English (US)</option>
+              <option value="en-GB">English (UK)</option>
+              <option value="sr-RS">Srpski (RS)</option>
+            </Select>
+          </div>
+          <div class="space-y-1.5">
+            <Label for="local-seed">Repeatable seed</Label>
+            <Input
+              id="local-seed"
+              v-model="seed"
+              v-bind="seedAttrs"
+              :aria-invalid="!!errors.seed"
+              aria-describedby="local-seed-hint local-seed-error"
+              maxlength="128"
+              placeholder="Fresh data each time"
+              class="min-h-11"
+            />
+            <p id="local-seed-hint" class="text-muted-foreground text-xs">
+              The same seed repeats values for the same fields. Leave blank for fresh data.
+            </p>
+            <p v-if="errors.seed" id="local-seed-error" class="text-destructive text-xs">
+              {{ errors.seed }}
+            </p>
+          </div>
+          <Button
+            type="submit"
+            variant="outline"
+            class="min-h-11 w-full"
+            :disabled="!loaded || saving"
+            >{{ saving ? 'Saving…' : 'Save local preferences' }}</Button
+          >
+        </div>
+      </fieldset>
+      <p v-if="message" role="status" class="px-4 pb-3 text-xs">{{ message }}</p>
+    </form>
+  </Card>
+</template>

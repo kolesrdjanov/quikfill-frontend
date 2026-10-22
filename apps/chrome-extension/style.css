@@ -2,3 +2,4 @@
 @import '../../packages/config/theme.css';
 @source '../../packages/ui/src';
 @source './entrypoints';
+@source './components';

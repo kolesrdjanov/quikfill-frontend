@@ -79,7 +79,7 @@ function buildItem(assignment: PlanAssignment, ctx: ResolveContext): FillPlanIte
     warnings.push('Field is disabled — it will be skipped.')
     requiresConfirmation = true
   }
-  if (field.readonly) {
+  if (field.readonly && field.customWidget?.kind !== 'datepicker') {
     warnings.push('Field is read-only — it will be skipped.')
     requiresConfirmation = true
   }

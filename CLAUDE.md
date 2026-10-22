@@ -11,6 +11,11 @@ QuikFill is a **single-user**, local-first form-autofill product. It scans a web
 page, detects fields, matches saved profiles, optionally asks AI for help, builds
 a previewable fill plan, fills fields, and supports undo.
 
+**Live extension flow (Phase 1, 2026-10-22):** main Fill generates local test data
+through `buildLocalFillPlan`, preserves existing values by default, and works
+without an account/network/AI quota. Popup preferences are available signed out;
+AI assist is a separate user action. See [Phase 1](./docs/PHASE_1_LOCAL_FILL.md).
+
 - **Chrome extension** (`apps/chrome-extension`) — the primary execution surface.
 - **App / dashboard** (`apps/app`) — currently a trimmed live surface: sign-in +
   Settings (Billing / Account / Setup) + Admin. The full dashboard (data,

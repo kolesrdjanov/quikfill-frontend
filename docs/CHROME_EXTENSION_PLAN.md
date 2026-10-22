@@ -25,11 +25,15 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 | —   | In-page fill flow (floating "Fill" buttons + `/ai/fill`)                      | ✅ Done  |
 | —   | v2 popup surface (auth + usage mini-dashboard; side panel & settings retired) | ✅ Done  |
 | —   | Phase 0: scoped sessions, honest results, guarded undo, browser regressions   | ✅ Local |
+| —   | Phase 1: local Fill by default, optional account/AI, offline popup controls   | ✅ Local |
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)
 
 Phase 0 acceptance and test commands: [PHASE_0_STABILIZATION.md](./PHASE_0_STABILIZATION.md).
+Current live flow: [PHASE_1_LOCAL_FILL.md](./PHASE_1_LOCAL_FILL.md). The main button
+uses the shared local planner; AI/account UI is optional. Earlier revamp/v2 notes
+below describe the historical AI-first/auth-first implementation.
 The fixtures test the real engine/overlay with a fake extension transport; packaged
 MV3 lifecycle and permissions are not yet covered by that harness.
 

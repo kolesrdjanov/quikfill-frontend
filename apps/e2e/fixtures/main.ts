@@ -13,9 +13,12 @@ import {
   type OverlayHandle,
 } from '../../chrome-extension/entrypoints/content/overlay'
 import { transport } from './browser-adapter'
+import { createApp, type App } from 'vue'
+import ControlledForm from './ControlledForm.vue'
 
 let overlay: OverlayHandle | null = null
 let reactRoot: Root | null = null
+let vueApp: App | null = null
 const reactState = { checked: false, changes: 0, rerender: () => {} }
 
 const harness = {
@@ -43,16 +46,36 @@ const harness = {
     function Form() {
       const [checked, setChecked] = React.useState(false)
       const [tick, setTick] = React.useState(0)
+      const [email, setEmail] = React.useState('')
+      const [firstName, setFirstName] = React.useState('')
       reactState.checked = checked
       reactState.rerender = () => setTick((value) => value + 1)
       return React.createElement(
         'form',
-        { 'data-tick': tick, onSubmit: (event) => event.preventDefault() },
+        {
+          'data-tick': tick,
+          'data-email': email,
+          'data-name': firstName,
+          'data-checked': checked,
+          onSubmit: (event) => event.preventDefault(),
+        },
+        React.createElement('input', {
+          name: 'email',
+          type: 'email',
+          value: email,
+          onChange: (event) => setEmail(event.target.value),
+        }),
+        React.createElement('input', {
+          name: 'first_name',
+          value: firstName,
+          onChange: (event) => setFirstName(event.target.value),
+        }),
         React.createElement('input', {
           id: 'react-check',
           type: 'checkbox',
           name: 'enabled',
           checked,
+          required: true,
           onChange: (event) => {
             reactState.changes++
             setChecked(event.target.checked)
@@ -62,6 +85,11 @@ const harness = {
     }
     reactRoot = createRoot(container)
     reactRoot.render(React.createElement(Form))
+  },
+  mountVue() {
+    vueApp?.unmount()
+    vueApp = createApp(ControlledForm)
+    vueApp.mount(document.getElementById('fixtures')!)
   },
   fillOptions: {} as FillOptions,
 }
