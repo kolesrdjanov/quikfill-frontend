@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "install:browsers": "playwright install",
     "dev:mv3-fixtures": "vite --config vite.mv3.config.ts",
-    "test:mv3": "node release/run.mjs"
+    "test:mv3": "node release/run.mjs",
+    "test:mv3:gemini": "node release/run.mjs --real-gemini"
   },
   "devDependencies": {
     "@emotion/styled": "11.14.1",

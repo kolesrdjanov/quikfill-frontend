@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 const cwd = fileURLToPath(new URL('..', import.meta.url))
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+const realGemini = process.argv.includes('--real-gemini')
 for (const args of [
   [
     '--filter',
@@ -12,7 +13,14 @@ for (const args of [
     '--config',
     '../e2e/wxt.mv3.config.ts',
   ],
-  ['exec', 'playwright', 'test', '--config', 'playwright.mv3.config.ts', ...process.argv.slice(2)],
+  [
+    'exec',
+    'playwright',
+    'test',
+    '--config',
+    realGemini ? 'playwright.gemini.config.ts' : 'playwright.mv3.config.ts',
+    ...process.argv.slice(2).filter((arg) => arg !== '--real-gemini'),
+  ],
 ]) {
   const result = spawnSync(pnpm, args, {
     cwd,

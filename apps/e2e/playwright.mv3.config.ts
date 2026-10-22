@@ -4,7 +4,7 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './release',
   outputDir: './playwright-report/mv3',
-  testMatch: '*.spec.ts',
+  testMatch: 'installed.spec.ts',
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,

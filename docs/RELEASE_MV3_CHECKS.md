@@ -3,7 +3,7 @@
 The installed-extension browser gate passes locally. No push, publication, version
 bump or production database change was made. Extension version remains **1.0.13**.
 
-Regression checks after the fixes: **750 frontend unit tests**, **86 existing
+Original regression checks after the installed-MV3 fixes: **750 frontend unit tests**, **86 existing
 browser tests**, **297 backend unit tests** and **78 PostgreSQL integration tests**
 pass, plus the **five installed MV3 release journeys**. Lint/typecheck/build and
 OpenAPI drift checks pass; a missing API opt-in is also verified to refuse startup.
@@ -106,9 +106,44 @@ docker compose stop postgres-test
 ## Remaining release scope
 
 This closes the installed-MV3 browser gate for the controlled local environment.
-Real Gemini behavior, real Stripe test/live configuration, production deployment,
-Chrome Web Store packaging/upload and a wider Chrome/OS/site matrix remain separate
-checks. No universal compatibility or automatic repair on restricted sites is claimed.
+Real Gemini and Stripe test API checks were subsequently completed as described
+below. Hosted Stripe Checkout/3DS completion, actual configured webhook delivery,
+production deployment, Chrome Web Store packaging/upload and a wider Chrome/OS/site
+matrix remain separate checks. No universal compatibility or automatic repair on
+restricted sites is claimed.
+
+## Real Gemini / Stripe test follow-up
+
+`pnpm --filter @quikfill/e2e test:mv3:gemini` builds/installs the same real MV3
+extension in a fresh full Chromium profile and uses the sibling service's
+`test:live:server` with **no Gemini override**. It requires `GEMINI_API_KEY` in
+ignored `services/.env`. The runner opts in with `QF_LIVE_PROVIDER_TEST=1`, pins
+the local test DB, disables Stripe/email, refuses existing servers and uses one
+worker. This suite makes two real model requests and is deliberately separate
+from `test:mv3`, which remains deterministic and needs no paid-provider key.
+
+Verified: actual toolbar OTP sign-in, unresolved-field review before page writes,
+real model values applied after approval, concurrent manual-edit preservation,
+Undo, discard, two-fill quota and offline local Fill. Persisted audit rows must
+show a real model/token usage and omitted prompt text. Request metadata must not
+contain the existing form email. The journey passes on full Chromium 156.0.8078.4
+with extension 1.0.13. All five deterministic installed-MV3 journeys still pass.
+Artifacts are ignored under `apps/e2e/playwright-report/gemini*`.
+
+Follow-up regression gate: **751 frontend unit tests**, **88 standard browser
+tests**, **326 backend unit tests**, **5 provider-environment guard tests**, and
+**78 PostgreSQL integration tests** pass, alongside the five deterministic MV3
+journeys and the separate real-Gemini MV3 journey. Ordinary integration tests
+remain provider-free even when local `.env` contains real credentials.
+
+The sibling services real-API smoke also passes Gemini classify/mapping/fill,
+constraints/replay/quota and nine Stripe test lifecycle checkpoints, including
+payment decline/recovery, test-clock renewal and delayed invoice protection.
+Those tests found/fixed the effective billing-tier mismatch, incorrect renewal
+period dates, and localized native date suggestions. See the sibling
+`services/docs/LIVE_PROVIDER_CHECKS.md` for commands, cleanup and the exact limits:
+Stripe event handling uses signed replay of real API events; hosted Checkout
+purchase completion and network webhook delivery are not claimed.
 
 The harness follows the official [Playwright extension guidance](https://playwright.dev/docs/chrome-extensions),
 [Chrome end-to-end guidance](https://developer.chrome.com/docs/extensions/how-to/test/end-to-end-testing)

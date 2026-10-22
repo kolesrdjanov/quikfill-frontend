@@ -25,6 +25,12 @@ including actual toolbar UI, worker termination, optional cloud and developer re
 Recovery retains minimal permissions and preserves healthy Undo sessions.
 [Release evidence and reproduction](./RELEASE_MV3_CHECKS.md).
 
+Real-provider follow-up: the separate installed-MV3 Gemini journey now passes
+against the true provider, including review/Undo/manual-edit/quota/offline local
+Fill. The backend's real Gemini API and Stripe test-mode lifecycle checks pass.
+Hosted Checkout/3DS and configured webhook delivery remain separate release work;
+see [verified scope](./RELEASE_MV3_CHECKS.md#real-gemini--stripe-test-follow-up).
+
 ## Build order (this engagement's focus)
 
 Billing release correction (2026-10-22): `/entitlements.planKey` now denotes

@@ -105,5 +105,7 @@ WXT_QF_API_BASE_URL=https://api.quikfill.example/api/v1 pnpm --workspace-concurr
 ```
 
 The [installed MV3 release gate](./RELEASE_MV3_CHECKS.md) now passes against a local
-API and real Chrome APIs. Real-provider billing checks remain release work. Passing fixture tests is not a universal compatibility
+API and real Chrome APIs. The separate real Gemini installed journey and Stripe
+test API lifecycle now pass; hosted Checkout/3DS and configured webhook delivery
+remain release work. Passing fixture tests is not a universal compatibility
 claim. Native/custom control limits remain in the Phase 2 matrix.
