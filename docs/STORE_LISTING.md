@@ -12,12 +12,21 @@ listing is **Private (trusted testers)** — see
 
 ## Store listing tab
 
-| Field                     | Value                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Item / product name**   | `QuikFill — Form Autofill` (≤ 75 chars)                                                                |
-| **Summary** (≤ 132 chars) | `Scan, map, and fill any web form. Save reusable profiles, preview every fill, and undo in one click.` |
-| **Category**              | `Productivity`                                                                                         |
-| **Language**              | `English (United States)`                                                                              |
+| Field                      | Value                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Item / product name**    | `QuikFill — Form Autofill` (≤ 75 chars)                                                                |
+| **Summary** (≤ 132 chars)  | `Scan, map, and fill any web form. Save reusable profiles, preview every fill, and undo in one click.` |
+| **Category**               | `Productivity`                                                                                         |
+| **Language**               | `English (United States)`                                                                              |
+| **Website / Homepage URL** | `https://quikfill.io`                                                                                  |
+
+> **Website link (manual one-time step).** Set `https://quikfill.io` under **Store
+> listing → Additional fields → Official URL / Homepage URL** in the CWS Developer
+> Dashboard. The deploy pipeline (`wxt submit`, `.github/workflows/deploy-extension.yml`)
+> only uploads the extension package — it never pushes listing metadata — so this
+> field must be entered by hand. The extension manifest also declares
+> `homepage_url: https://quikfill.io` (`wxt.config.ts`), which links back to the
+> site from `chrome://extensions` and dev installs.
 
 ### Detailed description (≤ 16,000 chars)
 
@@ -43,6 +52,7 @@ Why QuikFill:
 • Full preview + one-click undo on every fill.
 
 Manage your profiles and settings at https://app.quikfill.io.
+Learn more about QuikFill at https://quikfill.io.
 ```
 
 ### Graphic assets (YOU must create these — not in the repo)

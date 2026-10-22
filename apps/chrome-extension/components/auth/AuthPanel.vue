@@ -34,7 +34,13 @@ import MessageScreen from './MessageScreen.vue'
 import OtpInput from './OtpInput.vue'
 import AuthStatusBadge from './AuthStatusBadge.vue'
 import { useAuthGate } from '../../lib/useAuthGate'
-import { DASHBOARD_URL, PRIVACY_URL, SUPPORT_MAILTO, WEB_STORE_URL } from '../../lib/external-urls'
+import {
+  DASHBOARD_URL,
+  PRIVACY_URL,
+  SUPPORT_MAILTO,
+  WEB_STORE_URL,
+  WEBSITE_URL,
+} from '../../lib/external-urls'
 
 // External recovery destinations. The dashboard origin is build-time (prod →
 // deployed app, dev → local Vite) via lib/external-urls, so a prod build never
@@ -108,7 +114,15 @@ function closePanel(): void {
   <PanelShell>
     <template #header>
       <div class="flex items-center justify-between">
-        <BrandLockup />
+        <a
+          :href="WEBSITE_URL"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ring-ring inline-flex rounded-sm transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:outline-none"
+          aria-label="QuikFill — visit quikfill.io"
+        >
+          <BrandLockup />
+        </a>
         <div class="flex gap-0.5">
           <Button
             variant="ghost"

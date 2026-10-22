@@ -18,6 +18,12 @@ export default defineConfig({
     return {
       name: 'QuikFill',
       description: 'Scan, map, and fill any web form.',
+      // Canonical link back to the marketing site. Chrome surfaces this on the
+      // chrome://extensions detail page and uses it for dev/unpacked installs;
+      // keep it in sync with WEBSITE_URL (lib/external-urls.ts). The public Chrome
+      // Web Store listing's "Website" link is a separate Dashboard field — see
+      // docs/STORE_LISTING.md.
+      homepage_url: 'https://quikfill.io',
       // Minimal permissions; the content script injects via its declared matches.
       // `alarms` drives the periodic pull of dashboard-managed settings so a
       // signed-in extension stays in sync without waiting for a sign-in / SW recycle.

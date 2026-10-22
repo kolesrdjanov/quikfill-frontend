@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ArrowUpRight, Check, LogOut, Mail, RefreshCw } from 'lucide-vue-next'
+import { ArrowUpRight, Check, Globe, LogOut, Mail, RefreshCw } from 'lucide-vue-next'
 import { Badge, Button } from '@quikfill/ui'
 import {
   onExtensionSettingsChange,
@@ -14,7 +14,7 @@ import ThisSiteCard from '../../components/ThisSiteCard.vue'
 import SavedDataCard from '../../components/SavedDataCard.vue'
 import RecipesCard from '../../components/RecipesCard.vue'
 import LocalFillCard from '../../components/LocalFillCard.vue'
-import { SUPPORT_MAILTO } from '../../lib/external-urls'
+import { SUPPORT_MAILTO, WEBSITE_URL } from '../../lib/external-urls'
 import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
 import { useEntitlements } from '../../lib/useEntitlements'
@@ -225,13 +225,24 @@ function openDashboard() {
         Fill happens on the page — look for the QuikFill button near each form.
       </p>
 
-      <a
-        :href="SUPPORT_MAILTO"
-        class="text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 text-[11px] transition-colors"
-      >
-        <Mail class="size-3.5" />
-        Contact support
-      </a>
+      <div class="text-muted-foreground flex items-center justify-center gap-3 text-[11px]">
+        <a
+          :href="WEBSITE_URL"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
+        >
+          <Globe class="size-3.5" />
+          quikfill.io
+        </a>
+        <a
+          :href="SUPPORT_MAILTO"
+          class="hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
+        >
+          <Mail class="size-3.5" />
+          Contact support
+        </a>
+      </div>
     </div>
   </div>
 </template>
