@@ -17,6 +17,7 @@ export default defineConfig({
       },
       url: 'http://127.0.0.1:4012/__mv3/state',
       reuseExistingServer: false,
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
       timeout: 60_000,
     },
     ...(Array.isArray(installed.webServer) ? installed.webServer.slice(1) : []),

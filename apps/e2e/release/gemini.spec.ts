@@ -1,11 +1,17 @@
 import { test, expect, visit, fillButton, click, waitText, state, API } from './installed'
 
+test.afterAll(async () => {
+  const response = await fetch(`${API}/__mv3/cleanup`, { method: 'POST' })
+  expect(response.ok).toBe(true)
+})
+
 test('installed MV3 uses real Gemini for reviewed suggestions, undo and quota while local fill stays offline', async ({
   installed,
   page,
 }, info) => {
   await visit(page, 'ai')
-  const email = `mv3-release-gemini-${Date.now()}@example.com`
+  const mailbox = (await (await fetch(`${API}/__mv3/state`)).json()) as { emailPrefix: string }
+  const email = `${mailbox.emailPrefix}user@example.com`
   const popup = await installed.popup(page)
   await click(popup, 'Sign in for optional AI & sync')
   await popup.locator('input[type=email]').fill(email)

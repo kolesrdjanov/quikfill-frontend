@@ -121,6 +121,10 @@ ignored `services/.env`. The runner opts in with `QF_LIVE_PROVIDER_TEST=1`, pins
 the local test DB, disables Stripe/email, refuses existing servers and uses one
 worker. This suite makes two real model requests and is deliberately separate
 from `test:mv3`, which remains deterministic and needs no paid-provider key.
+Each server run owns a unique synthetic mailbox prefix and audit scope; the test
+explicitly awaits scoped cleanup before server shutdown and gives it a SIGTERM
+cleanup window as a fallback. Repeated
+runs do not include prior runs' audit rows or depend on resetting the database.
 
 Verified: actual toolbar OTP sign-in, unresolved-field review before page writes,
 real model values applied after approval, concurrent manual-edit preservation,
