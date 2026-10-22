@@ -57,6 +57,8 @@ export const entitlementsResponseSchema = z.object({
   // active until `currentPeriodEnd`, then drops to free. Optional + defaulted so an
   // older backend that predates the field still parses (treated as "not canceling").
   cancelAtPeriodEnd: z.boolean().optional().default(false),
+  // Optional for compatibility with servers predating effective-tier reporting.
+  hasBillingAccount: z.boolean().optional(),
   fillsUsed: z.number().int().nonnegative(),
   fillLimit: z.number().int().nonnegative(),
   currentPeriodEnd: nullableOptional(isoDateTime),

@@ -8,6 +8,23 @@ import {
 } from './subscription'
 
 describe('entitlementsResponseSchema', () => {
+  it('retains billing history access with free effective entitlements', () => {
+    const parsed = entitlementsResponseSchema.parse({
+      planKey: 'free',
+      displayName: 'Free',
+      status: 'canceled',
+      hasBillingAccount: true,
+      fillsUsed: 0,
+      fillLimit: 10,
+      currentPeriodEnd: null,
+    })
+    expect(parsed.hasBillingAccount).toBe(true)
+    expect(parsed.planKey).toBe('free')
+    expect(
+      entitlementsResponseSchema.parse({ ...parsed, hasBillingAccount: undefined })
+        .hasBillingAccount,
+    ).toBeUndefined()
+  })
   it('parses a paid-plan entitlements payload', () => {
     const parsed = entitlementsResponseSchema.parse({
       planKey: 'starter',

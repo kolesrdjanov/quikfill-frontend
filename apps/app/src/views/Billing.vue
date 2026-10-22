@@ -50,10 +50,15 @@ const ent = computed(() => subscription.entitlements)
 const currentPlan = computed(() => (ent.value ? planByKey(ent.value.planKey) : null))
 
 /** A user with billing history (anything past Free) can open the Stripe Portal. */
-const hasBillingAccount = computed(() => !!ent.value && ent.value.planKey !== 'free')
+const hasBillingAccount = computed(
+  () => !!ent.value && (ent.value.hasBillingAccount ?? ent.value.planKey !== 'free'),
+)
 /** Actively paying — plan changes route through the Portal to avoid double-billing. */
 const isSubscribed = computed(
-  () => !!ent.value && ent.value.planKey !== 'free' && ent.value.status !== 'canceled',
+  () =>
+    !!ent.value &&
+    hasBillingAccount.value &&
+    !['canceled', 'incomplete_expired'].includes(ent.value.status),
 )
 
 const unlimited = computed(() => !!ent.value && isUnlimited(ent.value.fillLimit))

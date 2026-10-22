@@ -1,5 +1,60 @@
 import { expect, test } from '@playwright/test'
 
+for (const status of ['canceled', 'past_due']) {
+  test(`billing reports Free access after ${status} and keeps the existing portal`, async ({
+    page,
+  }) => {
+    const ownerId = 'c6b3ce11-cb07-40a4-a786-800000000011'
+    let portalCalls = 0
+    let checkoutCalls = 0
+    await page.addInitScript(
+      ({ ownerId }) => {
+        localStorage.setItem('qf_access_token', 'fixture-access')
+        localStorage.setItem('qf_refresh_token', 'fixture-refresh')
+        localStorage.setItem('qf_token_owner', ownerId)
+      },
+      { ownerId },
+    )
+    await page.route('https://billing.stripe.com/p/session-fixture', (route) =>
+      route.fulfill({ contentType: 'text/html', body: 'Test portal destination' }),
+    )
+    await page.route('**/api/v1/**', async (route) => {
+      const path = new URL(route.request().url()).pathname
+      let json: unknown = {}
+      if (path.endsWith('/users/me')) json = { id: ownerId, email: 'billing@example.com' }
+      if (path.endsWith('/entitlements'))
+        json = {
+          planKey: 'free',
+          displayName: 'Free',
+          status,
+          hasBillingAccount: true,
+          cancelAtPeriodEnd: false,
+          fillsUsed: 1,
+          fillLimit: 10,
+          currentPeriodEnd: null,
+        }
+      if (path.endsWith('/subscriptions/portal-session')) {
+        portalCalls++
+        json = { url: 'https://billing.stripe.com/p/session-fixture' }
+      }
+      if (path.endsWith('/subscriptions/checkout-session')) checkoutCalls++
+      await route.fulfill({ json })
+    })
+    await page.goto('/settings/billing')
+    await expect(page.getByRole('button', { name: 'Manage payment & invoices' })).toBeVisible()
+    if (status === 'past_due') {
+      await expect(page.getByRole('button', { name: 'Upgrade', exact: true })).toHaveCount(0)
+      await page.getByRole('button', { name: 'Switch plan', exact: true }).first().click()
+    } else {
+      await expect(page.getByRole('button', { name: 'Upgrade', exact: true }).first()).toBeVisible()
+      await page.getByRole('button', { name: 'Manage payment & invoices' }).click()
+    }
+    await page.waitForURL('https://billing.stripe.com/p/session-fixture')
+    expect(portalCalls).toBe(1)
+    expect(checkoutCalls).toBe(0)
+  })
+}
+
 // Real smoke test: boot the dashboard SPA and confirm it mounts and the auth gate
 // routes an unauthenticated visitor to a sign-in screen. Served by the Vite dev
 // server (see playwright.config.ts `webServer`); the sign-in screen renders without

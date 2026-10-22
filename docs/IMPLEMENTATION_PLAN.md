@@ -27,6 +27,13 @@ Recovery retains minimal permissions and preserves healthy Undo sessions.
 
 ## Build order (this engagement's focus)
 
+Billing release correction (2026-10-22): `/entitlements.planKey` now denotes
+effective access; optional `hasBillingAccount` keeps invoice/Portal access when
+the effective tier is Free. Non-terminal existing subscriptions, including
+`past_due`, route plan changes through the Portal. Schema and browser regressions
+cover canceled and payment-due states. The backend rejects another Checkout for
+an existing non-terminal subscription.
+
 Per the product owner, build the surfaces in this order. The requirement's
 iteration sequence already supports it — this just makes the priority explicit:
 
