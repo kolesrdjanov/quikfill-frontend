@@ -18,6 +18,7 @@ import { authTokens } from '@/lib/auth-tokens'
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserAccount | null>(null)
   const restored = ref(false)
+  let revision = 0
 
   const isAuthenticated = computed(() => user.value !== null)
 
@@ -29,7 +30,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   /** Exchange an email + OTP code for a session. */
   async function verify(email: string, code: string): Promise<void> {
+    const start = ++revision
     const tokens = await api.auth.verify(email, code)
+    if (revision !== start) return
     authTokens.set(tokens)
     user.value = tokens.user
     restored.value = true
@@ -41,10 +44,15 @@ export const useAuthStore = defineStore('auth', () => {
    */
   async function restore(): Promise<void> {
     if (restored.value) return
+    const start = revision
     if (authTokens.hasSession) {
       try {
-        user.value = await api.users.me()
+        const incoming = await api.users.me()
+        if (revision !== start) return
+        user.value = incoming
+        authTokens.setOwner(incoming.id)
       } catch {
+        if (revision !== start) return
         authTokens.clear()
         user.value = null
       }
@@ -53,26 +61,25 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout(): Promise<void> {
+    ++revision
     const refreshToken = authTokens.getRefresh()
-    if (refreshToken) {
-      try {
-        await api.auth.logout(refreshToken)
-      } catch {
-        // Best-effort: revoke locally even if the server call fails.
-      }
-    }
     authTokens.clear()
     user.value = null
+    if (refreshToken) void api.auth.logout(refreshToken).catch(() => {})
   }
 
   /** Update the signed-in user's profile; mirrors the result so the UI updates live. */
   async function updateProfile(input: UpdateProfileInput): Promise<void> {
-    user.value = await api.users.updateMe(input)
+    const start = revision
+    const incoming = await api.users.updateMe(input)
+    if (revision === start) user.value = incoming
   }
 
   /** Replace the user's extension settings; mirrors the result so the UI updates live. */
   async function updateSettings(input: ExtensionSettings): Promise<void> {
-    user.value = await api.users.updateSettings(input)
+    const start = revision
+    const incoming = await api.users.updateSettings(input)
+    if (revision === start) user.value = incoming
   }
 
   /** Download a full export of everything QuikFill holds for the signed-in user. */
@@ -82,13 +89,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   /** Permanently delete the account, then drop the local session. */
   async function deleteAccount(): Promise<void> {
+    const start = revision
     await api.users.deleteAccount()
+    if (revision !== start) return
+    ++revision
     authTokens.clear()
     user.value = null
   }
 
   /** Called by the API client when a refresh fails — drop the local session. */
   function forceSignOut(): void {
+    ++revision
     authTokens.clear()
     user.value = null
   }

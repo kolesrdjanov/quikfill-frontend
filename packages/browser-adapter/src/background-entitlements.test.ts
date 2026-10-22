@@ -26,6 +26,26 @@ function memoryStore(seed: Entitlements | null = null): EntitlementsStore {
 }
 
 describe('createBackgroundEntitlements', () => {
+  it('does not repopulate a cleared account with its late entitlement response', async () => {
+    let release!: (value: Entitlements) => void
+    const store = memoryStore()
+    const owner = createBackgroundEntitlements({
+      store,
+      api: {
+        subscriptions: {
+          entitlements: () =>
+            new Promise((resolve) => {
+              release = resolve
+            }),
+        },
+      },
+    })
+    const pending = owner.refresh()
+    await owner.clear()
+    release(ENT)
+    expect(await pending).toBeNull()
+    expect(await store.read()).toBeNull()
+  })
   // A failed refresh is swallowed (we keep the last-known snapshot), so silence the
   // diagnostic warn to keep test output pristine while still asserting it fires.
   let warnSpy: ReturnType<typeof vi.spyOn>

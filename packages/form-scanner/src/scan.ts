@@ -154,6 +154,7 @@ export function scanForms(
   const visit = (ctx: FrameContext): void => {
     const elements = ctx.walk.querySelectorAll('*')
     for (const el of Array.from(elements)) {
+      if (el.closest('[data-quikfill-ui]')) continue
       if (isSuppressed(el)) continue
       // Framework form-payload proxies are not independent user controls.
       if (

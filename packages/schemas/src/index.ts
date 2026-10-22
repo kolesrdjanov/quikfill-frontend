@@ -23,3 +23,5 @@ export * from './extension-settings'
 export * from './figma'
 export * from './local-fill-preferences'
 export * from './recipe'
+
+export * from './saved-data'

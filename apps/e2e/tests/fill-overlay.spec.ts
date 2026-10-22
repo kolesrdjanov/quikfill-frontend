@@ -8,7 +8,10 @@ async function startAi(page: Page, index = 0) {
   const undo = panel.getByRole('button', { name: 'Undo fill', exact: true })
   await expect(panel).toBeVisible()
   if (await undo.isVisible()) await undo.click()
+  await panel.getByLabel('Include empty fields with local generators').check()
   await panel.getByRole('button', { name: 'AI assist', exact: true }).click()
+  if (!(await page.evaluate(() => window.qf.transport.pending)))
+    await panel.getByRole('button', { name: 'Apply selected suggestions', exact: true }).click()
 }
 
 test.beforeEach(async ({ page }) => {
@@ -31,6 +34,7 @@ test('overlay confines filling to one form and blocks a concurrent fill', async 
     .evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true })))
   expect(await page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
   await replyToPending(page)
+  await page.getByRole('button', { name: 'Apply selected suggestions', exact: true }).click()
   await expect(page.locator('#first input[name=email]')).toHaveValue('test@example.com')
   await expect(page.locator('#second input[name=email]')).toHaveValue('')
   await expect(page.locator('#second input[name=name]')).toHaveValue('')
@@ -94,6 +98,7 @@ test('overlay preserves an edit made while the AI request is pending', async ({ 
   await expect.poll(() => page.evaluate(() => window.qf.transport.requests.length)).toBe(1)
   await page.locator('input[name=name]').fill('My manual edit')
   await replyToPending(page)
+  await page.getByRole('button', { name: 'Apply selected suggestions', exact: true }).click()
   await expect(page.getByRole('status')).toHaveText('1/2 filled · 1 skipped')
   await expect(page.locator('input[name=name]')).toHaveValue('My manual edit')
 })
@@ -119,12 +124,8 @@ test('overlay does not apply a pending reply after the form is replaced', async 
 test('undo remains bound after rescanning and preserves subsequent manual edits', async ({
   page,
 }) => {
-  await html(
-    page,
-    '<form><input name="email" type="email" value="old@example.com"><input name="name" value="Old name"></form>',
-  )
+  await html(page, '<form><input name="email" type="email"><input name="name"></form>')
   await page.evaluate(() => {
-    window.qf.transport.preferences.onlyEmpty = false
     window.qf.transport.values = { email: 'test@example.com', name: 'Ada' }
     window.qf.mountOverlay()
   })
@@ -134,7 +135,7 @@ test('undo remains bound after rescanning and preserves subsequent manual edits'
   await page.evaluate(() => window.qf.rescan())
   await page.getByRole('button', { name: 'Undo fill' }).click()
   await expect(page.getByRole('status')).toHaveText('1/2 restored')
-  await expect(page.locator('input[name=email]')).toHaveValue('old@example.com')
+  await expect(page.locator('input[name=email]')).toHaveValue('')
   await expect(page.locator('input[name=name]')).toHaveValue('My new edit')
 })
 

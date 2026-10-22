@@ -45,6 +45,11 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
 
 ## Current state
 
+**Phase 4 optional cloud (2026-10-22):** AI suggestions require per-field review;
+saved-data mode uses one selected account record and always preserves existing values.
+Account caches/sync and auth retries are isolated. See
+[optional cloud](../../docs/PHASE_4_OPTIONAL_CLOUD.md).
+
 **Phase 3 QA (2026-10-22):** signed-out popup scenarios persist seeds and field
 rules locally. Activated recipes match exact origin/path/form identities and run
 through the existing local session. Retry touches only failed, unchanged original

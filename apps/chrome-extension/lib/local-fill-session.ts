@@ -26,6 +26,7 @@ export async function fillLocalSession(
     targets: Map<string, FillTarget>
     recipe?: FillRecipe
     discoverFields?: boolean
+    planField?: (field: DetectedField) => ReturnType<typeof buildRecipeFieldPlan>
   },
 ): Promise<FillOutcome> {
   const outcome: FillOutcome = {
@@ -109,9 +110,11 @@ export async function fillLocalSession(
       })
       continue
     }
-    const batch = options.recipe
-      ? buildRecipeFieldPlan(field, options.recipe)
-      : buildLocalFillPlan([field], sessionPreferences)
+    const batch = options.planField
+      ? options.planField(field)
+      : options.recipe
+        ? buildRecipeFieldPlan(field, options.recipe)
+        : buildLocalFillPlan([field], sessionPreferences)
     outcome.results.push(...batch.skipped.map((r) => ({ ...r, detectedFieldId: original.id })))
     const filled = await applyFill(
       batch.instructions.map((i) => ({ ...i, detectedFieldId: original.id })),

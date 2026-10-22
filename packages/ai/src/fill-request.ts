@@ -66,8 +66,6 @@ export function isAiFillableField(field: DetectedField): boolean {
 /** DetectedField → redacted AiFillField. NEVER carries the current value or raw HTML. */
 function toAiFillField(field: DetectedField): AiFillField {
   const label = redactText(field.labelText ?? field.ariaLabelledByText ?? field.ariaLabel)
-  const placeholder = redactText(field.placeholder)
-  const ariaLabel = redactText(field.ariaLabel)
   const options = field.options
     ?.slice(0, MAX_SUMMARY_OPTIONS)
     .map((o) => redactText(o.label))
@@ -78,14 +76,17 @@ function toAiFillField(field: DetectedField): AiFillField {
     inputType: field.inputType,
     required: field.required,
     ...(label !== undefined ? { label } : {}),
-    ...(field.name ? { name: field.name.slice(0, MAX_SUMMARY_TEXT) } : {}),
-    ...(placeholder !== undefined ? { placeholder } : {}),
+    ...(field.name ? { name: redactText(field.name) ?? '' } : {}),
+
     ...(field.autocomplete ? { autocomplete: field.autocomplete.slice(0, MAX_SUMMARY_TEXT) } : {}),
-    ...(ariaLabel !== undefined ? { ariaLabel } : {}),
+
     ...(field.pattern ? { pattern: field.pattern.slice(0, MAX_SUMMARY_TEXT) } : {}),
     ...(options && options.length ? { options } : {}),
     ...(field.min ? { min: field.min.slice(0, MAX_SUMMARY_TEXT) } : {}),
     ...(field.max ? { max: field.max.slice(0, MAX_SUMMARY_TEXT) } : {}),
+    ...(field.minLength !== undefined ? { minLength: Math.min(field.minLength, 4096) } : {}),
+    ...(field.maxLength !== undefined ? { maxLength: Math.min(field.maxLength, 4096) } : {}),
+    ...(field.step ? { step: field.step.slice(0, 256) } : {}),
   })
 }
 
@@ -120,10 +121,11 @@ export function buildAiFillRequest(
   return aiFillRequestSchema.parse({
     page: {
       lang: page.lang?.slice(0, MAX_SUMMARY_TEXT) ?? '',
-      title: redactText(page.title) ?? '',
-      description: redactText(page.description) ?? '',
+      title: '',
+      description: '',
     },
-    fields: fillable.map(toAiFillField),
+    requestId: crypto.randomUUID(),
+    fields: fillable.slice(0, 200).map(toAiFillField),
     ...(Object.keys(prefs).length > 0 ? { preferences: prefs } : {}),
   })
 }
@@ -190,7 +192,10 @@ export function valuesToFillInstructions(
 ): FillInstruction[] {
   const byId = new Map(fields.map((f) => [f.id, f]))
   const instructions: FillInstruction[] = []
+  const seen = new Set<string>()
   for (const { fieldId, value } of values) {
+    if (seen.has(fieldId) || value.length > 4096) continue
+    seen.add(fieldId)
     const field = byId.get(fieldId)
     if (!field || !isAiFillableField(field)) continue
     instructions.push(toInstruction(field, value))

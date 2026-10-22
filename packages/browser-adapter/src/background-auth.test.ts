@@ -56,6 +56,51 @@ function setup(api = makeApi()) {
 }
 
 describe('getState hydration', () => {
+  it('retains the same account offline instead of dropping its session', async () => {
+    const { auth, store } = setup(makeApi({ me: vi.fn().mockRejectedValue(new Error('offline')) }))
+    await store.setTokens(tokens)
+    await store.writeState({ status: 'signed-in', user })
+    expect(await auth.handlers.getState()).toEqual({ status: 'signed-in', user })
+    expect(await store.getAccess()).toBe('acc')
+  })
+
+  it('ignores refresh completion after logout', async () => {
+    let complete!: (value: AuthTokens) => void
+    const api = makeApi({
+      refresh: () =>
+        new Promise((resolve) => {
+          complete = resolve
+        }),
+    })
+    const { auth, store } = setup(api)
+    await store.setTokens(tokens)
+    const refreshing = auth.refreshAuth()
+    await vi.waitFor(() => expect(complete).toBeTypeOf('function'))
+    await auth.handlers.logout()
+    complete(tokens)
+    expect(await refreshing).toBeUndefined()
+    expect(await store.getAccess()).toBeUndefined()
+    expect(await auth.handlers.getState()).toEqual({ status: 'signed-out' })
+  })
+
+  it('ignores a failed old verification after a newer sign-in', async () => {
+    let fail!: (error: Error) => void
+    const verify = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            fail = reject
+          }),
+      )
+      .mockResolvedValue(tokens)
+    const { auth, store } = setup(makeApi({ verify }))
+    const old = auth.handlers.verify('old@example.com', '111111')
+    await auth.handlers.verify(user.email!, '222222')
+    fail(new Error('offline'))
+    await old
+    expect(await store.readState()).toEqual({ status: 'signed-in', user })
+  })
   it('reports signed-out when no tokens are stored', async () => {
     const { auth, api } = setup()
     expect(await auth.handlers.getState()).toEqual({ status: 'signed-out' })
@@ -211,7 +256,31 @@ describe('logout', () => {
   })
 })
 
+it('clears the extension session without waiting for logout network revocation', async () => {
+  const { auth, store } = setup(makeApi({ logout: () => new Promise(() => {}) }))
+  await store.setTokens(tokens)
+  await auth.handlers.logout()
+  expect(await store.getAccess()).toBeUndefined()
+  expect(await auth.handlers.getState()).toEqual({ status: 'signed-out' })
+})
+
 describe('refreshAuth (api-client hook)', () => {
+  it('coalesces refresh calls across separate clients sharing this auth owner', async () => {
+    const { auth, api, store } = setup()
+    await store.setTokens(tokens)
+    expect(await Promise.all([auth.refreshAuth(), auth.refreshAuth(), auth.refreshAuth()])).toEqual(
+      ['acc2', 'acc2', 'acc2'],
+    )
+    expect(api.auth.refresh).toHaveBeenCalledTimes(1)
+  })
+  it('propagates a network outage without deleting cached session tokens', async () => {
+    const { auth, store } = setup(
+      makeApi({ refresh: vi.fn().mockRejectedValue(new Error('offline')) }),
+    )
+    await store.setTokens(tokens)
+    await expect(auth.refreshAuth()).rejects.toThrow('offline')
+    expect(await store.getAccess()).toBe('acc')
+  })
   it('rotates tokens and returns the new access token', async () => {
     const { auth, store } = setup()
     await store.setTokens(tokens)

@@ -19,12 +19,12 @@ const routes: RouteRecordRaw[] = [
   //   meta: { layout: 'app', requiresAuth: true, title: 'Home' },
   //   component: () => import('@/views/Home.vue'),
   // },
-  // {
-  //   path: '/data',
-  //   name: 'data',
-  //   meta: { layout: 'app', requiresAuth: true, title: 'Data' },
-  //   component: () => import('@/views/Data.vue'),
-  // },
+  {
+    path: '/data',
+    name: 'data',
+    meta: { layout: 'app', requiresAuth: true, title: 'Saved data' },
+    component: () => import('@/views/Data.vue'),
+  },
   // {
   //   path: '/generators',
   //   name: 'generators',

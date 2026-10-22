@@ -14,9 +14,12 @@ const STATE_KEY = 'auth:state'
 interface StoredTokens {
   accessToken: string
   refreshToken: string
+  userId?: string
+  user?: { id: string }
 }
 
 export interface AuthStore {
+  readSession?(): Promise<{ accessToken: string; userId: string } | null>
   getAccess(): Promise<string | undefined>
   getRefresh(): Promise<string | undefined>
   hasSession(): Promise<boolean>
@@ -34,6 +37,10 @@ export function createAuthStore(area: chrome.storage.StorageArea): AuthStore {
   }
 
   return {
+    async readSession() {
+      const current = await tokens()
+      return current?.userId ? { accessToken: current.accessToken, userId: current.userId } : null
+    },
     async getAccess() {
       return (await tokens())?.accessToken
     },
@@ -44,10 +51,14 @@ export function createAuthStore(area: chrome.storage.StorageArea): AuthStore {
       return (await tokens()) !== undefined
     },
     async setTokens(next) {
-      // Persist only the two tokens — never the surrounding `AuthTokens` (which
+      // Persist tokens and their owner — never the surrounding `AuthTokens` (which
       // carries the user) into the secret store.
       await area.set({
-        [TOKENS_KEY]: { accessToken: next.accessToken, refreshToken: next.refreshToken },
+        [TOKENS_KEY]: {
+          accessToken: next.accessToken,
+          refreshToken: next.refreshToken,
+          ...(next.user?.id || next.userId ? { userId: next.user?.id ?? next.userId } : {}),
+        },
       })
     },
     async clearTokens() {

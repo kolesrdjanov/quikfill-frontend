@@ -149,7 +149,12 @@ describe('audit regressions', () => {
     expect(valuesMatch('-100', '100')).toBe(false)
     expect(valuesMatch('Secret!', 'secret')).toBe(false)
   })
-  it.todo('A12: forward minlength/maxlength in the AI contract (Phase 1)')
+  it('A12: forwards text length constraints in the optional AI contract', async () => {
+    const { buildAiFillRequest } = await import('../../ai/src/fill-request')
+    document.body.innerHTML = '<textarea name="notes" minlength="12" maxlength="120"></textarea>'
+    const request = buildAiFillRequest({}, scanForms(document).fields)
+    expect(request?.fields[0]).toMatchObject({ minLength: 12, maxLength: 120 })
+  })
   it('A13: an unrelated display change is not a successful custom selection', async () => {
     document.body.innerHTML =
       '<div id="country"><button type="button" role="combobox">Choose</button><div role="option">Serbia</div></div>'

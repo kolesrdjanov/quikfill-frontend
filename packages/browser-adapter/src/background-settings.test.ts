@@ -43,6 +43,21 @@ function setup() {
 const off = { ...DEFAULT_EXTENSION_SETTINGS, globalEnabled: false }
 
 describe('local-first extension settings', () => {
+  it('never uploads account A pending settings to account B', async () => {
+    const h = setup()
+    let owner = 'account-a'
+    const service = createBackgroundSettings({ ...h.deps, accountId: async () => owner })
+    await service.save(off)
+    await service.sync()
+    owner = 'account-b'
+    h.deps.hasSession.mockResolvedValue(true)
+    await service.sync()
+    expect(h.deps.saveRemote).not.toHaveBeenCalled()
+    expect(h.data.get(PENDING_SETTINGS_KEY)).toMatchObject({ ownerId: 'account-a' })
+    owner = 'account-a'
+    await service.sync()
+    expect(h.deps.saveRemote).toHaveBeenCalledWith(off, 'account-a')
+  })
   it('saves signed out without calling the account API', async () => {
     const h = setup()
     expect(await h.service.save(off)).toEqual(off)

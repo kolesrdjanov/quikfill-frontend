@@ -11,6 +11,7 @@ export interface RestClientConfig {
   /** Injectable transport — defaults to the global `fetch`. */
   fetch?: typeof fetch
   /** Returns the current access token, if any. */
+  getAuthIdentity?: () => string | null | undefined | Promise<string | null | undefined>
   getAuthToken?: () => string | undefined | Promise<string | undefined>
   /**
    * Called once when a request gets a 401. Should refresh and resolve with the
@@ -19,7 +20,7 @@ export interface RestClientConfig {
    */
   refreshAuth?: () => Promise<string | undefined>
   /** Called when authentication is unrecoverable (refresh failed / absent). */
-  onAuthError?: () => void
+  onAuthError?: (failedToken?: string) => void
 }
 
 export interface RequestOptions<T> {
@@ -117,23 +118,32 @@ export function createRestClient(config: RestClientConfig): RestClient {
   ): Promise<T> {
     const url = joinUrl(config.baseUrl, path, options.query)
     const useAuth = !options.skipAuth
+    const identity = useAuth ? await config.getAuthIdentity?.() : undefined
+    const ensureIdentity = async () => {
+      if (identity && identity !== (await config.getAuthIdentity?.()))
+        throw new ApiClientError('Account changed. Start the action again.', 409, 'ACCOUNT_CHANGED')
+    }
     let token = useAuth ? await config.getAuthToken?.() : undefined
+    await ensureIdentity()
 
     let response = await send(method, url, options.body, options.signal, token)
 
     // Recover from an expired access token: refresh once, then retry.
     if (response.status === 401 && useAuth && config.refreshAuth) {
+      await ensureIdentity()
       const refreshed = await refreshOnce()
+      await ensureIdentity()
       if (refreshed) {
         token = refreshed
         response = await send(method, url, options.body, options.signal, token)
       }
       if (response.status === 401) {
-        config.onAuthError?.()
+        config.onAuthError?.(token)
         throw new ApiClientError('Your session has expired. Please sign in again.', 401)
       }
     }
 
+    await ensureIdentity()
     if (!response.ok) {
       const info = await errorInfo(response)
       throw new ApiClientError(info.message, response.status, info.code)
@@ -141,6 +151,7 @@ export function createRestClient(config: RestClientConfig): RestClient {
 
     if (response.status === 204) return undefined as T
     const json: unknown = await response.json()
+    await ensureIdentity()
     if (!options.schema) return json as T
 
     const parsed = options.schema.safeParse(json)

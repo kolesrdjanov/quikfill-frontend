@@ -14,23 +14,34 @@ import type { AuthTokens } from '@quikfill/schemas'
  * with only a short-lived access token held here (ideally in memory) — is gated
  * on a backend change and tracked for the Iteration 10 backend hardening.
  */
+const OWNER_KEY = 'qf_token_owner'
 const ACCESS_KEY = 'qf_access_token'
 const REFRESH_KEY = 'qf_refresh_token'
 
 export const authTokens = {
+  getOwner(): string | undefined {
+    return localStorage.getItem(OWNER_KEY) ?? undefined
+  },
+  setOwner(id: string): void {
+    localStorage.setItem(OWNER_KEY, id)
+  },
   getAccess(): string | undefined {
     return localStorage.getItem(ACCESS_KEY) ?? undefined
   },
   getRefresh(): string | undefined {
     return localStorage.getItem(REFRESH_KEY) ?? undefined
   },
-  set(tokens: Pick<AuthTokens, 'accessToken' | 'refreshToken'>): void {
+  set(
+    tokens: Pick<AuthTokens, 'accessToken' | 'refreshToken'> & { user?: AuthTokens['user'] },
+  ): void {
     localStorage.setItem(ACCESS_KEY, tokens.accessToken)
     localStorage.setItem(REFRESH_KEY, tokens.refreshToken)
+    if (tokens.user) localStorage.setItem(OWNER_KEY, tokens.user.id)
   },
   clear(): void {
     localStorage.removeItem(ACCESS_KEY)
     localStorage.removeItem(REFRESH_KEY)
+    localStorage.removeItem(OWNER_KEY)
   },
   get hasSession(): boolean {
     return this.getAccess() !== undefined

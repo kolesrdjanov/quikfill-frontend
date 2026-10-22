@@ -136,6 +136,18 @@ describe('createAiClient.suggestMappings', () => {
 })
 
 describe('createAiClient.fill', () => {
+  it('keeps one idempotency key through a 401 retry and creates a fresh key for a new action', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, { status: 401 }))
+      .mockImplementation(async () => jsonResponse({ values: [] }))
+    const client = aiClient({ fetch, refreshAuth: async () => 'new-token' })
+    await client.fill(fillRequest)
+    await client.fill(fillRequest)
+    const bodies = fetch.mock.calls.map((call) => JSON.parse(call[1].body))
+    expect(bodies[0].requestId).toBe(bodies[1].requestId)
+    expect(bodies[2].requestId).not.toBe(bodies[0].requestId)
+  })
   it('posts the request to /ai/fill and returns parsed values', async () => {
     const fetch = vi
       .fn()
@@ -147,7 +159,7 @@ describe('createAiClient.fill', () => {
     const [url, init] = fetch.mock.calls[0]
     expect(url).toBe('http://localhost:4010/api/v1/ai/fill')
     expect(init.method).toBe('POST')
-    expect(JSON.parse(init.body)).toEqual(fillRequest)
+    expect(JSON.parse(init.body)).toEqual({ ...fillRequest, requestId: expect.any(String) })
     expect(result).toEqual({ values: [{ fieldId: 'qf-0', value: 'a@b.com' }] })
   })
 

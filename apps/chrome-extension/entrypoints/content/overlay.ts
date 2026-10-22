@@ -5,10 +5,17 @@ import {
   onExtensionSettingsChange,
   readExtensionSettings,
   requestAiFill,
+  requestSavedRecord,
+  onAccountChange,
   createChromeRecipeStore,
   type AiClassifyReason,
 } from '@quikfill/browser-adapter'
-import { buildLocalFillPlan, localFillSkipReason, recipeFieldKey } from '@quikfill/autofill-core'
+import {
+  buildLocalFillPlan,
+  localFillSkipReason,
+  recipeFieldKey,
+  buildSavedFillPlan,
+} from '@quikfill/autofill-core'
 import {
   applyFill,
   applyUndo,
@@ -110,6 +117,9 @@ interface FormButton {
   dismiss: HTMLButtonElement
   ai: HTMLButtonElement
   retry: HTMLButtonElement
+  accept: HTMLButtonElement
+  reject: HTMLButtonElement
+  aiInclude: HTMLInputElement
   statusTimer?: number
 }
 
@@ -127,6 +137,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   doc.getElementById(HOST_ID)?.remove()
   const host = doc.createElement('div')
   host.id = HOST_ID
+  host.setAttribute('data-quikfill-ui', '')
   // Append to <html>, not <body>: keeps our host out of the body-subtree the
   // observer watches, so injecting buttons never re-triggers a scan.
   doc.documentElement.appendChild(host)
@@ -143,6 +154,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   let activeController: AbortController | null = null
   let activeRoot: Element | null = null
   let activeUrl = ''
+  let activeCloud = false
   let lastUndo: {
     button: FormButton
     snapshot: UndoSnapshot
@@ -158,6 +170,26 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     preferences: { seed: string; locale: string; onlyEmpty: boolean }
     recipe?: FillRecipe
   } | null = null
+
+  let pendingReview: {
+    button: FormButton
+    url: string
+    fields: DetectedField[]
+    targets: Map<string, FillTarget>
+    instructions: Parameters<typeof applyFill>[0]
+    choices: Map<string, HTMLInputElement>
+    skipped: FillResult[]
+  } | null = null
+
+  function discardReview(message = 'Suggestions discarded. No values were applied.'): void {
+    if (!pendingReview) return
+    const { button } = pendingReview
+    button.accept.hidden = true
+    button.reject.hidden = true
+    button.details.replaceChildren()
+    button.summary.textContent = message
+    pendingReview = null
+  }
 
   let preferences: LocalFillPreferences = DEFAULT_LOCAL_FILL_PREFERENCES
 
@@ -226,6 +258,19 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         existing.el.hidden = false
         existing.anchorEl = groupRoot
         existing.formId = form.formId
+        existing.el.setAttribute(
+          'aria-label',
+          preferences.mode === 'saved'
+            ? 'Fill this form with saved data'
+            : 'Fill this form with local sample data',
+        )
+        existing.el.title =
+          preferences.mode === 'saved'
+            ? 'Fill from the selected record · existing values preserved'
+            : 'Generate local test data · only empty fields by default'
+        existing.ai.hidden = preferences.mode === 'saved'
+        if (existing.aiInclude.parentElement)
+          existing.aiInclude.parentElement.hidden = preferences.mode === 'saved'
       } else {
         buttons.set(groupRoot, createButton(groupRoot, form.formId, groupRoot, shadow, doc))
       }
@@ -240,6 +285,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         if (button.statusTimer) win.clearTimeout(button.statusTimer)
         if (lastUndo?.button === button) lastUndo = null
         if (lastLocal?.button === button) lastLocal = null
+        if (pendingReview?.button === button) discardReview()
         if (button.anchorEl) anchorResize?.unobserve(button.anchorEl)
         buttons.delete(root)
       }
@@ -258,7 +304,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     el.type = 'button'
     el.className = 'qf-fill-btn'
     el.setAttribute('aria-label', 'Fill this form with local sample data')
-    el.title = 'Generate local test data · only empty fields by default'
+    el.title =
+      preferences.mode === 'saved'
+        ? 'Fill from the selected record · existing values preserved'
+        : 'Generate local test data · only empty fields by default'
     const mark = ownerDoc.createElement('span')
     mark.className = 'qf-mark'
     // Inline the brand glyph (decorative — the button itself carries the aria-label).
@@ -295,17 +344,47 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     ai.className = 'qf-undo qf-ai'
     ai.textContent = 'AI assist'
     ai.title =
-      'Optional: sends empty field labels and page context to QuikFill AI. Requires an account.'
+      'Optional: sends labels and constraints for unresolved empty fields. Review suggestions before applying.'
     const note = ownerDoc.createElement('p')
     note.className = 'qf-note'
     note.textContent =
-      'Fill uses local test data. AI assist sends field metadata and requires sign-in.'
+      'Local Fill works offline. AI sends field labels, options and constraints; suggestions require review.'
     const retry = ownerDoc.createElement('button')
     retry.type = 'button'
     retry.className = 'qf-undo'
     retry.textContent = 'Retry failed fields'
     retry.hidden = true
-    panel.append(summary, disclosure, undo, retry, dismiss, ai, note)
+    const accept = ownerDoc.createElement('button')
+    accept.type = 'button'
+    accept.className = 'qf-undo'
+    accept.textContent = 'Apply selected suggestions'
+    accept.hidden = true
+    const reject = ownerDoc.createElement('button')
+    reject.type = 'button'
+    reject.className = 'qf-undo'
+    reject.textContent = 'Discard suggestions'
+    reject.hidden = true
+    const aiInclude = ownerDoc.createElement('input')
+    aiInclude.type = 'checkbox'
+    const aiIncludeLabel = ownerDoc.createElement('label')
+    aiIncludeLabel.className = 'qf-note'
+    aiIncludeLabel.append(aiInclude, ' Include empty fields with local generators')
+    panel.append(
+      summary,
+      disclosure,
+      undo,
+      retry,
+      accept,
+      reject,
+      dismiss,
+      ai,
+      aiIncludeLabel,
+      note,
+    )
+    ai.hidden = preferences.mode === 'saved'
+    aiIncludeLabel.hidden = preferences.mode === 'saved'
+    if (preferences.mode === 'saved')
+      el.setAttribute('aria-label', 'Fill this form with saved data')
     const button: FormButton = {
       groupRoot,
       formId,
@@ -320,6 +399,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       dismiss,
       ai,
       retry,
+      accept,
+      reject,
+      aiInclude,
     }
     el.addEventListener('click', (e) => {
       e.preventDefault()
@@ -331,6 +413,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     ai.addEventListener('click', () => {
       void onFill(button, 'ai')
     })
+    accept.addEventListener('click', () => {
+      void onFill(button, 'accept')
+    })
+    reject.addEventListener('click', () => discardReview())
     retry.addEventListener('click', () => {
       void onFill(button, 'retry')
     })
@@ -349,7 +435,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
 
   async function onFill(
     button: FormButton,
-    mode: 'local' | 'ai' | 'retry' = 'local',
+    mode: 'local' | 'ai' | 'retry' | 'accept' = 'local',
   ): Promise<void> {
     if (
       busy ||
@@ -362,6 +448,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // lists mount/unmount — and every mutation/focus would otherwise schedule a
     // re-scan that re-stamps data-qf-id markers MID-FLIGHT, breaking the very
     // ids the probe/fill resolve by. Hold re-scans until this fill completes.
+    if (mode !== 'accept') discardReview()
+    activeCloud =
+      mode === 'ai' || mode === 'accept' || (mode === 'local' && preferences.mode === 'saved')
     busy = true
     activeController = new AbortController()
     const controller = activeController
@@ -396,6 +485,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       win.clearTimeout(timeout)
       activeController = null
       activeRoot = null
+      activeCloud = false
       busy = false
       setLocked(false)
       scheduleScan()
@@ -409,12 +499,15 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       button.undo.disabled = locked
       button.ai.disabled = locked
       button.retry.disabled = locked
+      button.accept.disabled = locked
+      button.reject.disabled = locked
     }
   }
 
   async function onUndo(button: FormButton): Promise<void> {
     const undo = lastUndo
     if (busy || disposed || !undo || undo.button !== button) return
+    discardReview('Suggestions discarded after Undo.')
     lastLocal = null
     button.retry.hidden = true
     busy = true
@@ -454,6 +547,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       win.clearTimeout(timeout)
       activeController = null
       activeRoot = null
+      activeCloud = false
       busy = false
       setLocked(false)
       scheduleScan()
@@ -464,8 +558,38 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     button: FormButton,
     signal: AbortSignal,
     startUrl: string,
-    mode: 'local' | 'ai' | 'retry',
+    mode: 'local' | 'ai' | 'retry' | 'accept',
   ): Promise<void> {
+    if (mode === 'accept') {
+      const review = pendingReview
+      if (!review || review.button !== button || review.url !== startUrl)
+        throw new Error('Suggestions expired. Ask AI again for the current form.')
+      const selected = review.instructions.filter(
+        (i) => review.choices.get(i.detectedFieldId)?.checked,
+      )
+      const declined = review.instructions
+        .filter((i) => !review.choices.get(i.detectedFieldId)?.checked)
+        .map(
+          (i): FillResult => ({
+            detectedFieldId: i.detectedFieldId,
+            status: 'skipped',
+            reason: 'Suggestion declined.',
+          }),
+        )
+      pendingReview = null
+      button.accept.hidden = true
+      button.reject.hidden = true
+      await applyInstructions(
+        button,
+        selected,
+        review.fields,
+        review.targets,
+        signal,
+        () => !disposed && !signal.aborted && doc.URL === startUrl && button.groupRoot.isConnected,
+        [...review.skipped, ...declined],
+      )
+      return
+    }
     if (mode === 'retry') {
       await retryLocal(button, signal, startUrl)
       return
@@ -500,7 +624,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // dropdowns are picked from values that exist and dates land inside the
     // picker's range. Enriches `fields` in place; never throws.
     const options = {
-      onlyEmpty: preferences.onlyEmpty,
+      onlyEmpty: mode === 'ai' ? true : preferences.onlyEmpty,
       seed: preferences.seed || undefined,
       locale: preferences.locale ?? settings.locale,
     }
@@ -521,6 +645,33 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       if (!isCurrent()) throw new Error('The form or page changed. Scan the current form again.')
     }
     ensureCurrent()
+    if (mode === 'local' && preferences.mode === 'saved') {
+      if (!preferences.savedOwnerId || !preferences.savedRecordId)
+        throw new Error('Choose a saved record in the popup first.')
+      const snapshot = await waitForReply(
+        requestSavedRecord({
+          ownerId: preferences.savedOwnerId,
+          recordId: preferences.savedRecordId,
+        }),
+        signal,
+      )
+      ensureCurrent()
+      const outcome = await fillLocalSession(
+        fields,
+        button.groupRoot,
+        { ...options, onlyEmpty: true },
+        {
+          targets,
+          signal,
+          isCurrent,
+          planField: (field) => buildSavedFillPlan([field], snapshot),
+        },
+      )
+      showOutcome(button, fields, targets, outcome)
+      button.retry.hidden = true
+      button.summary.textContent += ` · Saved record: ${snapshot.record.name}`
+      return
+    }
     if (mode === 'local') {
       const context = recipeContext(button.groupRoot, fields)
       const recipe = (await createChromeRecipeStore().active(context)) ?? undefined
@@ -570,38 +721,25 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     await probeFields(eligible, button.groupRoot, { signal, isCurrent })
     ensureCurrent()
 
-    // AI is a separate user action. Preserve existing/sensitive fields here too;
-    // custom option lists still use the same local planner and exact executor.
-    const custom = buildLocalFillPlan(
-      eligible.filter(
-        (f) => f.customWidget?.kind === 'select' || f.customWidget?.kind === 'multiselect',
-      ),
-      options,
-    )
-    const localPicks = custom.instructions
-    skipped.push(...custom.skipped)
-    const request = buildAiFillRequest(pageGlobals(doc), eligible, {
+    // Send only unresolved fields by default. The user may explicitly include
+    // locally supported empty fields; both paths always stop at review.
+    const candidates = button.aiInclude.checked
+      ? eligible
+      : eligible.filter((f) => !buildLocalFillPlan([f], options).instructions.length)
+    const request = buildAiFillRequest(pageGlobals(doc), candidates, {
       locale: options.locale,
       dateFormat: settings.dateFormat,
     })
     if (!request) {
-      await applyInstructions(button, localPicks, fields, targets, signal, isCurrent, skipped)
+      button.panel.hidden = false
+      button.summary.textContent =
+        'No unresolved empty fields need AI. Local Fill remains available.'
+      setStatus(button, 'idle')
       return
     }
     const reply = await waitForReply(requestAiFill(request), signal)
     ensureCurrent()
     if (!reply.ok) {
-      // The AI round-trip failed (quota / rate-limit / offline / a dead extension
-      // context after an update). Custom-select picks are LOCAL and need no AI, so
-      // still apply them — a failed AI call must not also abandon the dropdowns it
-      // never owned. applyFill is pure DOM and works even when messaging is dead; a
-      // truly dead context can still make DOM writes throw, so guard it. The button
-      // then reports the AI failure below.
-      // A dead extension context (the tab predates an update/reload) makes every
-      // message throw, which `requestAiFill` reports as `offline` — but that's not a
-      // connectivity problem, so point the user at the real fix rather than a
-      // misleading "Offline". Otherwise surface the mapped cause (quota / rate-limit
-      // / auth / …) so a 429 QUOTA_EXCEEDED reads as "AI limit reached".
       const copy =
         reply.reason === 'offline' && !isExtensionAlive()
           ? {
@@ -609,17 +747,45 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
               title: 'QuikFill was updated — reload this page to keep filling.',
             }
           : ERROR_COPY[reply.reason]
-      await applyInstructions(button, localPicks, fields, targets, signal, isCurrent, skipped)
+      button.panel.hidden = false
+      button.summary.textContent = copy.title ?? copy.label
       setStatus(button, 'error', copy)
-      button.summary.textContent = `${button.summary.textContent} · ${copy.title ?? copy.label}`
       return
     }
-
-    const instructions = [
-      ...valuesToFillInstructions(reply.response.values, eligible),
-      ...localPicks,
-    ]
-    await applyInstructions(button, instructions, fields, targets, signal, isCurrent, skipped)
+    const requested = new Set(request.fields.map((f) => f.fieldId))
+    const instructions = valuesToFillInstructions(
+      reply.response.values,
+      candidates.filter((f) => requested.has(f.id)),
+    )
+    if (!instructions.length) {
+      await applyInstructions(button, [], fields, targets, signal, isCurrent, skipped)
+      return
+    }
+    const choices = new Map<string, HTMLInputElement>()
+    button.details.replaceChildren(
+      ...instructions.map((instruction) => {
+        const item = doc.createElement('li'),
+          label = doc.createElement('label'),
+          check = doc.createElement('input')
+        check.type = 'checkbox'
+        check.checked = true
+        const field = fields.find((f) => f.id === instruction.detectedFieldId)!
+        const name = field.labelText || field.ariaLabel || field.name || 'Field'
+        check.setAttribute('aria-label', `Apply suggestion for ${name}`)
+        choices.set(field.id, check)
+        label.append(check, ` ${name}: ${instruction.proposedValue}`)
+        item.append(label)
+        return item
+      }),
+    )
+    pendingReview = { button, url: startUrl, fields, targets, instructions, choices, skipped }
+    button.panel.hidden = false
+    ;(button.details.parentElement as HTMLDetailsElement).open = true
+    button.summary.textContent = `${instructions.length} AI suggestions ready. Review before applying.`
+    button.accept.hidden = false
+    button.reject.hidden = false
+    setStatus(button, 'idle')
+    reposition()
   }
 
   /** Apply a merged instruction batch and reflect the outcome on the button. */
@@ -922,6 +1088,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       if (pressed) void onFill(pressed)
       const ai = [...buttons.values()].find((b) => path.includes(b.ai))
       if (ai) void onFill(ai, 'ai')
+      const accept = [...buttons.values()].find((b) => path.includes(b.accept))
+      if (accept) void onFill(accept, 'accept')
+      const reject = [...buttons.values()].find((b) => path.includes(b.reject))
+      if (reject) discardReview()
       const retry = [...buttons.values()].find((b) => path.includes(b.retry))
       if (retry) void onFill(retry, 'retry')
       const undo = [...buttons.values()].find((b) => path.includes(b.undo))
@@ -949,15 +1119,23 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   })
   const unsubscribePreferences = onLocalFillPreferencesChange((prefs) => {
     activeController?.abort('Fill preferences changed. Try again.')
+    discardReview('Suggestions expired after a mode or preference change.')
     preferences = prefs
+    scan()
   })
   const unsubscribeSettings = onExtensionSettingsChange((s) => {
     applySettings(s)
     scan()
   })
 
-  const cancel = (): void =>
+  const unsubscribeAccount = onAccountChange(() => {
+    if (activeCloud) activeController?.abort('Account changed. Start this cloud action again.')
+    discardReview('Suggestions expired after an account change.')
+  })
+  const cancel = (): void => {
     activeController?.abort('The page changed. Scan the current form again.')
+    discardReview('Suggestions expired after navigation.')
+  }
   win.addEventListener('pagehide', cancel)
   win.addEventListener('popstate', cancel)
 
@@ -990,7 +1168,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         capture: true,
       } as EventListenerOptions)
       win.removeEventListener('resize', scheduleReposition)
-      for (const unsubscribe of [unsubscribePreferences, unsubscribeSettings]) {
+      for (const unsubscribe of [unsubscribePreferences, unsubscribeSettings, unsubscribeAccount]) {
         try {
           unsubscribe()
         } catch {
@@ -1001,6 +1179,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       removeAllButtons()
       lastUndo = null
       lastLocal = null
+      pendingReview = null
     },
   }
 }

@@ -45,7 +45,12 @@ const save = handleSubmit(async (values) => {
   saving.value = true
   message.value = ''
   try {
-    await writeLocalFillPreferences(values)
+    await writeLocalFillPreferences({
+      ...(await readLocalFillPreferences()),
+      onlyEmpty: values.onlyEmpty,
+      seed: values.seed,
+      locale: values.locale,
+    })
     message.value = 'Saved on this device.'
   } catch {
     message.value = 'Could not save on this device. Try again.'

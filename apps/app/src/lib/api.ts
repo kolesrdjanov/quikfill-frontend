@@ -20,18 +20,29 @@ export const api = createApiClient({
   // origin must also be in the CSP `connect-src` (public/_headers) and the
   // backend CORS allowlist. Mirrors the chrome-extension's `QF_API_BASE_URL`.
   baseUrl: import.meta.env.VITE_QF_API_BASE_URL ?? '/api/v1',
+  getAuthIdentity: () => authTokens.getOwner(),
   getAuthToken: () => authTokens.getAccess(),
   refreshAuth: async () => {
     const refreshToken = authTokens.getRefresh()
     if (!refreshToken) return undefined
     try {
       const tokens = await api.auth.refresh(refreshToken)
+      if (authTokens.getRefresh() !== refreshToken) return undefined
       authTokens.set(tokens)
       return tokens.accessToken
-    } catch {
-      authTokens.clear()
-      return undefined
+    } catch (error) {
+      const status =
+        error && typeof error === 'object' && 'status' in error ? error.status : undefined
+      if (authTokens.getRefresh() !== refreshToken) return undefined
+      if (status === 401 || status === 403) {
+        authTokens.clear()
+        authErrorHandler()
+        return undefined
+      }
+      throw error
     }
   },
-  onAuthError: () => authErrorHandler(),
+  onAuthError: (token) => {
+    if (authTokens.getAccess() === token) authErrorHandler()
+  },
 })

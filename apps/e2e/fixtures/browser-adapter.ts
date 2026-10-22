@@ -105,3 +105,29 @@ const recipeStorage: StorageAdapter = {
 export const createChromeRecipeStore = () => createRecipeStore(recipeStorage)
 export const requestRecipeContexts = async () =>
   recipeContextsSchema.parse(JSON.parse(localStorage.getItem('qf-fixture-contexts') ?? '[]'))
+
+import {
+  savedLibrarySchema,
+  savedRecordSnapshotSchema,
+  type SavedRecordSnapshot,
+} from '../../../packages/schemas/src'
+const accountListeners = new Set<() => void>()
+export const onAccountChange = (listener: () => void) => {
+  accountListeners.add(listener)
+  return () => accountListeners.delete(listener)
+}
+export const changeFixtureAccount = () => {
+  for (const listener of accountListeners) listener()
+}
+export const requestSavedLibrary = async () =>
+  savedLibrarySchema.parse(JSON.parse(localStorage.getItem('qf-fixture-library') ?? 'null'))
+export const requestSavedRecord = async (selection: {
+  ownerId: string
+  recordId: string
+}): Promise<SavedRecordSnapshot> => {
+  const library = await requestSavedLibrary()
+  if (library.ownerId !== selection.ownerId) throw new Error('Account changed.')
+  const record = library.records.find((r) => r.id === selection.recordId)
+  const type = library.types.find((t) => t.id === record?.entityTypeId)
+  return savedRecordSnapshotSchema.parse({ ownerId: library.ownerId, record, type })
+}

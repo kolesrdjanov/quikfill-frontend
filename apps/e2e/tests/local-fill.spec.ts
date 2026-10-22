@@ -46,7 +46,7 @@ test('default local fill preserves existing text, selections, and checked contro
   await buttons(page).click()
   await expect(page.getByRole('status')).toHaveText('1/5 filled · 4 skipped')
   await expect(page.locator('input[name=email]')).toHaveValue('mine@example.com')
-  await expect(page.locator('input[type=checkbox]')).toBeChecked()
+  await expect(page.locator('#fixtures input[type=checkbox]')).toBeChecked()
   await expect(page.locator('select')).toHaveValue('saved')
   await expect(page.locator('input[type=radio][value=""]')).toBeChecked()
   await page.getByRole('button', { name: 'Undo fill' }).click()
@@ -80,7 +80,7 @@ test('local generation satisfies native ranges, masks, lengths, options, and req
     await page.locator('form').evaluate((form) => (form as HTMLFormElement).checkValidity()),
   ).toBe(true)
   await expect(page.locator('select')).toHaveValue('good')
-  await expect(page.locator('input[type=checkbox]')).toBeChecked()
+  await expect(page.locator('#fixtures input[type=checkbox]')).toBeChecked()
   expect(await page.evaluate(() => window.qf.transport.requests)).toEqual([])
 })
 
@@ -196,7 +196,7 @@ for (const framework of ['React', 'Vue'] as const) {
     if (framework === 'React') await page.evaluate(() => window.qf.reactState.rerender())
     else await page.getByRole('button', { name: 'Rerender Vue' }).click()
     await expect(page.locator('form input[name=email]')).toHaveValue(email)
-    await expect(page.locator('input[type=checkbox]')).toBeChecked()
+    await expect(page.locator('#fixtures input[type=checkbox]')).toBeChecked()
     await page.getByRole('button', { name: 'Undo fill' }).click()
     await expect(page.getByRole('status')).toHaveText('3/3 restored')
     await expect(page.locator('form')).toHaveAttribute('data-email', '')

@@ -39,6 +39,13 @@ pnpm --filter @quikfill/app build   # build runs vue-tsc typecheck first
 - Backend I/O goes through `@quikfill/api-client` (centralized auth header,
   queued-401 refresh, cancellable requests); handle errors in catch blocks.
 
+## Phase 4 local update (2026-10-22)
+
+`/data` and its Saved data navigation item are restored for the optional saved-record
+flow. Its stores clear on account changes and ignore old account responses. Other
+paused routes remain disabled. Details: [Phase 4](../../docs/PHASE_4_OPTIONAL_CLOUD.md).
+The deployed-shape descriptions below are historical until these changes ship.
+
 ## Current state
 
 > This section describes the full Iteration-8 dashboard, which is **built but now

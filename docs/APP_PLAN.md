@@ -1,3 +1,9 @@
+> **Phase 4 local update (2026-10-22):** `/data` and its Saved data sidebar link
+> are restored for entity-type/record management. Account changes clear data stores
+> and late responses are ignored. Other paused routes stay paused. See
+> [Phase 4](./PHASE_4_OPTIONAL_CLOUD.md). The deployed shape below is historical
+> until this local change is released.
+
 # App (Dashboard) — Implementation Plan
 
 > **Status (deployed shape):** the live surface has since been **trimmed** to

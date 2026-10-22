@@ -321,7 +321,7 @@ test('an imported ambiguous scenario cannot write either duplicate field', async
   await expect(page.getByRole('status')).toContainText('ambiguous')
   expect(
     await page
-      .locator('input')
+      .locator('#fixtures input')
       .evaluateAll((inputs) => inputs.map((i) => (i as HTMLInputElement).value)),
   ).toEqual(['', ''])
 })

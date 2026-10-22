@@ -49,6 +49,7 @@ export function createBackgroundEntitlements({
    */
   isSignedIn?: () => boolean | Promise<boolean>
 }): BackgroundEntitlements {
+  let revision = 0
   let cached: Entitlements | null = null
   let hydrated = false
 
@@ -66,8 +67,10 @@ export function createBackgroundEntitlements({
   }
 
   async function refresh(): Promise<Entitlements | null> {
+    const start = revision
     try {
       const entitlements = await api.subscriptions.entitlements()
+      if (revision !== start) return null
       cached = entitlements
       hydrated = true
       await store.write(entitlements)
@@ -84,6 +87,7 @@ export function createBackgroundEntitlements({
   }
 
   async function clear(): Promise<void> {
+    ++revision
     cached = null
     hydrated = true
     await store.clear()

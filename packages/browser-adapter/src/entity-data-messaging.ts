@@ -44,8 +44,12 @@ export async function requestEntityData(): Promise<EntityDataResponse> {
 
 /** Register the background handler. Returns `true` to keep the channel open. */
 export function onEntityDataRequest(handler: EntityDataHandler): void {
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!isEntityDataRequest(message)) return undefined
+    if (sender.tab) {
+      sendResponse({ ok: false })
+      return false
+    }
     handler()
       .then(({ types, records }) => sendResponse({ ok: true, types, records }))
       .catch(() => sendResponse({ ok: false }))

@@ -28,6 +28,10 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 | —   | Phase 1: local Fill by default, optional account/AI, offline popup controls        | ✅ Local |
 | —   | Phase 2: widget adapters, dependent rescans, async waits, browser matrix           | ✅ Local |
 | —   | Phase 3: local QA recipes, repeatable seeds, boundary cases and failed-field retry | ✅ Local |
+| —   | Phase 4: review-first AI, saved records, cloud isolation and quota reservations    | ✅ Local |
+
+Phase 4 adds review-first AI, explicit saved-record filling and account-isolated
+cloud access. See [Phase 4](./PHASE_4_OPTIONAL_CLOUD.md).
 
 Phase 3 adds local scenarios, field rules, JSON import/export and scoped retry.
 Acceptance and limits: [PHASE_3_QA_SCENARIOS.md](./PHASE_3_QA_SCENARIOS.md).

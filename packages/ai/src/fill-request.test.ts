@@ -99,7 +99,7 @@ describe('buildAiFillRequest', () => {
     )
     expect(req).not.toBeNull()
     expect(aiFillRequestSchema.safeParse(req).success).toBe(true)
-    expect(req!.page).toEqual({ lang: 'en', title: 'Sign up', description: 'Create your account' })
+    expect(req!.page).toEqual({ lang: 'en', title: '', description: '' })
     expect(req!.fields.map((f) => f.fieldId)).toEqual(['qf-0', 'qf-1'])
     expect(req!.fields[0].label).toBe('Email')
     expect(req!.fields[0].required).toBe(true)
@@ -145,7 +145,7 @@ describe('buildAiFillRequest', () => {
     ])
     expect(req!.fields.map((f) => f.fieldId)).toEqual(['qf-2'])
     expect(req!.fields[0].min).toBe('2032-06-01')
-    expect(req!.fields[0].placeholder).toBe('mm / dd / yyyy')
+    expect(req!.fields[0].placeholder).toBeUndefined()
   })
 
   it('forwards select option labels', () => {

@@ -10,6 +10,7 @@ import {
 import BrandLockup from '../../components/BrandLockup.vue'
 import AuthPanel from '../../components/auth/AuthPanel.vue'
 import ThisSiteCard from '../../components/ThisSiteCard.vue'
+import SavedDataCard from '../../components/SavedDataCard.vue'
 import RecipesCard from '../../components/RecipesCard.vue'
 import LocalFillCard from '../../components/LocalFillCard.vue'
 import { SUPPORT_MAILTO } from '../../lib/external-urls'
@@ -164,6 +165,7 @@ function openDashboard() {
 
       <LocalFillCard />
       <RecipesCard />
+      <SavedDataCard />
       <details class="rounded-lg border">
         <summary class="min-h-11 cursor-pointer px-3 py-3 text-sm font-semibold">
           Site activation and exclusions

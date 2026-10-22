@@ -83,6 +83,9 @@ export function createAiClient(rest: RestClient): AiClient {
   return {
     classifyFields: (fields) => post('/ai/classify-fields', { fields }),
     suggestMappings: (fields, context) => post('/ai/suggest-mappings', { fields, context }),
-    fill: async (request) => parseFillResponse(await rest.post<unknown>('/ai/fill', request)),
+    fill: async (request) => {
+      const payload = { ...request, requestId: request.requestId ?? crypto.randomUUID() }
+      return parseFillResponse(await rest.post<unknown>('/ai/fill', payload))
+    },
   }
 }

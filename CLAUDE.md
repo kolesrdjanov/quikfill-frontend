@@ -19,11 +19,13 @@ Phase 2 adds owned widget selection, cancellable waits and dependent-field resca
 coverage and limits: [widget adapters](./docs/PHASE_2_WIDGET_ADAPTERS.md).
 Phase 3 adds device-local QA scenarios, fixed/generated/skip rules, versioned
 import/export and scoped retry: [scenarios](./docs/PHASE_3_QA_SCENARIOS.md).
+Phase 4 adds reviewed AI suggestions, explicit saved-record filling, account-scoped
+cloud access and restores dashboard `/data`: [optional cloud](./docs/PHASE_4_OPTIONAL_CLOUD.md).
 
 - **Chrome extension** (`apps/chrome-extension`) — the primary execution surface.
 - **App / dashboard** (`apps/app`) — currently a trimmed live surface: sign-in +
-  Settings (Billing / Account / Setup) + Admin. The full dashboard (data,
-  profiles, generators, history) is built but its routes are disabled; see
+  Settings (Billing / Account / Setup) + Saved data + Admin. Other dashboard routes
+  (profiles, generators, history) remain disabled; see
   [`apps/app/CLAUDE.md`](./apps/app/CLAUDE.md).
 - **Website** (`apps/website`) — public marketing site.
 

@@ -12,6 +12,27 @@ function jsonResponse(body: unknown, init: { status?: number } = {}): Response {
 const base = 'http://localhost:4010/api/v1'
 
 describe('createRestClient request', () => {
+  it('never replays a mutation using a different account after refresh', async () => {
+    let identity = 'account-a'
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({}, { status: 401 }))
+    const onAuthError = vi.fn()
+    const client = createRestClient({
+      baseUrl: base,
+      fetch,
+      getAuthIdentity: () => identity,
+      getAuthToken: () => 'token-a',
+      refreshAuth: async () => {
+        identity = 'account-b'
+        return 'token-b'
+      },
+      onAuthError,
+    })
+    await expect(client.post('/entity-records', { name: 'Private A' })).rejects.toMatchObject({
+      code: 'ACCOUNT_CHANGED',
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(onAuthError).not.toHaveBeenCalled()
+  })
   it('builds the URL with query params and parses with the schema', async () => {
     const fetch = vi.fn().mockResolvedValue(jsonResponse([{ id: '1' }]))
     const client = createRestClient({ baseUrl: base, fetch })

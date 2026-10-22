@@ -11,6 +11,13 @@ plan in the sibling repo (`quikfill-services/docs/IMPLEMENTATION_PLAN.md`).
 > production-shaped, and storage/sync sit behind adapters so the backend can be
 > added later without a rewrite.
 
+## Phase 4 (2026-10-22) — completed locally
+
+AI is now review-first for unresolved fields; selected saved records have a separate
+no-overwrite fill mode. Account-scoped caching/sync, refresh isolation and backend
+quota reservations/replay/retention are implemented. Dashboard `/data` is restored.
+See [Phase 4 contracts, tests and limits](./PHASE_4_OPTIONAL_CLOUD.md).
+
 ## Build order (this engagement's focus)
 
 Per the product owner, build the surfaces in this order. The requirement's

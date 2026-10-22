@@ -260,7 +260,7 @@ Prvi implementacioni paket treba da bude Faza 0 plus browser fixture harness. Po
 
 ## 11. Reprodukcije i ponavljanje audita
 
-Originalne reprodukcije su posle audita pretvorene u redovne regresione testove. Jedanaest sada proverava ispravno ponašanje; A02 i A12 su eksplicitni TODO zadaci narednih faza. Brojevi u rezultatima audita iznad opisuju početno stanje.
+Originalne reprodukcije su posle audita pretvorene u redovne regresione testove. Svih trinaest sada proverava ispravno ponašanje, uključujući A02 u fazi 2 i A12 u fazi 4. Brojevi u rezultatima audita iznad opisuju početno stanje.
 
 - [13 jsdom reprodukcija](/Users/kole/workspace/quikfill/frontend/packages/form-scanner/src/audit-regressions.test.ts)
 - [Izolovani Vitest config](/Users/kole/workspace/quikfill/frontend/packages/form-scanner/audit/vitest.config.ts)

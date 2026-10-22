@@ -38,6 +38,9 @@ export const aiFillFieldSchema = z.object({
    */
   min: z.string().optional(),
   max: z.string().optional(),
+  minLength: z.number().int().min(0).max(4096).optional(),
+  maxLength: z.number().int().min(0).max(4096).optional(),
+  step: z.string().max(256).optional(),
 })
 export type AiFillField = z.infer<typeof aiFillFieldSchema>
 
@@ -60,8 +63,9 @@ export type AiFillPreferences = z.infer<typeof aiFillPreferencesSchema>
  * mock. The privacy guard rejects anything carrying raw HTML.
  */
 export const aiFillRequestSchema = z.object({
+  requestId: z.string().uuid().optional(),
   page: aiFillPageSchema,
-  fields: z.array(aiFillFieldSchema).min(1),
+  fields: z.array(aiFillFieldSchema).min(1).max(200),
   preferences: aiFillPreferencesSchema.optional(),
 })
 export type AiFillRequest = z.infer<typeof aiFillRequestSchema>

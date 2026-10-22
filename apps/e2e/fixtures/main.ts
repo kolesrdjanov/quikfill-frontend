@@ -16,7 +16,7 @@ import {
 import { createChromeRecipeStore } from './browser-adapter'
 import { defaultRecipeRules } from '../../../packages/autofill-core/src'
 import { recipeSchema } from '../../../packages/schemas/src'
-import { transport } from './browser-adapter'
+import { changeFixtureAccount, transport } from './browser-adapter'
 import { createApp, type App } from 'vue'
 import ControlledForm from './ControlledForm.vue'
 import RekaWidgets from './RekaWidgets.vue'
@@ -64,6 +64,7 @@ const harness = {
     return recipe
   },
   transport,
+  changeFixtureAccount,
   reactState,
   mountReactWidgets,
   mountDependentWidgets,

@@ -140,3 +140,4 @@ export {
 export { createBackgroundSettings, PENDING_SETTINGS_KEY } from './background-settings'
 export * from './recipe-store'
 export * from './recipe-messaging'
+export * from './saved-data'

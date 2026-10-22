@@ -5,6 +5,7 @@ import {
   BarChart3,
   ChevronDown,
   CreditCard,
+  Database,
   LogOut,
   Mail,
   Moon,
@@ -74,6 +75,18 @@ async function signOut(): Promise<void> {
       </RouterLink>
 
       <nav class="flex flex-col gap-0.5">
+        <RouterLink
+          to="/data"
+          :aria-current="isActive('/data') ? 'page' : undefined"
+          class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium"
+          :class="
+            isActive('/data')
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground hover:bg-muted'
+          "
+        >
+          <Database class="size-[18px]" />Saved data
+        </RouterLink>
         <template v-if="auth.user?.isAdmin">
           <div
             class="text-muted-foreground mt-4 mb-1 px-3 text-[11px] font-semibold tracking-wider uppercase"

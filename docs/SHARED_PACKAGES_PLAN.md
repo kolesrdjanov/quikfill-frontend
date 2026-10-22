@@ -12,6 +12,11 @@ surface, dependency rules, and tests. Parent roadmap:
 
 ## Dependency rules (enforced)
 
+**2026-10-22 Phase 4:** schemas own saved-library/selection and AI request IDs;
+core plans selected records without fallback; browser-adapter owns account-scoped
+cache, sync and auth fencing; API-client guards identity across retries. Details:
+[optional cloud](./PHASE_4_OPTIONAL_CLOUD.md).
+
 **2026-10-22 Phase 3:** schemas own versioned recipes and validation expectations;
 autofill-core owns deterministic recipe planning; browser-adapter owns local
 persistence and context messaging; form-scanner verifies exact invalid cases.

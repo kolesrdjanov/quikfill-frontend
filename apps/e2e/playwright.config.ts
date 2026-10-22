@@ -23,6 +23,7 @@ export default defineConfig({
         'local-fill.spec.ts',
         'custom-widgets.spec.ts',
         'recipes.spec.ts',
+        'cloud-fill.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:4174' },
     },

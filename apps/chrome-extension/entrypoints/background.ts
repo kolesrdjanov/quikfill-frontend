@@ -12,6 +12,8 @@ import {
   chromeReinjectDeps,
   onAiClassifyRequest,
   onAiFillRequest,
+  createSavedDataService,
+  onSavedDataRequest,
   onAuthRequest,
   onEntitlementsRequest,
   onEntityDataRequest,
@@ -70,8 +72,13 @@ export default defineBackground(() => {
   const api = createApiClient({
     baseUrl: API_BASE_URL,
     getAuthToken: () => store.getAccess(),
+    getAuthIdentity: async () => (await store.readSession?.())?.userId,
     refreshAuth: () => auth.refreshAuth(),
-    onAuthError: () => void auth.onAuthError(),
+    onAuthError: (failedToken) => {
+      void store.getAccess().then((current) => {
+        if (current === failedToken) void auth.onAuthError()
+      })
+    },
   })
   const auth = createBackgroundAuth({ api, store })
 
@@ -99,10 +106,19 @@ export default defineBackground(() => {
   // to keep per-field classify calls from each re-fetching. Context is best-effort
   // enrichment — a failed fetch still classifies, just without the saved-data hints.
   let entityTypesCache: Awaited<ReturnType<typeof api.entityTypes.list>> | null = null
+  let entityTypesOwner: string | null = null
   async function buildSuggestContext() {
     const generatorPresetKinds = [...generatorKindSchema.options]
     try {
-      entityTypesCache ??= await api.entityTypes.list()
+      const owner = await accountId()
+      if (!owner) return { generatorPresetKinds }
+      const types =
+        entityTypesOwner === owner && entityTypesCache
+          ? entityTypesCache
+          : await (await scopedApi(owner)).entityTypes.list()
+      if ((await accountId()) !== owner) return { generatorPresetKinds }
+      entityTypesCache = types
+      entityTypesOwner = owner
       return {
         entityTypes: entityTypesCache.map((t) => ({
           id: t.id,
@@ -118,23 +134,82 @@ export default defineBackground(() => {
 
   // Two-way profile sync owns the same chrome.storage.local the surfaces read,
   // and pushes/reconciles through the authenticated api-client (background-only).
-  const sync = createBackgroundSync({
-    api,
-    store: createProfileStore(createChromeStorageAdapter()),
+  const accountId = async () => (await store.readSession?.())?.userId ?? null
+  async function scopedApi(owner?: string) {
+    const session = await store.readSession?.()
+    if (!session || (owner && session.userId !== owner))
+      throw new Error('Account changed. Try again.')
+    return createApiClient({
+      baseUrl: API_BASE_URL,
+      getAuthIdentity: accountId,
+      getAuthToken: async () => {
+        if ((await accountId()) !== session.userId) throw new Error('Account changed. Try again.')
+        return session.accessToken
+      },
+      onAuthError: () => {
+        void accountId().then((current) => {
+          if (current === session.userId || !current) void auth.onAuthError()
+        })
+      },
+      refreshAuth: async () => {
+        if ((await accountId()) !== session.userId) return undefined
+        await auth.refreshAuth()
+        const next = await store.readSession?.()
+        return next?.userId === session.userId ? next.accessToken : undefined
+      },
+    })
+  }
+  const library = createSavedDataService({
+    storage: createChromeStorageAdapter(),
+    accountId,
+    session: async () => {
+      const userId = await accountId()
+      if (!userId) return null
+      const client = await scopedApi(userId)
+      return {
+        userId,
+        load: async () => {
+          const [types, records] = await Promise.all([
+            client.entityTypes.list(),
+            client.entityRecords.list(),
+          ])
+          return { types, records }
+        },
+      }
+    },
   })
+  onSavedDataRequest(library)
+  void library.prune()
+  async function syncForAccount() {
+    const owner = await accountId()
+    if (!owner) throw new Error('Sign in to sync profiles.')
+    const base = createChromeStorageAdapter()
+    const prefix = `account:${owner}:`
+    const adapter: import('@quikfill/schemas').StorageAdapter = {
+      get: (key) => base.get(prefix + key),
+      set: (key, value) => base.set(prefix + key, value),
+      delete: (key) => base.delete(prefix + key),
+      list: async (key) => (await base.list(prefix + key)).map((k) => k.slice(prefix.length)),
+    }
+    return createBackgroundSync({ api: await scopedApi(owner), store: createProfileStore(adapter) })
+  }
 
   onAuthRequest(auth.handlers)
   onEntitlementsRequest(entitlements.handlers)
-  onAiClassifyRequest(async (summaries) =>
-    ai.suggestMappings(summaries, await buildSuggestContext()),
-  )
+  onAiClassifyRequest(async (summaries) => {
+    const client = createAiClient((await scopedApi()).rest)
+    return client.suggestMappings(summaries, await buildSuggestContext())
+  })
   // In-page floating-button fill: the content overlay sends redacted page + field
   // metadata; the call runs over the authenticated api-client (so it carries the
   // token AND inherits 401 → refresh → retry), and the backend enforces the AI
   // entitlement + rate limit — a 402/429 surfaces back to the overlay as a mapped
   // failure cause. The dev flag swaps in a local mock so no Gemini key is needed.
   onAiFillRequest(async (request) => (MOCK_AI_FILL ? mockAiFill(request) : ai.fill(request)))
-  onProfileSyncRequest(sync.handlers)
+  onProfileSyncRequest({
+    pushBundle: async (bundle) => (await syncForAccount()).handlers.pushBundle(bundle),
+    reconcile: async () => (await syncForAccount()).handlers.reconcile(),
+  })
   // Record fill-run history: create the run, then write its result. Best-effort —
   // the panel ignores failures, so an offline/expired session never blocks a fill.
   onFillRunRecordRequest(async ({ create, finish }) => {
@@ -144,8 +219,8 @@ export default defineBackground(() => {
   // Read-only snapshot of the user's saved entity data so the panel can fill a
   // field from a saved record (recordField) instead of a synthetic generator.
   onEntityDataRequest(async () => {
-    const [types, records] = await Promise.all([api.entityTypes.list(), api.entityRecords.list()])
-    return { types, records }
+    const data = await library.library()
+    return { types: data.types, records: data.records }
   })
 
   // Account usage is display-only for local filling. Activation/appearance
@@ -154,23 +229,32 @@ export default defineBackground(() => {
   const backgroundSettings = createBackgroundSettings({
     storage: createChromeStorageAdapter(),
     hasSession: () => store.hasSession(),
+    accountId,
     writeLocal: writeExtensionSettings,
-    loadRemote: async () => (await api.users.me()).extensionSettings ?? null,
-    saveRemote: async (settings) => {
-      await api.users.updateSettings(settings)
+    loadRemote: async () => {
+      const owner = await accountId()
+      return owner ? ((await (await scopedApi(owner)).users.me()).extensionSettings ?? null) : null
+    },
+    saveRemote: async (settings, owner) => {
+      await (await scopedApi(owner)).users.updateSettings(settings)
     },
   })
   const hydrateSettings = () => backgroundSettings.sync()
   onSettingsSyncRequest(hydrateSettings)
   onSettingsUpdateRequest(backgroundSettings.save)
 
-  let lastAuthStatus: AuthState['status'] | null = null
+  let lastAuthIdentity: string | null = null
   function onAuthState(state: AuthState): void {
     reflectBadge(state)
-    if (state.status === lastAuthStatus) return
-    lastAuthStatus = state.status
+    const identity = `${state.status}:${state.user?.id ?? ''}`
+    if (identity === lastAuthIdentity) return
+    lastAuthIdentity = identity
+    entityTypesCache = null
+    entityTypesOwner = null
+    void entitlements.clear().then(() => {
+      if (state.status === 'signed-in') void entitlements.refresh()
+    })
     if (state.status === 'signed-in') {
-      void entitlements.refresh()
       void hydrateSettings()
     } else if (state.status === 'signed-out') void entitlements.clear()
   }
@@ -190,7 +274,10 @@ export default defineBackground(() => {
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name !== SETTINGS_SYNC_ALARM) return
     void store.hasSession().then((signedIn) => {
-      if (signedIn) void hydrateSettings()
+      if (signedIn) {
+        void hydrateSettings()
+        void library.prune()
+      }
     })
   })
 

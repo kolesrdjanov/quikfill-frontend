@@ -64,6 +64,16 @@ export function createBackgroundAuth({
   store: AuthStore
 }): BackgroundAuth {
   let state: AuthState = { status: 'loading' }
+  let revision = 0
+  let writes = Promise.resolve()
+  let refreshing: Promise<string | undefined> | null = null
+  function commit(start: number, action: () => Promise<void>): Promise<void> {
+    const next = writes.then(async () => {
+      if (revision === start) await action()
+    })
+    writes = next.catch(() => {})
+    return next
+  }
   let hydrated = false
   let hydrating: Promise<void> | undefined
 
@@ -83,15 +93,43 @@ export function createBackgroundAuth({
   function hydrate(): Promise<void> {
     if (hydrated) return Promise.resolve()
     return (hydrating ??= (async () => {
+      const start = revision
       if (!(await store.hasSession())) {
-        await setState({ status: 'signed-out' })
+        await commit(start, async () => {
+          await setState({ status: 'signed-out' })
+        })
       } else {
         try {
           const user = await api.users.me()
-          await setState({ status: 'signed-in', user })
-        } catch {
-          await store.clearTokens()
-          await setState({ status: 'signed-out' })
+          if (revision === start) {
+            await commit(start, async () => {
+              const accessToken = await store.getAccess(),
+                refreshToken = await store.getRefresh()
+              if (revision !== start) return
+              if (accessToken && refreshToken)
+                await store.setTokens({ accessToken, refreshToken, user })
+              await setState({ status: 'signed-in', user })
+            })
+          }
+        } catch (error) {
+          if (revision === start) {
+            if (statusOf(error) === 401 || statusOf(error) === 403) {
+              await commit(start, async () => {
+                await store.clearTokens()
+                await setState({ status: 'signed-out' })
+              })
+            } else {
+              const cached = await store.readState()
+              const session = await store.readSession?.()
+              await commit(start, async () => {
+                await setState(
+                  cached?.user && (!store.readSession || session?.userId === cached.user.id)
+                    ? { status: 'signed-in', user: cached.user }
+                    : { status: 'error', error: 'network' },
+                )
+              })
+            }
+          }
         }
       }
       hydrated = true
@@ -105,27 +143,40 @@ export function createBackgroundAuth({
   }
 
   async function requestCode(email: string): Promise<RequestCodeResponse> {
+    const start = revision
     try {
       const { devCode } = await api.auth.requestMagicLink(email)
-      await setState({ status: 'code-sent', pendingEmail: email })
+      await commit(start, async () => {
+        await setState({ status: 'code-sent', pendingEmail: email })
+      })
       return { ok: true, devCode }
     } catch (error) {
       const kind = endpointErrorKind(error)
-      await setState({ status: 'error', error: kind })
+      await commit(start, async () => {
+        await setState({ status: 'error', error: kind })
+      })
       return { ok: false, error: kind }
     }
   }
 
   async function verify(email: string, code: string): Promise<VerifyResponse> {
+    const start = ++revision
     try {
       const tokens = await api.auth.verify(email, code)
-      await store.setTokens(tokens)
-      hydrated = true
-      const next = await setState({ status: 'signed-in', user: tokens.user })
-      return { ok: true, state: next }
+      if (revision !== start) return { ok: false, error: 'unauthorized' }
+      await commit(start, async () => {
+        await store.setTokens(tokens)
+        hydrated = true
+        await setState({ status: 'signed-in', user: tokens.user })
+      })
+      if (revision !== start) return { ok: false, error: 'unauthorized' }
+      return { ok: true, state }
     } catch (error) {
       const kind = endpointErrorKind(error)
-      await setState({ status: 'error', error: kind })
+      if (revision === start)
+        await commit(start, async () => {
+          await setState({ status: 'error', error: kind })
+        })
       return { ok: false, error: kind }
     }
   }
@@ -137,49 +188,67 @@ export function createBackgroundAuth({
    * state — the next app visit re-bootstraps it.
    */
   async function adoptHandoff(code: string): Promise<VerifyResponse> {
+    const start = ++revision
     try {
       const tokens = await api.auth.redeemHandoff(code)
-      await store.setTokens(tokens)
-      hydrated = true
-      const next = await setState({ status: 'signed-in', user: tokens.user })
-      return { ok: true, state: next }
+      if (revision !== start) return { ok: false, error: 'unauthorized' }
+      await commit(start, async () => {
+        await store.setTokens(tokens)
+        hydrated = true
+        await setState({ status: 'signed-in', user: tokens.user })
+      })
+      if (revision !== start) return { ok: false, error: 'unauthorized' }
+      return { ok: true, state }
     } catch (error) {
       return { ok: false, error: endpointErrorKind(error) }
     }
   }
 
   async function logout(): Promise<{ ok: true }> {
+    const start = ++revision
     const refresh = await store.getRefresh()
-    if (refresh) {
-      try {
-        await api.auth.logout(refresh)
-      } catch {
-        // Best-effort revoke: clear locally regardless.
-      }
-    }
-    await store.clearTokens()
-    hydrated = true
-    await setState({ status: 'signed-out' })
+    await commit(start, async () => {
+      await store.clearTokens()
+      hydrated = true
+      await setState({ status: 'signed-out' })
+    })
+    // Local sign-out must not wait for an unreachable server.
+    if (refresh) void api.auth.logout(refresh).catch(() => {})
     return { ok: true }
   }
 
-  async function refreshAuth(): Promise<string | undefined> {
+  async function performRefresh(): Promise<string | undefined> {
+    const start = revision
     const refresh = await store.getRefresh()
-    if (!refresh) return undefined
+    if (!refresh || revision !== start) return undefined
     try {
       const tokens = await api.auth.refresh(refresh)
-      await store.setTokens(tokens)
-      return tokens.accessToken
-    } catch {
-      await store.clearTokens()
-      return undefined
+      if (revision !== start) return undefined
+      await commit(start, () => store.setTokens(tokens))
+      return revision === start ? tokens.accessToken : undefined
+    } catch (error) {
+      if (revision !== start) return undefined
+      if ([401, 403].includes(statusOf(error) ?? 0)) {
+        await onAuthError()
+        return undefined
+      }
+      throw error // A transient outage must not sign out a valid cached account.
     }
   }
 
+  function refreshAuth(): Promise<string | undefined> {
+    refreshing ??= performRefresh().finally(() => {
+      refreshing = null
+    })
+    return refreshing
+  }
   async function onAuthError(): Promise<void> {
-    await store.clearTokens()
-    hydrated = true
-    await setState({ status: 'error', error: 'unauthorized' })
+    const start = ++revision
+    await commit(start, async () => {
+      await store.clearTokens()
+      hydrated = true
+      await setState({ status: 'error', error: 'unauthorized' })
+    })
   }
 
   return {
