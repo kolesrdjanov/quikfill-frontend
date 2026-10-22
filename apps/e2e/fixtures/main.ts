@@ -13,6 +13,9 @@ import {
   mountOverlay,
   type OverlayHandle,
 } from '../../chrome-extension/entrypoints/content/overlay'
+import { createChromeRecipeStore } from './browser-adapter'
+import { defaultRecipeRules } from '../../../packages/autofill-core/src'
+import { recipeSchema } from '../../../packages/schemas/src'
 import { transport } from './browser-adapter'
 import { createApp, type App } from 'vue'
 import ControlledForm from './ControlledForm.vue'
@@ -34,6 +37,32 @@ const harness = {
   scanForms,
   probeFields,
   valuesToFillInstructions,
+  createRecipeStore: createChromeRecipeStore,
+  recipeContexts: () => overlay?.recipeContexts() ?? [],
+  publishRecipeContexts() {
+    localStorage.setItem('qf-fixture-contexts', JSON.stringify(overlay?.recipeContexts() ?? []))
+  },
+  async saveScenario(overrides: Record<string, unknown> = {}) {
+    const context = overlay!.recipeContexts()[0]
+    const recipe = recipeSchema.parse({
+      version: 1,
+      engineVersion: 1,
+      id: crypto.randomUUID(),
+      name: 'Browser QA',
+      seed: 'scenario',
+      locale: 'en-US',
+      onlyEmpty: true,
+      origin: context.origin,
+      pathname: context.pathname,
+      formKey: context.formKey,
+      rules: defaultRecipeRules(context.fields),
+      ...overrides,
+    })
+    const store = createChromeRecipeStore()
+    await store.save(recipe)
+    await store.activate(recipe, recipe.id)
+    return recipe
+  },
   transport,
   reactState,
   mountReactWidgets,

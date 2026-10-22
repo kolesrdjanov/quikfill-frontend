@@ -12,6 +12,11 @@ surface, dependency rules, and tests. Parent roadmap:
 
 ## Dependency rules (enforced)
 
+**2026-10-22 Phase 3:** schemas own versioned recipes and validation expectations;
+autofill-core owns deterministic recipe planning; browser-adapter owns local
+persistence and context messaging; form-scanner verifies exact invalid cases.
+See [QA scenarios](./PHASE_3_QA_SCENARIOS.md).
+
 **2026-10-22 Phase 2:** ARIA toggles/radios, owned portal selection, structured
 multiselect Undo, cancellable async waits, virtual scrolling and localized dates
 are covered by real library and reduced DOM browser fixtures. See

@@ -1674,3 +1674,24 @@ it('does not activate a custom widget for an unsupported invalid expectation', a
   expect(results[0].status).toBe('skipped')
   expect(clicks).toBe(0)
 })
+
+it('preserves native multiple selections for unsupported invalid tests', async () => {
+  document.body.innerHTML =
+    '<select id="roles" multiple required><option value="a" selected>A</option><option value="b" selected>B</option></select>'
+  const { results } = await applyFill([
+    instruction({
+      detectedFieldId: 'roles',
+      tagName: 'select',
+      inputType: 'select',
+      fillStrategy: 'select',
+      proposedValue: '',
+      expectedValidity: 'invalid',
+    }),
+  ])
+  expect(results[0].status).toBe('skipped')
+  expect(
+    Array.from((document.getElementById('roles') as HTMLSelectElement).selectedOptions).map(
+      (o) => o.value,
+    ),
+  ).toEqual(['a', 'b'])
+})

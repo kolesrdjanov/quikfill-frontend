@@ -56,7 +56,20 @@ export function buildRecipeFieldPlan(
   const protection = localFillSkipReason(field, { onlyEmpty: recipe.onlyEmpty })
   // Remote options block selection, but never bypass readonly/sensitive/only-empty protection.
   if (protection) return skipped(protection)
-  if (rule.mode === 'generated' && rule.case === 'valid') return buildLocalFillPlan([field], recipe)
+  if (rule.mode === 'generated' && rule.case === 'valid')
+    return buildLocalFillPlan(
+      [
+        {
+          ...field,
+          options: field.options
+            ? [...field.options].sort((a, b) =>
+                a.value < b.value ? -1 : a.value > b.value ? 1 : 0,
+              )
+            : undefined,
+        },
+      ],
+      recipe,
+    )
   let value: string | null = rule.value
   const invalid = ['invalid', 'belowMinimum', 'aboveMaximum', 'missing'].includes(rule.case)
   if (rule.mode === 'generated' && rule.case === 'invalid')

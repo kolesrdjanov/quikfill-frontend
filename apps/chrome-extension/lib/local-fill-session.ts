@@ -1,5 +1,7 @@
 import {
   buildLocalFillPlan,
+  buildRecipeFieldPlan,
+  recipeFieldKey,
   localFillSkipReason,
   type LocalFillOptions,
 } from '@quikfill/autofill-core'
@@ -13,14 +15,18 @@ import {
   type FillOutcome,
   type FillTarget,
 } from '@quikfill/form-scanner'
-import type { DetectedField } from '@quikfill/schemas'
+import type { DetectedField, FillRecipe } from '@quikfill/schemas'
 
 /** Re-read the selected form between dependent controls, retaining original DOM identity. */
 export async function fillLocalSession(
   fields: DetectedField[],
   root: Element,
   preferences: LocalFillOptions,
-  options: FillOptions & { targets: Map<string, FillTarget> },
+  options: FillOptions & {
+    targets: Map<string, FillTarget>
+    recipe?: FillRecipe
+    discoverFields?: boolean
+  },
 ): Promise<FillOutcome> {
   const outcome: FillOutcome = {
     results: [],
@@ -68,6 +74,15 @@ export async function fillLocalSession(
       })
       continue
     }
+    const rule = options.recipe?.rules.find((r) => r.fieldKey === recipeFieldKey(field))
+    if (options.recipe && (!rule || rule.mode === 'skip')) {
+      outcome.results.push({
+        detectedFieldId: original.id,
+        status: 'skipped',
+        reason: 'Skipped by scenario.',
+      })
+      continue
+    }
     let edited = false
     const onInput = (event: Event) => {
       if (event.isTrusted && bound.element.contains(event.target as Node)) edited = true
@@ -94,7 +109,9 @@ export async function fillLocalSession(
       })
       continue
     }
-    const batch = buildLocalFillPlan([field], sessionPreferences)
+    const batch = options.recipe
+      ? buildRecipeFieldPlan(field, options.recipe)
+      : buildLocalFillPlan([field], sessionPreferences)
     outcome.results.push(...batch.skipped.map((r) => ({ ...r, detectedFieldId: original.id })))
     const filled = await applyFill(
       batch.instructions.map((i) => ({ ...i, detectedFieldId: original.id })),
@@ -106,7 +123,7 @@ export async function fillLocalSession(
     changed ||= filled.undoSnapshot.entries.length > 0
     // Conditional controls rendered by this choice join the same scoped session.
     // A replacement of an existing identity is deliberately not rebound.
-    if (filled.undoSnapshot.entries.length) {
+    if (filled.undoSnapshot.entries.length && options.discoverFields !== false) {
       const deadline = Date.now() + 2500
       while (
         Date.now() < deadline &&

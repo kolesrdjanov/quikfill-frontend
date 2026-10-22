@@ -14,19 +14,23 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 
 ## Status
 
-| #   | Iteration                                                                     | Status   |
-| --- | ----------------------------------------------------------------------------- | -------- |
-| 3   | Scanner prototype (scan + inspect detected fields)                            | ✅ Done  |
-| 4   | Fill plan preview (generators + heuristics + preview UI)                      | ✅ Done  |
-| 5   | Fill execution + undo (native fill, verify, undo, results)                    | ✅ Done  |
-| 6   | Local form profiles (save/match/reuse mappings)                               | ✅ Done  |
-| 7   | Gemini assistance (privacy-aware AI, review/accept/reject)                    | ✅ Done  |
-| —   | UI design-system pass (popup / side panel / options)¹                         | ✅ Done  |
-| —   | In-page fill flow (floating "Fill" buttons + `/ai/fill`)                      | ✅ Done  |
-| —   | v2 popup surface (auth + usage mini-dashboard; side panel & settings retired) | ✅ Done  |
-| —   | Phase 0: scoped sessions, honest results, guarded undo, browser regressions   | ✅ Local |
-| —   | Phase 1: local Fill by default, optional account/AI, offline popup controls   | ✅ Local |
-| —   | Phase 2: widget adapters, dependent rescans, async waits, browser matrix      | ✅ Local |
+| #   | Iteration                                                                          | Status   |
+| --- | ---------------------------------------------------------------------------------- | -------- |
+| 3   | Scanner prototype (scan + inspect detected fields)                                 | ✅ Done  |
+| 4   | Fill plan preview (generators + heuristics + preview UI)                           | ✅ Done  |
+| 5   | Fill execution + undo (native fill, verify, undo, results)                         | ✅ Done  |
+| 6   | Local form profiles (save/match/reuse mappings)                                    | ✅ Done  |
+| 7   | Gemini assistance (privacy-aware AI, review/accept/reject)                         | ✅ Done  |
+| —   | UI design-system pass (popup / side panel / options)¹                              | ✅ Done  |
+| —   | In-page fill flow (floating "Fill" buttons + `/ai/fill`)                           | ✅ Done  |
+| —   | v2 popup surface (auth + usage mini-dashboard; side panel & settings retired)      | ✅ Done  |
+| —   | Phase 0: scoped sessions, honest results, guarded undo, browser regressions        | ✅ Local |
+| —   | Phase 1: local Fill by default, optional account/AI, offline popup controls        | ✅ Local |
+| —   | Phase 2: widget adapters, dependent rescans, async waits, browser matrix           | ✅ Local |
+| —   | Phase 3: local QA recipes, repeatable seeds, boundary cases and failed-field retry | ✅ Local |
+
+Phase 3 adds local scenarios, field rules, JSON import/export and scoped retry.
+Acceptance and limits: [PHASE_3_QA_SCENARIOS.md](./PHASE_3_QA_SCENARIOS.md).
 
 (Iterations 1–2 — monorepo + schemas — are tracked in the master plan and are
 prerequisites for everything below.)

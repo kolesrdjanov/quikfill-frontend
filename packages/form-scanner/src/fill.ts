@@ -412,7 +412,11 @@ async function executeUndo(
 
 async function writeAndVerify(ins: FillInstruction, el: Fillable): Promise<FillResult> {
   if (ins.expectedValidity === 'invalid') {
-    if (!el.matches('input, textarea, select') || !(el as HTMLInputElement).willValidate)
+    if (
+      !el.matches('input, textarea, select') ||
+      el.matches('select[multiple]') ||
+      !(el as HTMLInputElement).willValidate
+    )
       return skip(
         ins.detectedFieldId,
         'Expected-invalid case requires a native validation control.',

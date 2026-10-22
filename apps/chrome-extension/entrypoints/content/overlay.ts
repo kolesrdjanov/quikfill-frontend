@@ -5,9 +5,10 @@ import {
   onExtensionSettingsChange,
   readExtensionSettings,
   requestAiFill,
+  createChromeRecipeStore,
   type AiClassifyReason,
 } from '@quikfill/browser-adapter'
-import { buildLocalFillPlan, localFillSkipReason } from '@quikfill/autofill-core'
+import { buildLocalFillPlan, localFillSkipReason, recipeFieldKey } from '@quikfill/autofill-core'
 import {
   applyFill,
   applyUndo,
@@ -28,9 +29,12 @@ import {
   type LocalFillPreferences,
   type ExtensionSettings,
   type UndoSnapshot,
+  type FillRecipe,
+  type RecipeContext,
 } from '@quikfill/schemas'
 import { buttonDiameter, shouldShowOverlay } from '../../lib/overlay-gate'
 import { summarizeFill } from '../../lib/fill-summary'
+import { recipeContext } from '../../lib/recipe-context'
 import { fillLocalSession } from '../../lib/local-fill-session'
 
 /**
@@ -67,6 +71,7 @@ export interface OverlayHandle {
   destroy(): void
   /** Force a re-scan now (exposed for tests; normally driven by the observer). */
   rescan(): void
+  recipeContexts(): RecipeContext[]
 }
 
 const HOST_ID = 'quikfill-overlay-host'
@@ -104,6 +109,7 @@ interface FormButton {
   undo: HTMLButtonElement
   dismiss: HTMLButtonElement
   ai: HTMLButtonElement
+  retry: HTMLButtonElement
   statusTimer?: number
 }
 
@@ -141,6 +147,16 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     button: FormButton
     snapshot: UndoSnapshot
     targets: Map<string, FillTarget>
+  } | null = null
+
+  let lastLocal: {
+    button: FormButton
+    url: string
+    fields: DetectedField[]
+    targets: Map<string, FillTarget>
+    outcome: FillOutcome
+    preferences: { seed: string; locale: string; onlyEmpty: boolean }
+    recipe?: FillRecipe
   } | null = null
 
   let preferences: LocalFillPreferences = DEFAULT_LOCAL_FILL_PREFERENCES
@@ -223,6 +239,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         anchorResize?.unobserve(button.panel)
         if (button.statusTimer) win.clearTimeout(button.statusTimer)
         if (lastUndo?.button === button) lastUndo = null
+        if (lastLocal?.button === button) lastLocal = null
         if (button.anchorEl) anchorResize?.unobserve(button.anchorEl)
         buttons.delete(root)
       }
@@ -283,7 +300,12 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     note.className = 'qf-note'
     note.textContent =
       'Fill uses local test data. AI assist sends field metadata and requires sign-in.'
-    panel.append(summary, disclosure, undo, dismiss, ai, note)
+    const retry = ownerDoc.createElement('button')
+    retry.type = 'button'
+    retry.className = 'qf-undo'
+    retry.textContent = 'Retry failed fields'
+    retry.hidden = true
+    panel.append(summary, disclosure, undo, retry, dismiss, ai, note)
     const button: FormButton = {
       groupRoot,
       formId,
@@ -297,6 +319,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       undo,
       dismiss,
       ai,
+      retry,
     }
     el.addEventListener('click', (e) => {
       e.preventDefault()
@@ -307,6 +330,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     shadowRoot.appendChild(panel)
     ai.addEventListener('click', () => {
       void onFill(button, 'ai')
+    })
+    retry.addEventListener('click', () => {
+      void onFill(button, 'retry')
     })
     undo.addEventListener('click', () => {
       void onUndo(button)
@@ -321,7 +347,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     return button
   }
 
-  async function onFill(button: FormButton, mode: 'local' | 'ai' = 'local'): Promise<void> {
+  async function onFill(
+    button: FormButton,
+    mode: 'local' | 'ai' | 'retry' = 'local',
+  ): Promise<void> {
     if (
       busy ||
       disposed ||
@@ -379,12 +408,15 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       button.el.setAttribute('aria-busy', String(locked && button.status === 'loading'))
       button.undo.disabled = locked
       button.ai.disabled = locked
+      button.retry.disabled = locked
     }
   }
 
   async function onUndo(button: FormButton): Promise<void> {
     const undo = lastUndo
     if (busy || disposed || !undo || undo.button !== button) return
+    lastLocal = null
+    button.retry.hidden = true
     busy = true
     const controller = new AbortController()
     activeController = controller
@@ -432,8 +464,14 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     button: FormButton,
     signal: AbortSignal,
     startUrl: string,
-    mode: 'local' | 'ai',
+    mode: 'local' | 'ai' | 'retry',
   ): Promise<void> {
+    if (mode === 'retry') {
+      await retryLocal(button, signal, startUrl)
+      return
+    }
+    if (lastLocal) lastLocal.button.retry.hidden = true
+    lastLocal = null
     // Re-scan for fresh fields (the DOM may have changed since injection).
     let result: ReturnType<typeof scanFormsGrouped>
     try {
@@ -484,12 +522,49 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     }
     ensureCurrent()
     if (mode === 'local') {
-      const outcome = await fillLocalSession(fields, button.groupRoot, options, {
+      const context = recipeContext(button.groupRoot, fields)
+      const recipe = (await createChromeRecipeStore().active(context)) ?? undefined
+      ensureCurrent()
+      if (recipe) {
+        if (new Set(fields.map(recipeFieldKey)).size !== fields.length)
+          throw new Error(
+            'Scenario field identities are ambiguous. Give duplicate fields distinct names or labels.',
+          )
+        const matches = result.forms.filter((candidate) => {
+          const candidateFields = candidate.fieldIds
+            .map((id) => fieldById.get(id)!)
+            .filter((f) => f && isFillableField(f))
+          const root = resolveGroupRoot(candidate, fieldById, doc)
+          return root && recipeContext(root, candidateFields).formKey === context.formKey
+        })
+        if (matches.length !== 1)
+          throw new Error(
+            'Scenario matches more than one form. Give the forms distinct names or IDs.',
+          )
+      }
+      const executionPreferences = {
+        onlyEmpty: recipe?.onlyEmpty ?? options.onlyEmpty,
+        seed: recipe?.seed ?? options.seed ?? crypto.randomUUID(),
+        locale: recipe?.locale ?? options.locale,
+      }
+      const outcome = await fillLocalSession(fields, button.groupRoot, executionPreferences, {
         targets,
         signal,
         isCurrent,
+        recipe,
       })
+      lastLocal = {
+        button,
+        url: startUrl,
+        fields,
+        preferences: executionPreferences,
+        recipe,
+        outcome,
+        targets: captureFillTargets(fields, button.groupRoot, targets),
+      }
       showOutcome(button, fields, targets, outcome)
+      button.retry.hidden = !outcome.results.some((r) => r.status === 'failed')
+      if (recipe) button.summary.textContent += ` · Scenario: ${recipe.name}`
       return
     }
     await probeFields(eligible, button.groupRoot, { signal, isCurrent })
@@ -572,6 +647,10 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     const summary = summarizeFill(fields, [...skipped, ...outcome.results])
     button.panel.hidden = false
     button.summary.textContent = summary.description
+    const expectedInvalid = summary.results.filter(
+      (r) => r.status === 'success' && r.expectedValidity === 'invalid',
+    ).length
+    if (expectedInvalid) button.summary.textContent += ` · ${expectedInvalid} expected invalid`
     button.details.replaceChildren(
       ...summary.results.map((result) => {
         const item = doc.createElement('li')
@@ -588,6 +667,81 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     setStatus(button, summary.complete ? 'success' : 'partial')
     button.label.textContent = summary.label
     reposition()
+  }
+
+  async function retryLocal(button: FormButton, signal: AbortSignal, url: string): Promise<void> {
+    const run = lastLocal
+    if (!run || run.button !== button || run.url !== url)
+      throw new Error('Fill the current form before retrying.')
+    const failed = new Set(
+      run.outcome.results.filter((r) => r.status === 'failed').map((r) => r.detectedFieldId),
+    )
+    const fields = run.fields.filter((f) => failed.has(f.id))
+    const current = captureFillTargets(fields, button.groupRoot, run.targets)
+    const eligible = fields.filter((field) => {
+      const before = run.targets.get(field.id),
+        now = current.get(field.id)
+      return (
+        before &&
+        now &&
+        before.element === now.element &&
+        before.value === now.value &&
+        before.checked === now.checked
+      )
+    })
+    const outcome = await fillLocalSession(
+      eligible,
+      button.groupRoot,
+      { ...run.preferences, onlyEmpty: false },
+      {
+        targets: run.targets,
+        signal,
+        isCurrent: () =>
+          !disposed &&
+          doc.URL === url &&
+          button.groupRoot.isConnected &&
+          shouldShowOverlay(settings, pageHostname()),
+        recipe: run.recipe ? { ...run.recipe, onlyEmpty: false } : undefined,
+        discoverFields: false,
+      },
+    )
+    const attempted = new Set(eligible.map((f) => f.id))
+    outcome.results.push(
+      ...fields
+        .filter((f) => !attempted.has(f.id))
+        .map(
+          (f): FillResult => ({
+            detectedFieldId: f.id,
+            status: 'skipped',
+            reason: 'Field changed after filling — your edit was preserved.',
+          }),
+        ),
+    )
+    const latest = new Map(outcome.results.map((r) => [r.detectedFieldId, r]))
+    run.outcome.results = run.outcome.results.map((r) => latest.get(r.detectedFieldId) ?? r)
+    const entries = new Map(
+      run.outcome.undoSnapshot.entries.map((entry) => [entry.detectedFieldId, entry]),
+    )
+    for (const entry of outcome.undoSnapshot.entries) {
+      const first = entries.get(entry.detectedFieldId)
+      entries.set(
+        entry.detectedFieldId,
+        first
+          ? {
+              ...entry,
+              previousValue: first.previousValue,
+              previousChecked: first.previousChecked,
+              previousDisplayText: first.previousDisplayText,
+              previousSelectedValues: first.previousSelectedValues,
+            }
+          : entry,
+      )
+    }
+    run.outcome.undoSnapshot.entries = [...entries.values()]
+    run.targets = captureFillTargets(run.fields, button.groupRoot, run.targets)
+    showOutcome(button, run.fields, run.targets, run.outcome)
+    button.retry.hidden = !run.outcome.results.some((r) => r.status === 'failed')
+    if (run.recipe) button.summary.textContent += ` · Scenario: ${run.recipe.name}`
   }
 
   function setStatus(
@@ -768,6 +922,8 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       if (pressed) void onFill(pressed)
       const ai = [...buttons.values()].find((b) => path.includes(b.ai))
       if (ai) void onFill(ai, 'ai')
+      const retry = [...buttons.values()].find((b) => path.includes(b.retry))
+      if (retry) void onFill(retry, 'retry')
       const undo = [...buttons.values()].find((b) => path.includes(b.undo))
       if (undo) void onUndo(undo)
       const dismiss = [...buttons.values()].find((b) => path.includes(b.dismiss))
@@ -807,6 +963,18 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
 
   return {
     rescan: scan,
+    recipeContexts() {
+      if (busy || disposed) return []
+      const result = scanFormsGrouped(doc, { includeHidden: false, includeNonFillable: true })
+      const byId = new Map(result.fields.map((f) => [f.id, f]))
+      return result.forms.flatMap((form) => {
+        const root = resolveGroupRoot(form, byId, doc)
+        const fields = form.fieldIds
+          .map((id) => byId.get(id)!)
+          .filter((f) => f && isFillableField(f))
+        return root && qualifiesForFill(fields.length) ? [recipeContext(root, fields)] : []
+      })
+    },
     destroy() {
       disposed = true
       activeController?.abort('QuikFill was closed.')
@@ -832,6 +1000,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       host.remove()
       removeAllButtons()
       lastUndo = null
+      lastLocal = null
     },
   }
 }

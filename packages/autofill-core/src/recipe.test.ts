@@ -76,6 +76,22 @@ describe('local QA recipes', () => {
     expect(buildRecipeFieldPlan(fields[0], r).instructions[0].proposedValue).toBe('Fixed')
     expect(buildRecipeFieldPlan(fields[1], r).skipped[0].reason).toMatch(/scenario/i)
   })
+  it('keeps option generation stable when the same dataset is reordered', () => {
+    const f = field('role', {
+      tagName: 'select',
+      inputType: 'select',
+      options: [
+        { value: 'z', label: 'Z' },
+        { value: 'a', label: 'A' },
+      ],
+    })
+    const r = recipe()
+    r.rules = defaultRecipeRules([f])
+    expect(buildRecipeFieldPlan(f, r).instructions[0].proposedValue).toBe(
+      buildRecipeFieldPlan({ ...f, options: [...f.options!].reverse() }, r).instructions[0]
+        .proposedValue,
+    )
+  })
   it('preserves manual values and sensitive fields even for fixed/invalid rules', () => {
     const r = recipe()
     r.rules[2] = { ...r.rules[2], mode: 'fixed', value: 'broken', case: 'invalid' }

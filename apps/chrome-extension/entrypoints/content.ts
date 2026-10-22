@@ -1,6 +1,7 @@
 import {
   adoptHandoff,
   onFillRequest,
+  onRecipeContexts,
   onScanRequest,
   onUndoRequest,
   requestAuthState,
@@ -23,6 +24,7 @@ export default defineContentScript({
     // legacy scan/fill/undo message handlers below stay for the surface's scan form.
     const overlay = mountOverlay(document)
     ctx.onInvalidated(() => overlay.destroy())
+    onRecipeContexts(() => overlay.recipeContexts())
 
     // Zero-click cross-surface session handoff: only on the QuikFill app origin. A
     // signed-out extension announces itself to the page and adopts any one-time code

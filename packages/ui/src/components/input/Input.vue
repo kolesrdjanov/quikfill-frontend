@@ -14,7 +14,8 @@ const base =
 </script>
 
 <template>
-  <div v-if="slots.icon" class="relative">
+  <input v-if="type === 'file'" v-bind="$attrs" type="file" :class="cn(base, props.class)" />
+  <div v-else-if="slots.icon" class="relative">
     <span
       class="text-muted-foreground pointer-events-none absolute top-1/2 left-3.5 flex -translate-y-1/2 items-center [&_svg]:size-4"
     >

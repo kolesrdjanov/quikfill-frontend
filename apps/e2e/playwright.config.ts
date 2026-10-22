@@ -22,6 +22,7 @@ export default defineConfig({
         'fill-overlay.spec.ts',
         'local-fill.spec.ts',
         'custom-widgets.spec.ts',
+        'recipes.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:4174' },
     },

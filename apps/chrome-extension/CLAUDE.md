@@ -45,6 +45,12 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
 
 ## Current state
 
+**Phase 3 QA (2026-10-22):** signed-out popup scenarios persist seeds and field
+rules locally. Activated recipes match exact origin/path/form identities and run
+through the existing local session. Retry touches only failed, unchanged original
+controls and retains the first Undo state. Boundary/invalid cases are explicit.
+See [QA scenarios](../../docs/PHASE_3_QA_SCENARIOS.md).
+
 **Phase 2 widgets (2026-10-22):** `fillLocalSession` refreshes scoped metadata
 between dependent fields while retaining original DOM bindings, waits for async
 options/enablement and includes conditional controls. Fill and Undo verify actual

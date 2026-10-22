@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from '../../chrome-extension/entrypoints/popup/App.vue'
 import '../../chrome-extension/style.css'
 import { transport } from './browser-adapter'
@@ -12,4 +13,4 @@ Object.assign(globalThis, {
   },
 })
 Object.assign(window, { popupTransport: transport })
-createApp(App).mount('#app')
+createApp(App).use(createPinia()).mount('#app')

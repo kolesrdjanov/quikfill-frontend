@@ -17,6 +17,8 @@ without an account/network/AI quota. Popup preferences are available signed out;
 AI assist is a separate user action. See [Phase 1](./docs/PHASE_1_LOCAL_FILL.md).
 Phase 2 adds owned widget selection, cancellable waits and dependent-field rescans;
 coverage and limits: [widget adapters](./docs/PHASE_2_WIDGET_ADAPTERS.md).
+Phase 3 adds device-local QA scenarios, fixed/generated/skip rules, versioned
+import/export and scoped retry: [scenarios](./docs/PHASE_3_QA_SCENARIOS.md).
 
 - **Chrome extension** (`apps/chrome-extension`) — the primary execution surface.
 - **App / dashboard** (`apps/app`) — currently a trimmed live surface: sign-in +

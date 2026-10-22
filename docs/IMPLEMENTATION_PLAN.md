@@ -43,6 +43,12 @@ repo's iterations 4–6.
 
 ## Status
 
+**2026-10-22 — Phase 3 QA scenarios complete locally.** Versioned recipes expose
+fixed/generated/skip rules, saved seeds, local JSON import/export, explicit
+constraint cases and retry of failed original controls. The signed-out popup
+manages them; normal in-page Fill composes the shared planner and DOM executor.
+Acceptance and limits: [Phase 3](./PHASE_3_QA_SCENARIOS.md).
+
 **2026-10-22 — Phase 2 widget adapters complete locally.** Real Radix, Reka,
 React Select, MUI and Headless UI fixtures cover committed portal selections;
 scoped rescans handle dependent/conditional fields, and localized calendars verify

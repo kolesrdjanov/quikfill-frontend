@@ -89,3 +89,19 @@ export async function requestAiFill(request: AiFillRequest): Promise<Reply> {
     }
   return transport.reply
 }
+
+import { createRecipeStore } from '../../../packages/browser-adapter/src/recipe-store'
+import { recipeContextsSchema, type StorageAdapter } from '../../../packages/schemas/src'
+const recipeStorage: StorageAdapter = {
+  get: async <T>(key: string) => JSON.parse(localStorage.getItem(key) ?? 'null') as T | null,
+  set: async (key, value) => {
+    localStorage.setItem(key, JSON.stringify(value))
+  },
+  delete: async (key) => {
+    localStorage.removeItem(key)
+  },
+  list: async (prefix) => Object.keys(localStorage).filter((key) => key.startsWith(prefix)),
+}
+export const createChromeRecipeStore = () => createRecipeStore(recipeStorage)
+export const requestRecipeContexts = async () =>
+  recipeContextsSchema.parse(JSON.parse(localStorage.getItem('qf-fixture-contexts') ?? '[]'))
