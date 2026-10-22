@@ -88,16 +88,27 @@ describe('getValidationAttrs', () => {
       maxLength: 8,
       min: '0',
       max: '100',
+      stepBase: '0',
     })
   })
 
   it('keeps min/max raw for date inputs', () => {
     const el = input(`<input type="date" min="2020-01-01" max="2020-12-31" />`)
-    expect(getValidationAttrs(el)).toEqual({ min: '2020-01-01', max: '2020-12-31' })
+    expect(getValidationAttrs(el)).toEqual({
+      min: '2020-01-01',
+      max: '2020-12-31',
+      stepBase: '2020-01-01',
+    })
   })
 
   it('omits absent / blank / non-integer attributes', () => {
     const el = input(`<input type="text" minlength="" maxlength="abc" />`)
     expect(getValidationAttrs(el)).toEqual({})
+  })
+
+  it('retains an original value as the step base, independently of live edits', () => {
+    const el = input('<input type="number" value="0.1" step="0.2">')
+    ;(el as HTMLInputElement).value = '9.9'
+    expect(getValidationAttrs(el)).toEqual({ step: '0.2', stepBase: '0.1' })
   })
 })

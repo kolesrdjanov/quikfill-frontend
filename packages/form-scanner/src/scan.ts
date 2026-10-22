@@ -256,6 +256,7 @@ function radioOption(input: HTMLInputElement, lookup: Document | ShadowRoot): Fi
     value: input.value,
     label: getLabelText(input, lookup) ?? input.value,
     selected: input.checked,
+    disabled: input.matches(':disabled'),
   }
 }
 

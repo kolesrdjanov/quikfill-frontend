@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { GeneratorRule } from '@quikfill/schemas'
 import { runGenerator } from './generate'
 
@@ -9,6 +9,17 @@ const rule = (kind: GeneratorRule['kind'], options?: Record<string, unknown>): G
 })
 
 describe('runGenerator determinism', () => {
+  it('keeps a seeded date stable when the system date changes', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01'))
+      const before = runGenerator(rule('date'), { seed: 'qa' })
+      vi.setSystemTime(new Date('2028-12-31'))
+      expect(runGenerator(rule('date'), { seed: 'qa' })).toBe(before)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('is reproducible for the same seed + rule', () => {
     const a = runGenerator(rule('person'), { seed: 'abc' })
     const b = runGenerator(rule('person'), { seed: 'abc' })

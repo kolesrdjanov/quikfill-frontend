@@ -17,6 +17,14 @@ failures identified by the audit are fixed in the shared engine. Browser fixture
 now verify real React state, DOM submission side effects and scoped execution.
 Details and remaining limits: [Phase 0](./PHASE_0_STABILIZATION.md).
 
+**2026-10-22 local planner:** `buildLocalFillPlan` composes the existing preview
+planner and returns executable instructions plus explicit skip reasons. It
+preserves existing values by default, excludes sensitive/unavailable fields,
+shares one synthetic identity per plan (US/GB/RS), uses stable field metadata for
+seeded generation, and carries number/date ranges, steps, masks and text length
+constraints through planning. The scanner now distinguishes unchecked checkboxes
+from populated controls and exposes disabled options and HTML step bases.
+
 ```txt
 schemas        → (no deps) pure Zod + inferred types
 generators     → schemas

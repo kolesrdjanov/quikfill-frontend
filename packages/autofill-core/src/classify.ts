@@ -122,7 +122,7 @@ export function classifyField(field: DetectedField): FieldClassification {
     return classification(field.id, 'boolean', 0.85)
   }
 
-  const ac = field.autocomplete?.toLowerCase().trim()
+  const ac = field.autocomplete?.toLowerCase().trim().split(/\s+/).at(-1)
   if (ac && AUTOCOMPLETE_MAP[ac]) {
     return classification(field.id, AUTOCOMPLETE_MAP[ac], 0.95)
   }
@@ -130,6 +130,8 @@ export function classifyField(field: DetectedField): FieldClassification {
   if (type === 'email') return classification(field.id, 'email', 0.9)
   if (type === 'tel') return classification(field.id, 'phone', 0.9)
   if (type === 'date') return classification(field.id, 'date', 0.9)
+  if (type === 'number' || type === 'range') return classification(field.id, 'number', 0.9)
+  if (field.customWidget?.kind === 'datepicker') return classification(field.id, 'date', 0.9)
 
   const haystack = [field.name, field.domId, field.labelText, field.placeholder, field.ariaLabel]
     .filter(Boolean)
@@ -144,7 +146,7 @@ export function classifyField(field: DetectedField): FieldClassification {
     return {
       fieldId: field.id,
       semanticType: 'masked',
-      confidence: 0.7,
+      confidence: 0.9,
       suggestedKind: 'patterned',
       generatorOptions: { format: field.mask },
     }

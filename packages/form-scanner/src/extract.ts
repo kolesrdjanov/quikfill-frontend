@@ -84,6 +84,8 @@ export interface ValidationAttrs {
   maxLength?: number
   min?: string
   max?: string
+  step?: string
+  stepBase?: string
 }
 
 /**
@@ -104,6 +106,10 @@ export function getValidationAttrs(el: FormControl): ValidationAttrs {
   if (min) out.min = min
   const max = el.getAttribute('max')
   if (max) out.max = max
+  const step = el.getAttribute('step')
+  if (step) out.step = step
+  const stepBase = min || el.getAttribute('value')
+  if (stepBase) out.stepBase = stepBase
   return out
 }
 
@@ -115,6 +121,9 @@ function parseNonNegativeInt(raw: string | null): number | undefined {
 
 export function getCurrentValue(el: FormControl): string | null {
   const tag = el.tagName.toLowerCase()
+  if (tag === 'input' && (el as HTMLInputElement).type === 'checkbox') {
+    return (el as HTMLInputElement).checked ? (el as HTMLInputElement).value : null
+  }
   if (tag === 'input' || tag === 'textarea') return (el as HTMLInputElement).value ?? null
   if (tag === 'select') {
     const sel = el as HTMLSelectElement
@@ -256,6 +265,7 @@ export function getOptions(el: FormControl): FieldOption[] | undefined {
       value: o.value,
       label: o.textContent?.trim() ?? o.value,
       selected: o.selected,
+      disabled: o.disabled || o.parentElement?.matches('optgroup:disabled') === true,
     }))
   }
   if (tag === 'input') {

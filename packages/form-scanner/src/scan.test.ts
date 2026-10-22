@@ -45,8 +45,8 @@ describe('scanForms', () => {
     const role = fields.find((f) => f.name === 'role')!
     expect(role.inputType).toBe('select')
     expect(role.options).toEqual([
-      { value: 'admin', label: 'Admin', selected: false },
-      { value: 'user', label: 'User', selected: true },
+      { value: 'admin', label: 'Admin', selected: false, disabled: false },
+      { value: 'user', label: 'User', selected: true, disabled: false },
     ])
 
     const search = fields.find((f) => f.inputType === 'search')!

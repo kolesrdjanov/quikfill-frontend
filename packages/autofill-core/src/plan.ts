@@ -11,6 +11,8 @@ import { classifyFields, generatorRuleForSemanticType } from './classify'
 import { resolveFillSource, type ResolveContext } from './resolve'
 import { defaultSourceFor } from './source-policy'
 import { recordMatchForSemanticType, type RecordIndex } from './record-index'
+import { createSamplePersona } from '@quikfill/generators'
+import { constrainRule, generatedValueIssue } from './generation-constraints'
 
 /** A field paired with the source chosen to fill it. */
 export interface PlanAssignment {
@@ -32,18 +34,47 @@ export function defaultFillStrategy(field: DetectedField): FillStrategy {
 
 /** Build a previewable FillPlan from explicit assignments. Never writes the page. */
 export function buildFillPlan(assignments: PlanAssignment[], ctx: ResolveContext = {}): FillPlan {
-  const items: FillPlanItem[] = assignments.map((a) => buildItem(a, ctx))
+  const context = { ...ctx, persona: ctx.persona ?? createSamplePersona(ctx.seed, ctx.locale) }
+  const items: FillPlanItem[] = assignments.map((a) => buildItem(a, context))
   return { items, mode: 'preview' }
 }
 
 function buildItem(assignment: PlanAssignment, ctx: ResolveContext): FillPlanItem {
   const { field, fillSource } = assignment
-  const fieldOptions = field.options?.map((o) => o.value)
-  // salt by field id so two same-kind fields get distinct generated values.
-  const resolved = resolveFillSource(fillSource, { ...ctx, fieldOptions, salt: field.id })
+  const fieldOptions = field.options
+    ?.filter((o) => !o.disabled && o.value !== '')
+    .map((o) => o.value)
+  const rule = fillSource.sourceType === 'generatorRule' ? ctx.rules?.[fillSource.ruleKey] : null
+  const rules =
+    rule && fillSource.sourceType === 'generatorRule'
+      ? { ...ctx.rules, [fillSource.ruleKey]: constrainRule(rule, field) }
+      : ctx.rules
+  // A scan id is ephemeral. Fingerprints and field metadata survive rescans.
+  const resolved = resolveFillSource(fillSource, {
+    ...ctx,
+    rules,
+    fieldOptions,
+    salt: `${field.domFingerprint}:${field.name ?? field.domId ?? ''}`,
+  })
+
+  // Free prose can be shortened/extended without corrupting structured data.
+  if (rule?.kind === 'notes' && resolved.value) {
+    const min = field.minLength ?? 0
+    const max = field.maxLength ?? 4096
+    if (min <= max && min <= 4096) {
+      resolved.value = resolved.value
+        .repeat(Math.max(1, Math.ceil(min / resolved.value.length)))
+        .slice(0, max)
+    }
+  }
 
   const warnings = [...resolved.warnings]
   let requiresConfirmation = resolved.requiresConfirmation
+  const issue = rule && resolved.value !== null ? generatedValueIssue(resolved.value, field) : null
+  if (issue) {
+    warnings.push(issue)
+    requiresConfirmation = true
+  }
   if (field.disabled) {
     warnings.push('Field is disabled — it will be skipped.')
     requiresConfirmation = true

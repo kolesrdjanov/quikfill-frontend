@@ -34,8 +34,7 @@ export interface Rng {
  * to Math.random (non-reproducible). `salt` separates streams (e.g. per field).
  */
 export function createRng(seed?: string | number, salt = ''): Rng {
-  const next =
-    seed === undefined && salt === '' ? Math.random : mulberry32(hashToInt(`${seed ?? ''}:${salt}`))
+  const next = seed === undefined ? Math.random : mulberry32(hashToInt(`${seed}:${salt}`))
   return {
     next,
     int: (min, max) => min + Math.floor(next() * (max - min + 1)),

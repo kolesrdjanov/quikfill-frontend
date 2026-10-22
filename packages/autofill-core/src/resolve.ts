@@ -1,5 +1,5 @@
 import type { FillSource, GeneratorRule } from '@quikfill/schemas'
-import { runGenerator } from '@quikfill/generators'
+import { runGenerator, type SamplePersona } from '@quikfill/generators'
 
 export interface ResolveContext {
   seed?: string | number
@@ -12,6 +12,7 @@ export interface ResolveContext {
   fieldOptions?: string[]
   /** Per-field discriminator so same-rule fields get distinct generated values. */
   salt?: string
+  persona?: SamplePersona
 }
 
 export interface ResolvedValue {
@@ -35,6 +36,7 @@ export function resolveFillSource(source: FillSource, ctx: ResolveContext = {}):
           locale: ctx.locale,
           fieldOptions: ctx.fieldOptions,
           salt: ctx.salt,
+          persona: ctx.persona,
         }),
       )
     }

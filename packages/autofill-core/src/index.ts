@@ -39,3 +39,9 @@ export {
   type SourcePolicyInput,
 } from './source-policy'
 export { classifySensitive, type SensitiveCategory } from './sensitive'
+export {
+  buildLocalFillPlan,
+  localFillSkipReason,
+  planToFillInstructions,
+  type LocalFillOptions,
+} from './local-fill'

@@ -6,6 +6,7 @@ export const fieldOptionSchema = z.object({
   value: z.string(),
   label: z.string(),
   selected: z.boolean().optional(),
+  disabled: z.boolean().optional(),
 })
 export type FieldOption = z.infer<typeof fieldOptionSchema>
 
@@ -111,6 +112,9 @@ export const detectedFieldSchema = z.object({
   /** `min`/`max` are kept as raw strings — they may be numeric, a date, or a time depending on `inputType`. */
   min: z.string().optional(),
   max: z.string().optional(),
+  step: z.string().optional(),
+  /** HTML step base: min, then the original value attribute, then zero. */
+  stepBase: z.string().optional(),
   selectorCandidates: z.array(z.string()).default([]),
   domFingerprint: z.string(),
   /** `'main'` for the top document, otherwise an opaque frame id. */

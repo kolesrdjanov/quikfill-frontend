@@ -1,18 +1,7 @@
 import type { GeneratorKind, GeneratorRule } from '@quikfill/schemas'
-import {
-  CITIES,
-  COMPANY_PREFIXES,
-  COMPANY_SUFFIXES,
-  EMAIL_DOMAINS,
-  FIRST_NAMES,
-  LAST_NAMES,
-  LOREM_WORDS,
-  STATES,
-  STREET_NAMES,
-  STREET_SUFFIXES,
-  URL_TLDS,
-} from './data'
+import { COMPANY_PREFIXES, COMPANY_SUFFIXES, LOREM_WORDS, URL_TLDS } from './data'
 import { createRng, type Rng } from './rng'
+import { createSamplePersona, type SamplePersona } from './persona'
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -24,6 +13,7 @@ export interface GenerateContext {
   fieldOptions?: string[]
   /** Extra per-field discriminator so fields sharing a rule get distinct values. */
   salt?: string
+  persona?: SamplePersona
 }
 
 type Options = Record<string, unknown>
@@ -45,13 +35,16 @@ function strArray(o: Options, key: string): string[] | undefined {
 export function runGenerator(rule: GeneratorRule, ctx: GenerateContext = {}): string {
   const o: Options = rule.options ?? {}
   const rng = createRng(ctx.seed, `${rule.fieldKey}:${rule.kind}:${ctx.salt ?? ''}`)
-  return GENERATORS[rule.kind](rng, o, ctx)
+  return GENERATORS[rule.kind](rng, o, {
+    ...ctx,
+    persona: ctx.persona ?? createSamplePersona(ctx.seed, ctx.locale),
+  })
 }
 
 const GENERATORS: Record<GeneratorKind, (rng: Rng, o: Options, ctx: GenerateContext) => string> = {
-  person(rng, o) {
-    const first = rng.pick(FIRST_NAMES)
-    const last = rng.pick(LAST_NAMES)
+  person(_rng, o, ctx) {
+    const first = ctx.persona!.firstName
+    const last = ctx.persona!.lastName
     switch (str(o, 'part')) {
       case 'first':
         return first
@@ -61,28 +54,27 @@ const GENERATORS: Record<GeneratorKind, (rng: Rng, o: Options, ctx: GenerateCont
         return `${first} ${last}`
     }
   },
-  email(rng, o) {
-    const first = rng.pick(FIRST_NAMES).toLowerCase()
-    const last = rng.pick(LAST_NAMES).toLowerCase()
-    const domain = str(o, 'domain') ?? rng.pick(EMAIL_DOMAINS)
-    return `${first}.${last}${rng.int(1, 999)}@${domain}`
+  email(_rng, o, ctx) {
+    const email = ctx.persona!.email
+    return str(o, 'domain') ? email.replace(/@.*$/, `@${str(o, 'domain')}`) : email
   },
-  phone(rng, o) {
-    const template = str(o, 'format') ?? '+1-###-###-####'
+  phone(rng, o, ctx) {
+    const template = str(o, 'format')
+    if (!template) return ctx.persona!.phone
     return template.replace(/#/g, () => String(rng.int(0, 9)))
   },
-  address(rng, o) {
+  address(_rng, o, ctx) {
     switch (str(o, 'part')) {
       case 'city':
-        return rng.pick(CITIES)
+        return ctx.persona!.city
       case 'state':
-        return rng.pick(STATES)
+        return ctx.persona!.state
       case 'zip':
-        return String(rng.int(10000, 99999))
+        return ctx.persona!.zip
       case 'country':
-        return str(o, 'country') ?? 'US'
+        return str(o, 'country') ?? ctx.persona!.country
       default:
-        return `${rng.int(1, 9999)} ${rng.pick(STREET_NAMES)} ${rng.pick(STREET_SUFFIXES)}`
+        return ctx.persona!.street
     }
   },
   company(rng) {
@@ -103,14 +95,32 @@ const GENERATORS: Record<GeneratorKind, (rng: Rng, o: Options, ctx: GenerateCont
     const min = num(o, 'min', 0)
     const max = num(o, 'max', 1000)
     const decimals = num(o, 'decimals', 0)
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min > max) return ''
+    const step = num(o, 'step', 0)
+    if (step > 0 && Number.isFinite(step)) {
+      const base = num(o, 'stepBase', min)
+      const first = Math.ceil((min - base) / step - 1e-9)
+      const last = Math.floor((max - base) / step + 1e-9)
+      if (first > last || !Number.isSafeInteger(last - first)) return ''
+      return String(Number((base + rng.int(first, last) * step).toFixed(10)))
+    }
     const value = min + rng.next() * (max - min)
     return value.toFixed(decimals)
   },
   date(rng, o) {
-    const min = Date.parse(str(o, 'min') ?? '') || Date.now() - 365 * 24 * 3600 * 1000
-    const max = Date.parse(str(o, 'max') ?? '') || Date.now() + 365 * 24 * 3600 * 1000
-    const ts = min + Math.floor(rng.next() * (max - min))
-    return new Date(ts).toISOString().slice(0, 10)
+    // Fixed defaults keep seeded runs reproducible across dates and time zones.
+    const day = 86_400_000
+    const parsedMin = Date.parse(str(o, 'min') ?? '') / day
+    const parsedMax = Date.parse(str(o, 'max') ?? '') / day
+    const min = Number.isFinite(parsedMin) ? parsedMin : Math.min(18262, parsedMax || 18262)
+    const max = Number.isFinite(parsedMax) ? parsedMax : Math.max(22279, min)
+    if (min > max) return ''
+    const step = num(o, 'step', 1)
+    const base = num(o, 'stepBase', min)
+    const first = Math.ceil((min - base) / step)
+    const last = Math.floor((max - base) / step)
+    if (!(step > 0) || first > last) return ''
+    return new Date((base + rng.int(first, last) * step) * day).toISOString().slice(0, 10)
   },
   currency(rng, o) {
     const symbol = str(o, 'symbol') ?? '$'
@@ -145,9 +155,9 @@ const GENERATORS: Record<GeneratorKind, (rng: Rng, o: Options, ctx: GenerateCont
       return rng.bool() ? String(rng.int(0, 9)) : LETTERS[rng.int(0, 25)]!
     })
   },
-  handle(rng, o) {
-    const first = rng.pick(FIRST_NAMES).toLowerCase()
-    const last = rng.pick(LAST_NAMES).toLowerCase()
+  handle(rng, o, ctx) {
+    const first = ctx.persona!.firstName.toLowerCase()
+    const last = ctx.persona!.lastName.toLowerCase()
     const sep = str(o, 'separator') ?? ''
     return `${first}${sep}${last}${rng.int(1, 99)}`
   },
