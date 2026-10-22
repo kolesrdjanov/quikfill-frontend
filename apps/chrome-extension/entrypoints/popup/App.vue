@@ -4,6 +4,7 @@ import { ArrowUpRight, Check, LogOut, Mail, RefreshCw } from 'lucide-vue-next'
 import { Badge, Button } from '@quikfill/ui'
 import {
   onExtensionSettingsChange,
+  ensureActiveContentScript,
   readExtensionSettings,
   requestSettingsSync,
 } from '@quikfill/browser-adapter'
@@ -18,9 +19,10 @@ import { useExtensionTheme } from '../../lib/useExtensionTheme'
 import { useAuthGate } from '../../lib/useAuthGate'
 import { useEntitlements } from '../../lib/useEntitlements'
 
+import { DASHBOARD_URL } from '../../lib/external-urls'
+
 // Local preferences are always available. Authentication is an optional route
 // for AI and account sync; filling happens on the page.
-const DASHBOARD_URL = import.meta.env.PROD ? 'https://app.quikfill.io' : 'http://localhost:5173'
 
 const { init: initTheme, apply: applyTheme } = useExtensionTheme()
 const gate = useAuthGate()
@@ -92,6 +94,7 @@ const barClass = computed(() =>
 )
 
 onMounted(async () => {
+  await ensureActiveContentScript()
   // Apply the last-known theme straight away so the popup never flashes the wrong
   // mode, then react live to any later settings change (manual / periodic sync, or
   // a dashboard save synced down by the background).

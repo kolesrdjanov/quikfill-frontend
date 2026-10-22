@@ -104,6 +104,6 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/path/to/chrome-headless-shell pnpm e2e --wo
 WXT_QF_API_BASE_URL=https://api.quikfill.example/api/v1 pnpm --workspace-concurrency=1 -r build
 ```
 
-A packaged, installed MV3 extension lifecycle/permission test and real-provider billing
-checks remain release work. Passing fixture tests is not a universal compatibility
+The [installed MV3 release gate](./RELEASE_MV3_CHECKS.md) now passes against a local
+API and real Chrome APIs. Real-provider billing checks remain release work. Passing fixture tests is not a universal compatibility
 claim. Native/custom control limits remain in the Phase 2 matrix.

@@ -43,6 +43,14 @@ pnpm --filter @quikfill/chrome-extension build   # zip: ... zip
 - AI is review-first and privacy-aware: send redacted field summaries, never full
   HTML or current values; route AI calls through the backend, never Gemini direct.
 
+## Installed MV3 release gate (2026-10-22)
+
+The dedicated `@quikfill/e2e test:mv3` suite installs a production-mode bundle in a
+fresh Chromium profile and drives the actual toolbar. It covers worker restart,
+optional cloud and developer reload. Popup startup pings the active content script
+and repairs missing receivers with activeTab while retaining healthy Undo sessions.
+[Release checks](../../docs/RELEASE_MV3_CHECKS.md).
+
 ## Current state
 
 **Phase 4 optional cloud (2026-10-22):** AI suggestions require per-field review;

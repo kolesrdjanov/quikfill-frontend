@@ -1,5 +1,6 @@
 import {
   adoptHandoff,
+  onContentReady,
   onFillRequest,
   onRecipeContexts,
   onScanRequest,
@@ -22,6 +23,7 @@ export default defineContentScript({
     // (isolated Shadow DOM). It owns its own lifecycle (observer + listeners) and
     // delegates the backend call to the background worker via requestAiFill. The
     // legacy scan/fill/undo message handlers below stay for the surface's scan form.
+    onContentReady()
     const overlay = mountOverlay(document)
     ctx.onInvalidated(() => overlay.destroy())
     onRecipeContexts(() => overlay.recipeContexts())

@@ -131,3 +131,5 @@ export const requestSavedRecord = async (selection: {
   const type = library.types.find((t) => t.id === record?.entityTypeId)
   return savedRecordSnapshotSchema.parse({ ownerId: library.ownerId, record, type })
 }
+
+export const ensureActiveContentScript = async () => true

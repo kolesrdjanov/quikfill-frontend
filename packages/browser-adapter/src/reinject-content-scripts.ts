@@ -66,9 +66,47 @@ export function chromeReinjectDeps(): ReinjectDeps {
     getManifestContentScripts: () => chrome.runtime.getManifest().content_scripts ?? [],
     getRegisteredContentScripts: () =>
       chrome.scripting.getRegisteredContentScripts() as Promise<ContentScriptSpec[]>,
-    queryTabs: (matches) => chrome.tabs.query({ url: matches }),
+    // Reading tab IDs needs no `tabs` permission. Chrome can return no matches
+    // for the special <all_urls> URL filter despite granting static script access.
+    // Scripting still enforces host/restricted-page permissions for every target.
+    queryTabs: (matches) =>
+      chrome.tabs.query(matches.includes('<all_urls>') ? {} : { url: matches }),
     executeScript: async (tabId, files) => {
       await chrome.scripting.executeScript({ target: { tabId }, files })
     },
+  }
+}
+
+const CONTENT_READY = 'QF_CONTENT_READY'
+
+/** Registered by the current content-script generation; no page data crosses. */
+export function onContentReady(): void {
+  chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+    if (message?.type !== CONTENT_READY) return undefined
+    respond({ ready: true })
+    return false
+  })
+}
+
+/** User opening the real toolbar grants activeTab. Heal only that tab when its
+ * old content context is gone; a healthy tab keeps its fill/Undo session. */
+export async function ensureActiveContentScript(): Promise<boolean> {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (tab?.id === undefined || !tab.url || !/^https?:\/\//.test(tab.url)) return false
+    try {
+      const reply = await chrome.tabs.sendMessage(tab.id, { type: CONTENT_READY })
+      if (reply?.ready === true) return true
+    } catch {
+      /* An update/reload removed the previous generation's listener. */
+    }
+    const files = (chrome.runtime.getManifest().content_scripts ?? [])
+      .filter((spec) => spec.matches?.includes('<all_urls>'))
+      .flatMap((spec) => spec.js ?? [])
+    if (!files.length) return false
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files })
+    return true
+  } catch {
+    return false /* Restricted pages or withdrawn site access. */
   }
 }

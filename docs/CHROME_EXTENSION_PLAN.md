@@ -29,6 +29,7 @@ Engine spec: [`SHARED_PACKAGES_PLAN.md`](./SHARED_PACKAGES_PLAN.md).
 | —   | Phase 2: widget adapters, dependent rescans, async waits, browser matrix           | ✅ Local |
 | —   | Phase 3: local QA recipes, repeatable seeds, boundary cases and failed-field retry | ✅ Local |
 | —   | Phase 4: review-first AI, saved records, cloud isolation and quota reservations    | ✅ Local |
+| —   | Installed MV3 release gate: actual toolbar, cloud flow and worker/reload lifecycle | ✅ Local |
 
 Phase 4 adds review-first AI, explicit saved-record filling and account-isolated
 cloud access. See [Phase 4](./PHASE_4_OPTIONAL_CLOUD.md).
@@ -44,8 +45,9 @@ Widget coverage and boundaries: [PHASE_2_WIDGET_ADAPTERS.md](./PHASE_2_WIDGET_AD
 Current live flow: [PHASE_1_LOCAL_FILL.md](./PHASE_1_LOCAL_FILL.md). The main button
 uses the shared local planner; AI/account UI is optional. Earlier revamp/v2 notes
 below describe the historical AI-first/auth-first implementation.
-The fixtures test the real engine/overlay with a fake extension transport; packaged
-MV3 lifecycle and permissions are not yet covered by that harness.
+The original fixtures test the engine/overlay with a fake extension transport.
+A separate [installed MV3 release suite](./RELEASE_MV3_CHECKS.md) now covers actual
+Chrome APIs, toolbar UI, worker restart, account flow and developer reload.
 
 ¹ Side panel & options were later retired to `apps/chrome-extension/legacy/` in v2.
 

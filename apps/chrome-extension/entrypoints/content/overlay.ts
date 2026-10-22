@@ -64,7 +64,7 @@ const ERROR_COPY: Record<AiClassifyReason, { label: string; title: string }> = {
   },
   'not-configured': {
     label: 'AI unavailable',
-    title: 'QuikFill AI isn’t enabled on the server right now.',
+    title: 'QuikFill AI is unavailable right now. Local Fill still works.',
   },
   offline: {
     label: 'Offline',
@@ -524,6 +524,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         signal: controller.signal,
         isCurrent: () =>
           !disposed &&
+          host.isConnected &&
           !controller.signal.aborted &&
           button.groupRoot.isConnected &&
           doc.URL === startUrl,
@@ -585,7 +586,12 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         review.fields,
         review.targets,
         signal,
-        () => !disposed && !signal.aborted && doc.URL === startUrl && button.groupRoot.isConnected,
+        () =>
+          !disposed &&
+          host.isConnected &&
+          !signal.aborted &&
+          doc.URL === startUrl &&
+          button.groupRoot.isConnected,
         [...review.skipped, ...declined],
       )
       return
@@ -637,6 +643,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     const targets = captureFillTargets(mode === 'local' ? fields : eligible, button.groupRoot)
     const isCurrent = (): boolean =>
       !disposed &&
+      host.isConnected &&
       !signal.aborted &&
       button.groupRoot.isConnected &&
       doc.URL === startUrl &&
@@ -864,6 +871,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         signal,
         isCurrent: () =>
           !disposed &&
+          host.isConnected &&
           doc.URL === url &&
           button.groupRoot.isConnected &&
           shouldShowOverlay(settings, pageHostname()),

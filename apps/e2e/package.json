@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "test": "playwright test",
@@ -13,7 +13,9 @@
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "typecheck": "tsc --noEmit",
-    "install:browsers": "playwright install"
+    "install:browsers": "playwright install",
+    "dev:mv3-fixtures": "vite --config vite.mv3.config.ts",
+    "test:mv3": "node release/run.mjs"
   },
   "devDependencies": {
     "@emotion/styled": "11.14.1",
@@ -29,12 +31,14 @@
     "@types/react-dom": "19.2.0",
     "@vitejs/plugin-vue": "6.0.6",
     "pinia": "^3.0.4",
+    "puppeteer-core": "25.16.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "react-select": "5.10.2",
     "reka-ui": "2.9.8",
     "typescript": "~6.0.3",
     "vite": "8.0.14",
-    "vue": "3.5.32"
+    "vue": "3.5.32",
+    "@types/chrome": "^0.1.42"
   }
 }

@@ -12,6 +12,7 @@ import {
   ConfirmDialog,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DropdownMenu,
@@ -328,6 +329,7 @@ const fieldTypeOptions = entityFieldTypes as readonly EntityFieldType[]
       <DialogContent class="max-w-xl">
         <DialogHeader>
           <DialogTitle>{{ editingRecord ? 'Edit record' : 'New record' }}</DialogTitle>
+          <DialogDescription>Create or edit the values in one saved record.</DialogDescription>
         </DialogHeader>
         <form class="space-y-4" novalidate @submit="submitRecord">
           <div class="grid gap-4 sm:grid-cols-2">
@@ -414,6 +416,7 @@ const fieldTypeOptions = entityFieldTypes as readonly EntityFieldType[]
       <DialogContent class="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{{ editingType ? 'Edit entity type' : 'New entity type' }}</DialogTitle>
+          <DialogDescription>Define the fields that your saved records contain.</DialogDescription>
         </DialogHeader>
         <form class="space-y-4" novalidate @submit="submitType">
           <div class="grid gap-4 sm:grid-cols-2">

@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node", "vite/client"],
+    "types": ["node", "vite/client", "chrome"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": [
@@ -9,6 +9,10 @@
     "fixtures/**/*.ts",
     "playwright.config.ts",
     "playwright.forms.config.ts",
-    "vite.fixtures.config.ts"
+    "vite.fixtures.config.ts",
+    "release/**/*.ts",
+    "playwright.mv3.config.ts",
+    "vite.mv3.config.ts",
+    "wxt.mv3.config.ts"
   ]
 }

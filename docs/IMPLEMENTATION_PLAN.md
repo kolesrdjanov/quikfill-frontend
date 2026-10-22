@@ -18,6 +18,13 @@ no-overwrite fill mode. Account-scoped caching/sync, refresh isolation and backe
 quota reservations/replay/retention are implemented. Dashboard `/data` is restored.
 See [Phase 4 contracts, tests and limits](./PHASE_4_OPTIONAL_CLOUD.md).
 
+## Installed MV3 release gate (2026-10-22)
+
+Five real installed-extension journeys pass in a disposable Chromium profile,
+including actual toolbar UI, worker termination, optional cloud and developer reload.
+Recovery retains minimal permissions and preserves healthy Undo sessions.
+[Release evidence and reproduction](./RELEASE_MV3_CHECKS.md).
+
 ## Build order (this engagement's focus)
 
 Per the product owner, build the surfaces in this order. The requirement's
