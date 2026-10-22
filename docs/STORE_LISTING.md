@@ -2,11 +2,11 @@
 
 Paste-ready text for the QuikFill listing in the
 [CWS Developer Dashboard](https://chrome.google.com/webstore/devconsole). The
-listing is **Private (trusted testers)** — see
+listing is **Public** (verified in the publisher dashboard on 2026-10-22) — see
 [`DEPLOY_EXTENSION.md`](./DEPLOY_EXTENSION.md) for the full publish procedure.
 
-> Even a private / trusted-tester item must fill out every required field below
-> and still passes Google review before testers can install it.
+> Updates preserve the visibility configured in CWS and pass Google review. The
+> workflow does not change listing visibility or bypass review.
 
 ---
 

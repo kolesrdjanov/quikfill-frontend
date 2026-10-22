@@ -33,6 +33,7 @@
     "@types/chrome": "^0.1.42",
     "@wxt-dev/module-vue": "^1.0.3",
     "jsdom": "^29.1.1",
+    "publish-browser-extension": "5.1.0",
     "tailwindcss": "^4.2.2",
     "typescript": "~6.0.3",
     "vitest": "^3.2.4",

@@ -104,9 +104,9 @@ const cursor = reactive({ x: 0, y: 0, visible: false })
 const hostSwap = ref(false)
 const browserPulse = ref(false)
 
-const rootEl = ref<HTMLElement | null>(null)
-const bodyEl = ref<HTMLElement | null>(null)
-const submitEl = ref<HTMLElement | null>(null)
+const rootEl = shallowRef<HTMLElement | null>(null)
+const bodyEl = shallowRef<HTMLElement | null>(null)
+const submitEl = shallowRef<HTMLElement | null>(null)
 
 const reducedMotion = () =>
   import.meta.client && window.matchMedia('(prefers-reduced-motion: reduce)').matches

@@ -33,6 +33,14 @@ see [verified scope](./RELEASE_MV3_CHECKS.md#real-gemini--stripe-test-follow-up)
 
 ## Build order (this engagement's focus)
 
+CWS recovery (2026-10-22): the release workflow is prepared for API v2 with a
+dedicated pinned publisher tool, Node 24, a no-upload access check and retained
+ZIP artifact. Existing public visibility is preserved. Service-account
+authorization and an authenticated v2 dry run must pass before publishing;
+see [CWS deployment](./DEPLOY_EXTENSION.md).
+The prerequisite workspace gate also keeps the website demo's DOM elements in
+shallow refs, avoiding recursive Vue unwrapping of native DOM types after install.
+
 Billing release correction (2026-10-22): `/entitlements.planKey` now denotes
 effective access; optional `hasBillingAccount` keeps invoice/Portal access when
 the effective tier is Free. Non-terminal existing subscriptions, including
