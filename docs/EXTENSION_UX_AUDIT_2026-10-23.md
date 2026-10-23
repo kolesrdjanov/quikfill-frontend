@@ -59,3 +59,28 @@ These checks establish the listed behavior, not compatibility with every website
 Widget limitations remain documented in [Phase 2](./PHASE_2_WIDGET_ADAPTERS.md).
 The existing main-branch deployment workflow builds the store release and submits
 it to Chrome Web Store review; Google approval is a separate step.
+
+## Follow-up: confirmed autocomplete regression
+
+After explicit permission to read the reported form's DOM, metadata inspection
+confirmed that its shared input component sets `autocomplete="new-password"` on
+ordinary company, contact, URL and address inputs. The earlier generated-ID fix
+addressed another reproducible defect, but did not explain this form's failure.
+No entered values were read and the private form was not submitted.
+
+The classifier now treats `new-password` as a fallback when the input's purpose
+is unknown. Explicit password types, credential keywords, current-password,
+OTP/payment tokens and government-ID labels remain protected. Known ordinary
+purposes from the shared semantic classifier override the conflicting hint;
+DOM IDs and generic masks cannot establish such an override. This applies to
+local, saved-data and AI planning without any hostname or site-selector rules.
+
+The reproduction failed in 12 assertions before the fix. Seventeen new unit
+cases cover ordinary controls, accessible labels, revealed and ambiguous
+passwords, and sensitive categories. Two browser journeys exercise scan → local
+fill/Undo and scan → AI request/review/apply on a generic component-generated
+form. The native installed-MV3 fixture now carries the same reused hint.
+
+Follow-up verification: 786 frontend unit tests, 101 browser tests and all five
+installed-MV3 journeys passed. The installed native form filled four ordinary
+controls while leaving its password untouched despite the shared hint.

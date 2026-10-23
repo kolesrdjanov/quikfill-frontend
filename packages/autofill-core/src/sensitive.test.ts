@@ -96,3 +96,53 @@ describe('field identity is not an authentication signal', () => {
     expect(classifySensitive(field({ id: 'card', name: 'card_number' }))).toBe('payment')
   })
 })
+
+describe('password autofill suppression on ordinary inputs', () => {
+  it.each([
+    { labelText: 'Business name' },
+    { labelText: 'Company' },
+    { labelText: 'Messaging alias' },
+    { labelText: 'Website/URL' },
+    { labelText: 'Address line 2' },
+    { labelText: 'Contact name' },
+    { labelText: 'Contact email' },
+    { inputType: 'tel', labelText: 'Replies sent to' },
+    { inputType: 'email' },
+    { ariaLabel: 'Company' },
+    { ariaLabelledByText: 'Email address' },
+  ])('does not block a known ordinary purpose: %j', (metadata) => {
+    expect(
+      classifySensitive(
+        field({ id: 'ordinary', autocomplete: 'section-details new-password', ...metadata }),
+      ),
+    ).toBeNull()
+  })
+
+  it.each([
+    { inputType: 'password', labelText: 'Email' },
+    { inputType: 'text', labelText: 'Password', name: 'email' },
+    { inputType: 'text', labelText: 'Confirm password' },
+    { inputType: 'text' },
+    { inputType: 'text', domId: 'email-87af', labelText: 'Secret' },
+  ])('keeps real and ambiguous credentials protected: %j', (metadata) => {
+    expect(
+      classifySensitive(field({ id: 'credential', autocomplete: 'new-password', ...metadata })),
+    ).toBe('password')
+  })
+
+  it('does not let a reused password hint hide the actual sensitive category', () => {
+    expect(
+      classifySensitive(field({ id: 'ein', autocomplete: 'new-password', labelText: 'EIN' })),
+    ).toBe('governmentId')
+    expect(
+      classifySensitive(
+        field({ id: 'card', autocomplete: 'new-password', labelText: 'Card number' }),
+      ),
+    ).toBe('payment')
+    expect(
+      classifySensitive(
+        field({ id: 'otp', autocomplete: 'new-password', labelText: 'Verification code' }),
+      ),
+    ).toBe('otp')
+  })
+})

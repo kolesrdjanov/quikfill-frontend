@@ -1,4 +1,5 @@
 import type { DetectedField } from '@quikfill/schemas'
+import { classifyField } from './classify'
 
 /**
  * Sensitive field categories: `password` / `otp` (most sensitive) and `payment` /
@@ -28,8 +29,9 @@ function signals(field: DetectedField): string[] {
 
 /**
  * Categorize a detected field as sensitive, or `null` if it is ordinary.
- * Strongest signals first (input type, then standard `autocomplete` tokens,
- * then label/name keywords). Payment CVV signals are checked before the OTP
+ * Password types, current-password, payment/OTP tokens and credential keywords
+ * take precedence. A generic new-password hint can be contradicted by a known
+ * ordinary field purpose. Payment CVV signals are checked before the OTP
  * keywords so a card "security code" is not mistaken for a one-time code.
  */
 export function classifySensitive(field: DetectedField): SensitiveCategory | null {
@@ -39,7 +41,7 @@ export function classifySensitive(field: DetectedField): SensitiveCategory | nul
 
   // Passwords — strongest signal is the input type itself.
   if (type === 'password') return 'password'
-  if (ac === 'current-password' || ac === 'new-password') return 'password'
+  if (ac === 'current-password') return 'password'
 
   // Payment / card — `cc-*` autocomplete tokens are unambiguous.
   if (ac.startsWith('cc-')) return 'payment'
@@ -65,6 +67,24 @@ export function classifySensitive(field: DetectedField): SensitiveCategory | nul
   }
   if (matches(/\b(?:ssn|social\s*security|tax\s*id|ein|fein|national\s*id|passport\s*number)\b/)) {
     return 'governmentId'
+  }
+
+  if (ac === 'new-password') {
+    // Shared input components sometimes use this hint to suppress browser
+    // autofill on every field. A known non-credential purpose overrides the
+    // hint; actual password types/keywords above and ambiguous inputs do not.
+    // IDs are locators, not evidence of an ordinary purpose.
+    const purpose = classifyField({
+      ...field,
+      autocomplete: undefined,
+      domId: undefined,
+      labelText: field.labelText || field.ariaLabelledByText || field.ariaLabel,
+    })
+    if (
+      purpose.confidence < 0.6 ||
+      ['unknown', 'masked', 'taxId', 'ssn'].includes(purpose.semanticType)
+    )
+      return 'password'
   }
 
   return null
