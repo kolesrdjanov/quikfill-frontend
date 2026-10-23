@@ -1,16 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import {
-  Button,
-  Card,
-  CardHeader,
-  CardTitle,
-  Input,
-  Label,
-  Select,
-  Switch,
-  useFormValidation,
-} from '@quikfill/ui'
+import { Button, Input, Label, Select, Switch, useFormValidation } from '@quikfill/ui'
 import { DEFAULT_LOCAL_FILL_PREFERENCES, localFillPreferencesSchema } from '@quikfill/schemas'
 import {
   readExtensionSettings,
@@ -61,18 +51,17 @@ const save = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <Card>
-    <CardHeader><CardTitle>Local test data</CardTitle></CardHeader>
-    <p class="text-muted-foreground px-4 pb-3 text-sm">
-      No account or connection needed. Use the QuikFill button beside a form to generate sample
-      values.
-    </p>
+  <details>
+    <summary class="min-h-11 cursor-pointer py-3.5 text-[13px] font-medium">
+      Local test data
+    </summary>
+
     <form @submit="save">
       <fieldset :disabled="!loaded || saving">
         <OptionRow title="Only empty fields" subtitle="Turn off to replace existing values.">
           <Switch v-model="onlyEmpty" aria-label="Only empty fields" />
         </OptionRow>
-        <div class="space-y-3 px-4 py-3">
+        <div class="space-y-3 pb-4">
           <div class="space-y-1.5">
             <Label for="local-locale">Sample locale</Label>
             <Select
@@ -117,5 +106,5 @@ const save = handleSubmit(async (values) => {
       </fieldset>
       <p v-if="message" role="status" class="px-4 pb-3 text-xs">{{ message }}</p>
     </form>
-  </Card>
+  </details>
 </template>

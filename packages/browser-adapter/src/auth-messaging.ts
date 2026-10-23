@@ -18,10 +18,12 @@ export type AuthRequestMessage =
 
 /** Background → surface reply for `request-code` (`devCode` only outside production). */
 export type RequestCodeResponse =
-  | { ok: true; devCode?: string }
+  | { ok: true; devCode?: string; state?: AuthState }
   | { ok: false; error: AuthErrorKind }
 /** Background → surface reply for `verify` — carries the resulting signed-in state. */
-export type VerifyResponse = { ok: true; state: AuthState } | { ok: false; error: AuthErrorKind }
+export type VerifyResponse =
+  | { ok: true; state: AuthState }
+  | { ok: false; error: AuthErrorKind; state?: AuthState }
 /** Logout is best-effort and always reported as done. */
 export type LogoutResponse = { ok: true }
 

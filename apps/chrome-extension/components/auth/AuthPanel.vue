@@ -23,7 +23,6 @@ import {
   Timer,
   TimerOff,
   TriangleAlert,
-  WandSparkles,
   X,
 } from 'lucide-vue-next'
 import { Alert, Button, Input, Label, useFormValidation } from '@quikfill/ui'
@@ -47,6 +46,7 @@ import {
 // deep-links to localhost.
 const DASHBOARD_BILLING_URL = `${DASHBOARD_URL}/settings/billing`
 
+const emit = defineEmits<{ back: [] }>()
 const gate = useAuthGate()
 
 // Email step — Zod + VeeValidate (root rule 1) via the shared composable.
@@ -144,7 +144,10 @@ function closePanel(): void {
           </Button>
         </div>
       </div>
-      <div class="mt-[11px] flex items-center gap-1.5 text-[12px]">
+      <div class="mt-2 flex items-center justify-between gap-1.5 text-[12px]">
+        <Button variant="ghost" size="sm" class="-ml-2" @click="emit('back')">
+          <ChevronLeft class="size-3.5" /> Back
+        </Button>
         <AuthStatusBadge :screen="gate.screen.value" />
       </div>
     </template>
@@ -155,35 +158,11 @@ function closePanel(): void {
     </MessageScreen>
 
     <!-- SIGN IN (email) -->
-    <MessageScreen
-      v-else-if="gate.screen.value === 'email'"
-      :icon="WandSparkles"
-      align="top"
-      title="Sign in to QuikFill"
-    >
-      <template #description>
-        QuikFill fills forms with your saved data. Sign in to start — no password, just a code by
-        email.
-      </template>
-
-      <div class="mt-[18px] flex w-full flex-col gap-2.5 text-left">
-        <div class="flex items-center gap-[11px] text-[12.5px]">
-          <span
-            class="bg-accent text-primary flex size-[30px] shrink-0 items-center justify-center rounded-[9px]"
-          >
-            <ScanLine class="size-[15px]" />
-          </span>
-          Scan any form and fill it in one click
-        </div>
-        <div class="flex items-center gap-[11px] text-[12.5px]">
-          <span
-            class="bg-accent text-primary flex size-[30px] shrink-0 items-center justify-center rounded-[9px]"
-          >
-            <ShieldCheck class="size-[15px]" />
-          </span>
-          Your values stay on your device
-        </div>
-      </div>
+    <section v-else-if="gate.screen.value === 'email'" class="px-1 py-3">
+      <h1 class="text-xl font-semibold tracking-tight">Sign in to QuikFill</h1>
+      <p class="text-muted-foreground mt-2 text-[13px] leading-relaxed">
+        Access saved data, AI assist and sync. We’ll email you a 6-digit sign-in code.
+      </p>
 
       <form class="mt-[18px] w-full text-left" novalidate @submit.prevent="submitEmail">
         <Label for="auth-email" class="mb-1.5">Email address</Label>
@@ -201,7 +180,7 @@ function closePanel(): void {
         </Input>
         <p v-if="errors.email" class="text-destructive mt-1.5 text-xs">{{ errors.email }}</p>
       </form>
-    </MessageScreen>
+    </section>
 
     <!-- SENDING -->
     <MessageScreen
@@ -236,14 +215,17 @@ function closePanel(): void {
         />
 
         <div
-          v-if="!gate.otpExpired.value"
+          v-if="!gate.otpExpired.value && gate.hasCodeDeadline.value"
           class="mt-3 flex items-center justify-between text-[12px]"
         >
           <span class="text-muted-foreground inline-flex items-center gap-1.5 tabular-nums">
             <Timer class="size-3.5" /> Expires in {{ gate.otpTimerLabel.value }}
           </span>
         </div>
-        <div v-else class="text-muted-foreground mt-3 inline-flex items-center gap-1.5 text-[12px]">
+        <div
+          v-else-if="gate.otpExpired.value"
+          class="text-muted-foreground mt-3 inline-flex items-center gap-1.5 text-[12px]"
+        >
           <TimerOff class="size-3.5" /> Code unavailable
         </div>
 
@@ -415,7 +397,7 @@ function closePanel(): void {
           Send sign-in code
         </Button>
         <p class="text-muted-foreground flex items-center justify-center gap-1.5 text-[11.5px]">
-          <ShieldCheck class="size-3" /> We never post or store your password.
+          <ShieldCheck class="size-3" /> No password needed.
         </p>
       </template>
 

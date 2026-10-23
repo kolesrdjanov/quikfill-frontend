@@ -165,7 +165,17 @@ async function init(): Promise<void> {
 
   const state = await auth.init()
   if (state.status === 'signed-in') email.value = state.user?.email ?? email.value
-  if (state.status === 'code-sent') email.value = state.pendingEmail ?? email.value
+  if (state.status === 'code-sent') {
+    email.value = state.pendingEmail ?? email.value
+    codeExpiresAt.value = state.codeExpiresAt ?? 0
+    attemptsLeft.value = state.attemptsLeft ?? OTP_MAX_ATTEMPTS
+    otpError.value =
+      attemptsLeft.value === 0
+        ? 'locked'
+        : codeExpiresAt.value && codeExpiresAt.value <= Date.now()
+          ? 'expired'
+          : null
+  }
   screen.value = screenFromAuth(state)
 }
 
@@ -183,7 +193,7 @@ async function requestCode(value: string): Promise<void> {
   screen.value = 'sending'
   const result = await auth.requestCode(value)
   if (result.ok) {
-    codeExpiresAt.value = Date.now() + OTP_TTL_MS
+    codeExpiresAt.value = result.state?.codeExpiresAt ?? Date.now() + OTP_TTL_MS
     screen.value = 'otp'
   } else {
     if (result.error === 'quota-exceeded') cooldownUntil.value = Date.now() + RATE_LIMIT_COOLDOWN_MS
@@ -201,7 +211,7 @@ async function verify(code: string): Promise<void> {
     return
   }
   if (result.error === 'invalid-code') {
-    attemptsLeft.value = Math.max(0, attemptsLeft.value - 1)
+    attemptsLeft.value = result.state?.attemptsLeft ?? Math.max(0, attemptsLeft.value - 1)
     otpError.value = attemptsLeft.value <= 0 ? 'locked' : 'wrong'
     screen.value = 'otp'
   } else {
@@ -246,6 +256,11 @@ export function useAuthGate() {
     user: auth.user,
     isAppReady: computed(() => screen.value === 'app'),
     otpExpired,
+    hasCodeDeadline: computed(() => codeExpiresAt.value > 0),
+    hasPendingCode: computed(() => auth.state.value.status === 'code-sent'),
+    resumeSignIn: () => {
+      screen.value = auth.state.value.status === 'code-sent' ? 'otp' : 'email'
+    },
     otpTimerLabel: computed(() => mmss(secondsUntil(codeExpiresAt.value))),
     cooldownSecondsLeft,
     cooldownLabel: computed(() => mmss(cooldownSecondsLeft.value)),

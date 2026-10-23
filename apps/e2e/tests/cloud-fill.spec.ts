@@ -153,6 +153,7 @@ test('popup selects a saved record and returns to sample mode', async ({ page })
   expect(
     await page.evaluate(() => JSON.parse(localStorage.getItem('qf-fixture-local')!)),
   ).toMatchObject({ mode: 'saved', savedOwnerId: ownerId, savedRecordId: recordId })
+  await page.getByText('Local test data', { exact: true }).click()
   await page.getByRole('button', { name: 'Save local preferences' }).click()
   expect(
     await page.evaluate(() => JSON.parse(localStorage.getItem('qf-fixture-local')!).mode),

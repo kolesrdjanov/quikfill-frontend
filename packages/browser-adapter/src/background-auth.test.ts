@@ -152,8 +152,16 @@ describe('getState hydration', () => {
 describe('requestCode', () => {
   it('moves to code-sent and returns the dev code', async () => {
     const { auth, store } = setup()
-    expect(await auth.handlers.requestCode('a@b.com')).toEqual({ ok: true, devCode: '123456' })
-    expect(await store.readState()).toEqual({ status: 'code-sent', pendingEmail: 'a@b.com' })
+    expect(await auth.handlers.requestCode('a@b.com')).toMatchObject({
+      ok: true,
+      devCode: '123456',
+    })
+    expect(await store.readState()).toEqual({
+      status: 'code-sent',
+      pendingEmail: 'a@b.com',
+      codeExpiresAt: expect.any(Number),
+      attemptsLeft: 5,
+    })
   })
 
   it('maps a 400 to an invalid-code error', async () => {
@@ -190,7 +198,7 @@ describe('verify', () => {
   it('maps a bad code to invalid-code and stores no tokens', async () => {
     const api = makeApi({ verify: vi.fn().mockRejectedValue(httpError(400)) })
     const { auth, store } = setup(api)
-    expect(await auth.handlers.verify('a@b.com', '000000')).toEqual({
+    expect(await auth.handlers.verify('a@b.com', '000000')).toMatchObject({
       ok: false,
       error: 'invalid-code',
     })
@@ -202,7 +210,7 @@ describe('verify', () => {
     // — on the public verify endpoint that means "bad code", never a dead session.
     const api = makeApi({ verify: vi.fn().mockRejectedValue(httpError(401)) })
     const { auth } = setup(api)
-    expect(await auth.handlers.verify('a@b.com', '000000')).toEqual({
+    expect(await auth.handlers.verify('a@b.com', '000000')).toMatchObject({
       ok: false,
       error: 'invalid-code',
     })
@@ -211,7 +219,7 @@ describe('verify', () => {
   it('still surfaces a 429 on verify as quota-exceeded (rate limit / too many attempts)', async () => {
     const api = makeApi({ verify: vi.fn().mockRejectedValue(httpError(429)) })
     const { auth } = setup(api)
-    expect(await auth.handlers.verify('a@b.com', '000000')).toEqual({
+    expect(await auth.handlers.verify('a@b.com', '000000')).toMatchObject({
       ok: false,
       error: 'quota-exceeded',
     })
@@ -309,5 +317,58 @@ describe('onAuthError (forced sign-out)', () => {
     await auth.onAuthError()
     expect(await store.hasSession()).toBe(false)
     expect(await store.readState()).toEqual({ status: 'error', error: 'unauthorized' })
+  })
+})
+
+describe('pending OTP survives popup and worker restarts', () => {
+  it('restores the same email, original deadline and attempts without sending another code', async () => {
+    const { auth, api, store } = setup(
+      makeApi({ verify: vi.fn().mockRejectedValue(httpError(401)) }),
+    )
+    await auth.handlers.requestCode(user.email!)
+    const sent = await store.readState()
+    await auth.handlers.verify(user.email!, '000000')
+    const restarted = createBackgroundAuth({ api, store })
+    expect(await restarted.handlers.getState()).toEqual({ ...sent, attemptsLeft: 4 })
+    expect(api.auth.requestMagicLink).toHaveBeenCalledTimes(1)
+    expect(await store.hasSession()).toBe(false)
+  })
+
+  it('retains expired and locked context so reopening cannot reset the countdown or attempts', async () => {
+    const { api, store } = setup()
+    const pending = {
+      status: 'code-sent' as const,
+      pendingEmail: user.email!,
+      codeExpiresAt: Date.now() - 1000,
+      attemptsLeft: 0,
+    }
+    await store.writeState(pending)
+    expect(await createBackgroundAuth({ api, store }).handlers.getState()).toEqual(pending)
+  })
+
+  it('keeps pending context after a transport failure and clears it on successful verification', async () => {
+    const api = makeApi({
+      verify: vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(tokens),
+    })
+    const { auth, store } = setup(api)
+    await auth.handlers.requestCode(user.email!)
+    const pending = await store.readState()
+    await auth.handlers.verify(user.email!, '123456')
+    const restarted = createBackgroundAuth({ api, store })
+    expect(await restarted.handlers.getState()).toEqual(pending)
+    await restarted.handlers.verify(user.email!, '123456')
+    expect(await store.readState()).toEqual({ status: 'signed-in', user })
+    await restarted.handlers.logout()
+    expect(await createBackgroundAuth({ api, store }).handlers.getState()).toEqual({
+      status: 'signed-out',
+    })
+  })
+
+  it('discards malformed pending state', async () => {
+    const { api, store, area } = setup()
+    area.data['auth:state'] = { status: 'code-sent', pendingEmail: 42, attemptsLeft: -3 }
+    expect(await createBackgroundAuth({ api, store }).handlers.getState()).toEqual({
+      status: 'signed-out',
+    })
   })
 })

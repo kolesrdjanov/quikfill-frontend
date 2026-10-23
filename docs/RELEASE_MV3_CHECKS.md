@@ -1,4 +1,23 @@
-# Installed MV3 browser release checks — 2026-10-22
+# Popup and sign-in regression fix — 2026-10-23
+
+The popup now keeps Sign in in its header, groups fill settings into compact
+sections and keeps header/footer visible while expanded settings scroll. The
+email form fits without scrolling. Existing local fill, saved data and QA flows
+remain available.
+
+Pending OTP state now survives popup closure and MV3 worker termination. The
+background restores the original email, expiry and remaining attempts, including
+after a wrong code or transport failure. Successful verification and sign-out
+clear pending context. No OTP value is persisted. Legacy pending states without
+metadata remain verifiable without showing a fabricated countdown.
+
+Regression coverage includes six auth-gate tests, four worker/storage lifecycle
+tests and the installed optional-cloud journey: request a code, close the actual
+toolbar popup, observe the worker stop, reopen directly to the code screen and
+verify the original code. The browser fixture also checks that Sign in and Send
+sign-in code remain visible within the popup viewport.
+
+## Installed MV3 browser release checks — 2026-10-22
 
 The installed-extension browser gate passes locally. No push, publication, version
 bump or production database change was made. Extension version remains **1.0.13**.

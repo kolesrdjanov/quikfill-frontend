@@ -27,6 +27,7 @@ import { DASHBOARD_URL } from '../../lib/external-urls'
 const { init: initTheme, apply: applyTheme } = useExtensionTheme()
 const gate = useAuthGate()
 const showAuth = ref(false)
+const ready = ref(false)
 const entitlements = useEntitlements()
 
 // Settings are dashboard-owned and synced down by the background worker. Re-pull
@@ -94,13 +95,15 @@ const barClass = computed(() =>
 )
 
 onMounted(async () => {
-  await ensureActiveContentScript()
+  void ensureActiveContentScript()
   // Apply the last-known theme straight away so the popup never flashes the wrong
   // mode, then react live to any later settings change (manual / periodic sync, or
   // a dashboard save synced down by the background).
   initTheme((await readExtensionSettings()).theme)
   unsubscribeSettings = onExtensionSettingsChange((s) => applyTheme(s.theme))
   await gate.init()
+  showAuth.value = gate.hasPendingCode.value
+  ready.value = true
 })
 
 onUnmounted(() => {
@@ -120,7 +123,7 @@ watch(
 )
 
 function showSignIn() {
-  gate.showSignIn()
+  gate.resumeSignIn()
   showAuth.value = true
 }
 
@@ -131,16 +134,16 @@ function openDashboard() {
 </script>
 
 <template>
-  <div class="bg-card text-foreground w-[340px]">
-    <div v-if="showAuth && !gate.isAppReady.value">
-      <Button variant="ghost" class="m-2 min-h-11" @click="showAuth = false"
-        >Back to local fill</Button
-      >
-      <AuthPanel />
+  <div class="bg-card text-foreground w-[360px]">
+    <div v-if="!ready" class="text-muted-foreground p-5 text-sm" role="status">
+      Loading QuikFill…
+    </div>
+    <div v-else-if="showAuth && !gate.isAppReady.value">
+      <AuthPanel @back="showAuth = false" />
     </div>
 
-    <div v-else class="flex flex-col gap-4 p-4">
-      <div class="flex items-center justify-between">
+    <div v-else class="flex max-h-[600px] flex-col">
+      <header class="flex shrink-0 items-center justify-between border-b px-5 py-4">
         <BrandLockup />
         <div v-if="gate.isAppReady.value" class="flex items-center gap-1">
           <Button
@@ -164,68 +167,74 @@ function openDashboard() {
             Sign out
           </Button>
         </div>
-      </div>
+        <Button v-else size="sm" @click="showSignIn">Sign in</Button>
+      </header>
 
-      <LocalFillCard />
-      <RecipesCard />
-      <SavedDataCard />
-      <details class="rounded-lg border">
-        <summary class="min-h-11 cursor-pointer px-3 py-3 text-sm font-semibold">
-          Site activation and exclusions
-        </summary>
-        <ThisSiteCard />
-      </details>
+      <main class="min-h-0 overflow-y-auto px-5 pb-4">
+        <section class="pt-5 pb-4">
+          <h1 class="text-lg font-semibold tracking-tight">Ready to fill</h1>
+          <p class="text-muted-foreground mt-1.5 text-[13px] leading-relaxed">
+            Click the QuikFill button beside a form to fill it with sample data. No account needed.
+          </p>
+        </section>
+        <section aria-label="Fill settings" class="divide-y border-y">
+          <LocalFillCard />
+          <SavedDataCard />
+          <RecipesCard />
+          <details>
+            <summary class="min-h-11 cursor-pointer py-3.5 text-[13px] font-medium">
+              Site activation and exclusions
+            </summary>
+            <ThisSiteCard />
+          </details>
+        </section>
 
-      <div
-        v-if="gate.isAppReady.value"
-        class="bg-muted/40 flex flex-col gap-3 rounded-[12px] border p-3.5"
-      >
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[13px] font-semibold">{{ planLine ?? 'Your plan' }}</span>
-          <Badge v-if="entitlements.isOverQuota.value" variant="danger">AI limit reached</Badge>
+        <div v-if="gate.isAppReady.value" class="mt-4 flex flex-col gap-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[13px] font-semibold">{{ planLine ?? 'Your plan' }}</span>
+            <Badge v-if="entitlements.isOverQuota.value" variant="danger">AI limit reached</Badge>
+          </div>
+          <p class="text-muted-foreground text-[12px]">{{ usageText }}</p>
+          <Button
+            v-if="loadError"
+            variant="outline"
+            size="sm"
+            class="h-7 gap-1.5 self-start"
+            :disabled="retrying"
+            @click="retryEntitlements"
+          >
+            <RefreshCw class="size-3.5" :class="{ 'animate-spin': retrying }" />
+            Retry
+          </Button>
+          <div v-if="showBar" class="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+            <div
+              class="h-full rounded-full transition-all"
+              :class="barClass"
+              :style="{ width: `${barPct}%` }"
+            />
+          </div>
         </div>
-        <p class="text-muted-foreground text-[12px]">{{ usageText }}</p>
-        <Button
-          v-if="loadError"
-          variant="outline"
-          size="sm"
-          class="h-7 gap-1.5 self-start"
-          :disabled="retrying"
-          @click="retryEntitlements"
+
+        <p
+          v-if="gate.isAppReady.value && gate.user.value?.email"
+          class="text-muted-foreground mt-3 truncate text-[11px]"
         >
-          <RefreshCw class="size-3.5" :class="{ 'animate-spin': retrying }" />
-          Retry
+          Signed in as {{ gate.user.value.email }}
+        </p>
+
+        <Button v-if="gate.isAppReady.value" class="mt-3 min-h-10 w-full" @click="openDashboard">
+          Go to Dashboard
+          <ArrowUpRight class="size-4" />
         </Button>
-        <div v-if="showBar" class="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-          <div
-            class="h-full rounded-full transition-all"
-            :class="barClass"
-            :style="{ width: `${barPct}%` }"
-          />
-        </div>
-      </div>
 
-      <p
-        v-if="gate.isAppReady.value && gate.user.value?.email"
-        class="text-muted-foreground px-1 text-[11px]"
+        <p v-if="!gate.isAppReady.value" class="text-muted-foreground mt-4 text-xs leading-relaxed">
+          Sign in for saved data, AI assist and account sync.
+        </p>
+      </main>
+
+      <footer
+        class="text-muted-foreground flex shrink-0 items-center justify-between gap-3 border-t px-5 py-3 text-[11px]"
       >
-        Signed in as {{ gate.user.value.email }}
-      </p>
-
-      <Button v-if="gate.isAppReady.value" class="min-h-11 w-full" @click="openDashboard">
-        Go to Dashboard
-        <ArrowUpRight class="size-4" />
-      </Button>
-
-      <Button v-else variant="outline" class="min-h-11 w-full" @click="showSignIn"
-        >Sign in for optional AI &amp; sync</Button
-      >
-
-      <p class="text-muted-foreground px-1 text-center text-[12px] leading-snug">
-        Fill happens on the page — look for the QuikFill button near each form.
-      </p>
-
-      <div class="text-muted-foreground flex items-center justify-center gap-3 text-[11px]">
         <a
           :href="WEBSITE_URL"
           target="_blank"
@@ -242,7 +251,7 @@ function openDashboard() {
           <Mail class="size-3.5" />
           Contact support
         </a>
-      </div>
+      </footer>
     </div>
   </div>
 </template>

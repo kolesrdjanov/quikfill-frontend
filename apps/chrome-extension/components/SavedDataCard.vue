@@ -45,9 +45,9 @@ function manage() {
 }
 </script>
 <template>
-  <details class="rounded-lg border">
-    <summary class="min-h-11 cursor-pointer px-3 py-3 text-sm font-semibold">Saved data</summary>
-    <div class="space-y-3 border-t p-3">
+  <details>
+    <summary class="min-h-11 cursor-pointer py-3.5 text-[13px] font-medium">Saved data</summary>
+    <div class="space-y-3 pb-4">
       <p class="text-muted-foreground text-xs">
         Fill from one saved record. Existing values are preserved and missing values stay empty.
         Sign in to sync; cached data stays available for 24 hours on this device.

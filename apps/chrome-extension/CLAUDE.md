@@ -113,9 +113,11 @@ worker owns the api-client call, fails gracefully when the backend is offline).
   verifies the exact date/option and never substitutes a nearby value or submits.
 
 **Live surfaces:** filling happens in the in-page Shadow-DOM overlay. The toolbar
-popup opens directly to local sample preferences and a collapsed per-site control
-section. Auth screens remain in `components/auth/`, entered only by the optional
-sign-in action. Signed-in users also see account usage/dashboard controls.
+popup opens to a compact overview with Sign in in the header and collapsed local
+preferences, saved data, QA scenarios and per-site controls. Auth screens remain in
+`components/auth/`. A pending emailed-code sign-in resumes automatically when the
+popup reopens, including after worker suspension; its email, original deadline and
+remaining attempts persist in the token-free local auth snapshot. Signed-in users also see account usage/dashboard controls.
 Forms use Zod + VeeValidate via shared `useFormValidation`.
 
 **Settings:** `background.ts` composes `createBackgroundSettings` for local-first

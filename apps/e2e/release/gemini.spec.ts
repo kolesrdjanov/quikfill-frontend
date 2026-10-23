@@ -13,7 +13,7 @@ test('installed MV3 uses real Gemini for reviewed suggestions, undo and quota wh
   const mailbox = (await (await fetch(`${API}/__mv3/state`)).json()) as { emailPrefix: string }
   const email = `${mailbox.emailPrefix}user@example.com`
   const popup = await installed.popup(page)
-  await click(popup, 'Sign in for optional AI & sync')
+  await click(popup, 'Sign in')
   await popup.locator('input[type=email]').fill(email)
   await click(popup, 'Send sign-in code')
   await expect.poll(async () => (await state()).codes[email]).toMatch(/^\d{6}$/)

@@ -210,11 +210,15 @@ test('signed-out popup exposes local preferences and keeps sign-in optional', as
   page,
   context,
 }) => {
-  await page.setViewportSize({ width: 360, height: 800 })
+  await page.setViewportSize({ width: 360, height: 600 })
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto('/popup.html')
   await expect(page.getByText('Local test data', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeInViewport()
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(600)
+  await page.screenshot({ path: test.info().outputPath('popup-home.png'), fullPage: true })
+  await page.getByText('Local test data', { exact: true }).click()
   const save = page.getByRole('button', { name: 'Save local preferences' })
   await expect(save).toBeEnabled()
   await context.setOffline(true)
@@ -224,9 +228,12 @@ test('signed-out popup exposes local preferences and keeps sign-in optional', as
   await expect(page.getByRole('status')).toHaveText('Saved on this device.')
   const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem('qf-fixture-local')!))
   expect(prefs).toEqual({ onlyEmpty: true, seed: 'qa-offline', locale: 'sr-RS' })
-  await page.getByRole('button', { name: 'Sign in for optional AI & sync' }).click()
-  await expect(page.getByRole('button', { name: 'Back to local fill' })).toBeVisible()
-  await page.getByRole('button', { name: 'Back to local fill' }).click()
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByRole('button', { name: 'Send sign-in code' })).toBeInViewport()
+  await page.screenshot({ path: test.info().outputPath('popup-sign-in.png'), fullPage: true })
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Back' }).click()
+  await page.getByText('Local test data', { exact: true }).click()
   await expect(page.getByLabel('Repeatable seed')).toHaveValue('qa-offline')
   await page.getByText('Site activation and exclusions', { exact: true }).click()
   await page.getByRole('switch', { name: 'QuikFill on example.com' }).uncheck()

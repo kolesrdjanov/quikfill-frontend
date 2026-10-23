@@ -1,4 +1,10 @@
-import { authErrorKind, type AuthState, type AuthTokens, type UserAccount } from '@quikfill/schemas'
+import {
+  pendingAuthStateSchema,
+  authErrorKind,
+  type AuthState,
+  type AuthTokens,
+  type UserAccount,
+} from '@quikfill/schemas'
 import type { AuthHandlers, RequestCodeResponse, VerifyResponse } from './auth-messaging'
 import type { AuthStore } from './auth-store'
 
@@ -96,7 +102,8 @@ export function createBackgroundAuth({
       const start = revision
       if (!(await store.hasSession())) {
         await commit(start, async () => {
-          await setState({ status: 'signed-out' })
+          const pending = pendingAuthStateSchema.safeParse(await store.readState())
+          await setState(pending.success ? pending.data : { status: 'signed-out' })
         })
       } else {
         try {
@@ -143,13 +150,20 @@ export function createBackgroundAuth({
   }
 
   async function requestCode(email: string): Promise<RequestCodeResponse> {
-    const start = revision
+    await hydrate()
+    const start = ++revision
     try {
       const { devCode } = await api.auth.requestMagicLink(email)
       await commit(start, async () => {
-        await setState({ status: 'code-sent', pendingEmail: email })
+        await setState({
+          status: 'code-sent',
+          pendingEmail: email,
+          codeExpiresAt: Date.now() + 10 * 60 * 1000,
+          attemptsLeft: 5,
+        })
       })
-      return { ok: true, devCode }
+      if (revision !== start) return { ok: false, error: 'unauthorized' }
+      return { ok: true, devCode, state }
     } catch (error) {
       const kind = endpointErrorKind(error)
       await commit(start, async () => {
@@ -161,6 +175,7 @@ export function createBackgroundAuth({
 
   async function verify(email: string, code: string): Promise<VerifyResponse> {
     const start = ++revision
+    const pending = pendingAuthStateSchema.safeParse(await store.readState())
     try {
       const tokens = await api.auth.verify(email, code)
       if (revision !== start) return { ok: false, error: 'unauthorized' }
@@ -175,9 +190,19 @@ export function createBackgroundAuth({
       const kind = endpointErrorKind(error)
       if (revision === start)
         await commit(start, async () => {
-          await setState({ status: 'error', error: kind })
+          if (pending.success && pending.data.pendingEmail === email) {
+            await setState({
+              ...pending.data,
+              attemptsLeft: Math.max(
+                0,
+                (pending.data.attemptsLeft ?? 5) - (kind === 'invalid-code' ? 1 : 0),
+              ),
+            })
+          } else {
+            await setState({ status: 'error', error: kind })
+          }
         })
-      return { ok: false, error: kind }
+      return { ok: false, error: kind, state }
     }
   }
 

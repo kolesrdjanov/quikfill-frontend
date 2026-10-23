@@ -78,6 +78,9 @@ export interface AuthState {
   user?: UserAccount
   /** Present when `status === 'code-sent'` — the email awaiting its OTP. */
   pendingEmail?: string
+  /** Original OTP deadline and remaining attempts, retained across popup/worker restarts. */
+  codeExpiresAt?: number
+  attemptsLeft?: number
   /** Present when `status === 'error'`. */
   error?: AuthErrorKind
 }
@@ -104,3 +107,11 @@ export function authErrorKind(status?: number): AuthErrorKind {
       return 'unknown'
   }
 }
+
+/** Persisted OTP context is untrusted device storage; never persist the code itself. */
+export const pendingAuthStateSchema = z.object({
+  status: z.literal('code-sent'),
+  pendingEmail: z.string().email(),
+  codeExpiresAt: z.number().finite().nonnegative().optional(),
+  attemptsLeft: z.number().int().min(0).max(5).optional(),
+})

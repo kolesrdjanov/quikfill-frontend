@@ -53,7 +53,7 @@ export function useAuth() {
     const result = await requestAuthCode(email)
     apply(
       result.ok
-        ? { status: 'code-sent', pendingEmail: email }
+        ? (result.state ?? { status: 'code-sent', pendingEmail: email })
         : { status: 'error', error: result.error },
     )
     return result
@@ -62,7 +62,8 @@ export function useAuth() {
   /** Exchange the email + OTP for a session. */
   async function verify(email: string, code: string): Promise<VerifyResponse> {
     const result = await verifyAuthCode(email, code)
-    apply(result.ok ? result.state : { status: 'error', error: result.error })
+    if (result.ok) apply(result.state)
+    else apply(result.state ?? { status: 'error', error: result.error })
     return result
   }
 

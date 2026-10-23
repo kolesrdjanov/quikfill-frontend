@@ -91,6 +91,7 @@ test('real toolbar grants activeTab, saves a scenario and restores it after work
   await visit(page)
   let popup = await installed.popup(page)
   await waitText(popup, 'Local test data')
+  await click(popup, 'Local test data')
   await popup.locator('#local-seed').fill('mv3-seed')
   await click(popup, 'Save local preferences')
   await waitText(popup, 'Saved on this device.')
@@ -152,12 +153,42 @@ test('real toolbar grants activeTab, saves a scenario and restores it after work
 })
 
 async function signIn(installed: Installed, page: Page, email: string) {
-  const popup = await installed.popup(page)
-  await click(popup, 'Sign in for optional AI & sync')
+  let popup = await installed.popup(page)
+  await click(popup, 'Sign in')
   await popup.locator('input[type=email]').fill(email)
   await click(popup, 'Send sign-in code')
   await expect.poll(async () => (await state()).codes[email]).toMatch(/^\d{6}$/)
   const code = (await state()).codes[email]!
+  await waitText(popup, 'Enter your code')
+  const pending = await popup.evaluate(
+    async () => (await chrome.storage.local.get('auth:state'))['auth:state'],
+  )
+  await popup.close()
+  // Reproduce leaving the toolbar for email, including MV3 worker suspension.
+  const cdp = await installed.context.newCDPSession(page)
+  let versionId = '',
+    runningStatus = ''
+  cdp.on('ServiceWorker.workerVersionUpdated', ({ versions }) => {
+    const version = versions.find((v) =>
+      v.scriptURL.startsWith(`chrome-extension://${installed.extension.id}/`),
+    )
+    if (version) {
+      versionId = version.versionId
+      runningStatus = version.runningStatus
+    }
+  })
+  await cdp.send('ServiceWorker.enable')
+  await expect.poll(() => versionId).not.toBe('')
+  await cdp.send('ServiceWorker.stopWorker', { versionId })
+  await expect.poll(() => runningStatus).toBe('stopped')
+  popup = await installed.popup(page)
+  await waitText(popup, 'Enter your code')
+  await waitText(popup, email)
+  expect(
+    await popup.evaluate(async () => (await chrome.storage.local.get('auth:state'))['auth:state']),
+  ).toEqual(pending)
+  expect((await state()).codes[email]).toBe(code)
+  await cdp.detach()
   for (let index = 0; index < code.length; index++)
     await popup.locator(`[aria-label="Digit ${index + 1}"]`).fill(code[index]!)
   await click(popup, 'Verify & sign in')
@@ -302,7 +333,7 @@ test('browser cloud journey uses real OTP, dashboard records, saved cache, AI re
     await click(popup, 'Use selected record')
     await waitText(popup, 'Saved-data mode active.')
     await click(popup, 'Sign out')
-    await waitText(popup, 'Sign in for optional AI & sync')
+    await waitText(popup, 'Sign in')
     await popup.close()
     popup = await signIn(installed, page, email.replace('@', '-b@'))
     await click(popup, 'Saved data')
@@ -319,7 +350,7 @@ test('browser cloud journey uses real OTP, dashboard records, saved cache, AI re
     await click(popup, 'Saved data')
     await click(popup, 'Use sample data')
     await click(popup, 'Sign out')
-    await waitText(popup, 'Sign in for optional AI & sync')
+    await waitText(popup, 'Sign in')
     await popup.close()
     await dashboard.reload()
     await expect
