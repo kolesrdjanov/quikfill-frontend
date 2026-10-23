@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Button, Input, Label, Select, Switch, useFormValidation } from '@quikfill/ui'
+import { Button, Disclosure, Input, Label, Select, Switch, useFormValidation } from '@quikfill/ui'
 import { DEFAULT_LOCAL_FILL_PREFERENCES, localFillPreferencesSchema } from '@quikfill/schemas'
 import {
   readExtensionSettings,
   readLocalFillPreferences,
   writeLocalFillPreferences,
 } from '@quikfill/browser-adapter'
-import OptionRow from './options/OptionRow.vue'
 
 const { defineField, handleSubmit, errors, resetForm } = useFormValidation(
   localFillPreferencesSchema,
@@ -51,17 +50,19 @@ const save = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <details>
-    <summary class="min-h-11 cursor-pointer py-3.5 text-[13px] font-medium">
-      Local test data
-    </summary>
-
+  <Disclosure title="Local test data">
     <form @submit="save">
-      <fieldset :disabled="!loaded || saving">
-        <OptionRow title="Only empty fields" subtitle="Turn off to replace existing values.">
-          <Switch v-model="onlyEmpty" aria-label="Only empty fields" />
-        </OptionRow>
-        <div class="space-y-3 pb-4">
+      <fieldset class="space-y-4" :disabled="!loaded || saving">
+        <div class="flex items-start justify-between gap-4">
+          <div class="space-y-1">
+            <Label for="local-only-empty">Only empty fields</Label>
+            <p class="text-muted-foreground text-xs leading-relaxed">
+              Keep values you already entered.
+            </p>
+          </div>
+          <Switch id="local-only-empty" v-model="onlyEmpty" aria-label="Only empty fields" />
+        </div>
+        <div class="space-y-4">
           <div class="space-y-1.5">
             <Label for="local-locale">Sample locale</Label>
             <Select
@@ -104,7 +105,7 @@ const save = handleSubmit(async (values) => {
           >
         </div>
       </fieldset>
-      <p v-if="message" role="status" class="px-4 pb-3 text-xs">{{ message }}</p>
+      <p v-if="message" role="status" class="text-muted-foreground mt-3 text-xs">{{ message }}</p>
     </form>
-  </details>
+  </Disclosure>
 </template>

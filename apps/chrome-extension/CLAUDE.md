@@ -53,6 +53,12 @@ and repairs missing receivers with activeTab while retaining healthy Undo sessio
 
 ## Current state
 
+**2026-10-23 usability audit:** popup sections share the padded Disclosure primitive;
+the in-page toolbar exposes both fill modes, animated progress and cancellation.
+Review/results scroll independently of their actions and follow the selected theme.
+Sensitive classification matches bounded per-attribute signals, so random IDs cannot
+mark ordinary fields as OTP. See [audit](../../docs/EXTENSION_UX_AUDIT_2026-10-23.md).
+
 **Phase 4 optional cloud (2026-10-22):** AI suggestions require per-field review;
 saved-data mode uses one selected account record and always preserves existing values.
 Account caches/sync and auth retries are isolated. See
@@ -73,8 +79,9 @@ widget state. Tested libraries and limits:
 **Phase 1 local fill (2026-10-22):** the main overlay action composes
 `buildLocalFillPlan` and `applyFill`, with no AI/auth/entitlements/history call.
 Only-empty is the default; popup local preferences expose locale, optional seed,
-and explicit overwrite. Sign-in is optional; AI assist lives in the result panel
-and never gates local filling. Activation settings persist locally through a
+and explicit overwrite. Sign-in is optional; **Sample data** and **Fill with AI**
+are separate visible actions beside the form. AI covers all eligible empty fields,
+then requires review; it never gates local filling. Activation settings persist locally through a
 background outbox; execution preferences remain device-local. See
 [`../../docs/PHASE_1_LOCAL_FILL.md`](../../docs/PHASE_1_LOCAL_FILL.md).
 

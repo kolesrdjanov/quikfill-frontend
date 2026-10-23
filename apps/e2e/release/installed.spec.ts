@@ -137,6 +137,7 @@ test('real toolbar grants activeTab, saves a scenario and restores it after work
   await click(popup, 'QA scenarios')
   await waitText(popup, 'MV3 signup')
   await expect.poll(() => runningStatus).toBe('running')
+  await click(popup, 'Local test data')
   expect(await popup.$eval('#local-seed', (input) => (input as HTMLInputElement).value)).toBe(
     'mv3-seed',
   )
@@ -289,14 +290,13 @@ test('browser cloud journey uses real OTP, dashboard records, saved cache, AI re
   await test.step('provider failure refunds quota and makes no writes', async () => {
     await visit(page, 'failure')
     await fillButton(page).click()
-    await page.getByRole('button', { name: 'AI assist', exact: true }).click()
+    await page.getByRole('button', { name: 'Fill with AI', exact: true }).click()
     await expect(page.getByRole('status')).toContainText('unavailable')
     await expect(page.locator('[name=failure_topic]')).toHaveValue('')
   })
   await test.step('AI values require review and preserve subsequent edits', async () => {
     await visit(page, 'ai')
-    await fillButton(page).click()
-    await page.getByRole('button', { name: 'AI assist', exact: true }).click()
+    await page.getByRole('button', { name: 'Fill this form with AI', exact: true }).click()
     await expect(page.getByRole('status')).toContainText('Review before applying')
     await expect(page.locator('[name=codename]')).toHaveValue('')
     await page.locator('[name=milestone]').fill('My choice')
@@ -310,14 +310,13 @@ test('browser cloud journey uses real OTP, dashboard records, saved cache, AI re
   })
   await test.step('quota blocks another AI request while local filling still works', async () => {
     await visit(page, 'ai')
-    await fillButton(page).click()
-    await page.getByRole('button', { name: 'AI assist', exact: true }).click()
+    await page.getByRole('button', { name: 'Fill this form with AI', exact: true }).click()
     await expect(page.getByRole('status')).toContainText('Review before applying')
     await page.getByRole('button', { name: 'Discard suggestions', exact: true }).click()
     await visit(page, 'ai')
     await fillButton(page).click()
     const before = (await state()).requests.length
-    await page.getByRole('button', { name: 'AI assist', exact: true }).click()
+    await page.getByRole('button', { name: 'Fill with AI', exact: true }).click()
     await expect(page.getByRole('status')).toContainText('reached this month')
     expect((await state()).requests.length).toBe(before)
     await visit(page, 'vue')

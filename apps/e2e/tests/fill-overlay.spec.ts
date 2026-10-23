@@ -1,15 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import { html, buttons, replyToPending, twoFields } from './form-fixture'
 
-// Enter the optional AI path through real UI, after undoing the local sample.
+// AI is a first-class action before any local fill.
 async function startAi(page: Page, index = 0) {
-  await buttons(page).nth(index).click()
   const panel = page.locator('#quikfill-overlay-host .qf-result').nth(index)
-  const undo = panel.getByRole('button', { name: 'Undo fill', exact: true })
-  await expect(panel).toBeVisible()
-  if (await undo.isVisible()) await undo.click()
-  await panel.getByLabel('Include empty fields with local generators').check()
-  await panel.getByRole('button', { name: 'AI assist', exact: true }).click()
+  await page.getByRole('button', { name: 'Fill this form with AI', exact: true }).nth(index).click()
   if (!(await page.evaluate(() => window.qf.transport.pending)))
     await panel.getByRole('button', { name: 'Apply selected suggestions', exact: true }).click()
 }

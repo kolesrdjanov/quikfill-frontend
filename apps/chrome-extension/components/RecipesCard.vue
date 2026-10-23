@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Button, Input, Label, Select } from '@quikfill/ui'
+import { Button, Disclosure, Input, Label, Select } from '@quikfill/ui'
 import { defaultRecipeRules, recipeMatches } from '@quikfill/autofill-core'
 import { recipeSchema, type FillRecipe } from '@quikfill/schemas'
 import { useRecipeStore } from '../stores/recipes'
@@ -89,12 +89,11 @@ function exportFile(recipe: FillRecipe) {
 }
 </script>
 <template>
-  <details>
-    <summary class="min-h-11 cursor-pointer py-3.5 text-[13px] font-medium">QA scenarios</summary>
-    <div class="space-y-3 pb-4">
+  <Disclosure title="QA scenarios">
+    <div class="space-y-4">
       <p class="text-muted-foreground text-xs">
-        Save repeatable local recipes. An active scenario runs from the Fill button beside its
-        matching form.
+        Save repeatable local recipes. An active scenario runs from Sample data beside its matching
+        form.
       </p>
       <RecipeEditor
         v-if="editor"
@@ -125,7 +124,7 @@ function exportFile(recipe: FillRecipe) {
             No saved scenarios match this form.
           </p>
         </template>
-        <ul class="space-y-3">
+        <ul v-if="store.recipes.length" class="space-y-3">
           <li
             v-for="recipe in store.recipes"
             :key="recipe.id"
@@ -152,7 +151,7 @@ function exportFile(recipe: FillRecipe) {
                         : store.activate(recipe),
                     store.activeId === recipe.id
                       ? 'Using fresh local data.'
-                      : 'Scenario active. Use Fill beside the form.',
+                      : 'Scenario active. Use Sample data beside the form.',
                   )
                 "
                 >{{ store.activeId === recipe.id ? 'Deactivate' : 'Activate' }}</Button
@@ -194,5 +193,5 @@ function exportFile(recipe: FillRecipe) {
       </template>
       <p v-if="message" role="status" class="text-xs break-words">{{ message }}</p>
     </div>
-  </details>
+  </Disclosure>
 </template>

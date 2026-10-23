@@ -163,7 +163,7 @@ test('AI quota failure cannot hide or disable local filling', async ({ page }) =
   })
   await buttons(page).click()
   await expect(page.getByRole('status')).toHaveText('2/3 filled · 1 skipped')
-  await page.getByRole('button', { name: 'AI assist', exact: true }).click()
+  await page.getByRole('button', { name: 'Fill with AI', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('reached this month')
   expect(
     await page.evaluate(() => window.qf.transport.requests[0].fields.map((f) => f.name)),

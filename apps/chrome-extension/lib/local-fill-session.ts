@@ -25,6 +25,7 @@ export async function fillLocalSession(
   options: FillOptions & {
     targets: Map<string, FillTarget>
     recipe?: FillRecipe
+    onProgress?: (completed: number, total: number) => void
     discoverFields?: boolean
     planField?: (field: DetectedField) => ReturnType<typeof buildRecipeFieldPlan>
   },
@@ -41,6 +42,7 @@ export async function fillLocalSession(
     `${field.frame}:${field.shadow}:${field.tagName}:${field.inputType}:${field.domId ?? field.name ?? field.labelText ?? field.ariaLabel ?? field.domFingerprint}`
   const originalIdentities = new Set(fields.map(identity))
   for (const original of fields) {
+    options.onProgress?.(outcome.results.length, fields.length)
     if (options.signal?.aborted || options.isCurrent?.() === false) break
     const bound = options.targets?.get(original.id)
     if (!bound?.element.isConnected) {

@@ -8,18 +8,22 @@ import type { DetectedField } from '@quikfill/schemas'
 export type SensitiveCategory = 'password' | 'otp' | 'payment' | 'governmentId'
 
 /** Lowercased text we scan for keyword signals (label, name, attributes). */
-function haystack(field: DetectedField): string {
+function signals(field: DetectedField): string[] {
   return [
     field.name,
     field.domId,
     field.labelText,
     field.placeholder,
     field.ariaLabel,
-    field.autocomplete,
+    field.ariaLabelledByText,
   ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
+    .filter((value): value is string => !!value)
+    .map((value) =>
+      value
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .toLowerCase(),
+    )
 }
 
 /**
@@ -31,7 +35,7 @@ function haystack(field: DetectedField): string {
 export function classifySensitive(field: DetectedField): SensitiveCategory | null {
   const type = field.inputType.toLowerCase()
   const ac = field.autocomplete?.toLowerCase().trim().split(/\s+/).at(-1) ?? ''
-  const text = haystack(field)
+  const matches = (pattern: RegExp): boolean => signals(field).some((text) => pattern.test(text))
 
   // Passwords — strongest signal is the input type itself.
   if (type === 'password') return 'password'
@@ -44,20 +48,22 @@ export function classifySensitive(field: DetectedField): SensitiveCategory | nul
   if (ac === 'one-time-code') return 'otp'
 
   // Keyword fallbacks, ordered to avoid cross-category collisions.
-  if (/\bpassword\b|\bpasswd\b|\bpwd\b/.test(text)) return 'password'
-  if (/credit.?card|card.?number|\bcvv\b|\bcvc\b|card.?verification|expir(?:y|ation)/.test(text)) {
+  if (matches(/\b(?:password|passwd|pwd)\b/)) return 'password'
+  if (
+    matches(
+      /\b(?:credit\s*card|card\s*number|cvv|cvc|card\s*verification|card\s*(?:expiry|expiration))\b/,
+    )
+  ) {
     return 'payment'
   }
   if (
-    /one.?time.?(?:code|password)|\botp\b|2fa|two.?factor|verification.?code|authenticator/.test(
-      text,
+    matches(
+      /\b(?:one\s*time\s*(?:code|password)|otp|2fa|two\s*factor|verification\s*code|authenticator)\b/,
     )
   ) {
     return 'otp'
   }
-  if (
-    /\bssn\b|social.?security|tax.?id|\bein\b|\bfein\b|national.?id|passport.?number/.test(text)
-  ) {
+  if (matches(/\b(?:ssn|social\s*security|tax\s*id|ein|fein|national\s*id|passport\s*number)\b/)) {
     return 'governmentId'
   }
 

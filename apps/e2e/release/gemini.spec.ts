@@ -25,8 +25,7 @@ test('installed MV3 uses real Gemini for reviewed suggestions, undo and quota wh
   await waitText(popup, 'Sign out')
   await popup.close()
 
-  await fillButton(page).click()
-  await page.getByRole('button', { name: 'AI assist', exact: true }).click()
+  await page.getByRole('button', { name: 'Fill this form with AI', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('Review before applying', {
     timeout: 40_000,
   })
@@ -42,16 +41,14 @@ test('installed MV3 uses real Gemini for reviewed suggestions, undo and quota wh
   await expect(page.locator('[name=milestone]')).toHaveValue('Manual milestone')
 
   await visit(page, 'ai')
-  await fillButton(page).click()
-  await page.getByRole('button', { name: 'AI assist', exact: true }).click()
+  await page.getByRole('button', { name: 'Fill this form with AI', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('Review before applying', {
     timeout: 40_000,
   })
   await page.getByRole('button', { name: 'Discard suggestions', exact: true }).click()
   await expect(page.locator('[name=codename]')).toHaveValue('')
   await visit(page, 'ai')
-  await fillButton(page).click()
-  await page.getByRole('button', { name: 'AI assist', exact: true }).click()
+  await page.getByRole('button', { name: 'Fill this form with AI', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('reached this month')
   const evidence = (await (await fetch(`${API}/__mv3/state`)).json()) as {
     provider: string

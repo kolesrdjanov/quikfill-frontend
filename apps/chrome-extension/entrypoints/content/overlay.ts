@@ -1,4 +1,9 @@
-import { buildAiFillRequest, isFillableField, valuesToFillInstructions } from '@quikfill/ai'
+import {
+  buildAiFillRequest,
+  isFillableField,
+  valuesToFillInstructions,
+  localPickInstructions,
+} from '@quikfill/ai'
 import {
   onLocalFillPreferencesChange,
   readLocalFillPreferences,
@@ -10,12 +15,7 @@ import {
   createChromeRecipeStore,
   type AiClassifyReason,
 } from '@quikfill/browser-adapter'
-import {
-  buildLocalFillPlan,
-  localFillSkipReason,
-  recipeFieldKey,
-  buildSavedFillPlan,
-} from '@quikfill/autofill-core'
+import { localFillSkipReason, recipeFieldKey, buildSavedFillPlan } from '@quikfill/autofill-core'
 import {
   applyFill,
   applyUndo,
@@ -108,6 +108,9 @@ interface FormButton {
    *  action floats at the form's bottom-right edge (not on the submit control). */
   anchorEl: Element | null
   el: HTMLButtonElement
+  toolbar: HTMLDivElement
+  quickAi: HTMLButtonElement
+  sample: HTMLButtonElement
   label: HTMLSpanElement
   status: ButtonStatus
   panel: HTMLElement
@@ -119,7 +122,6 @@ interface FormButton {
   retry: HTMLButtonElement
   accept: HTMLButtonElement
   reject: HTMLButtonElement
-  aiInclude: HTMLInputElement
   statusTimer?: number
 }
 
@@ -187,6 +189,8 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     button.accept.hidden = true
     button.reject.hidden = true
     button.details.replaceChildren()
+    button.ai.hidden = preferences.mode === 'saved'
+    button.sample.hidden = preferences.mode === 'saved'
     button.summary.textContent = message
     pendingReview = null
   }
@@ -199,6 +203,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   let settings: ExtensionSettings = DEFAULT_EXTENSION_SETTINGS
   const applySettings = (s: ExtensionSettings): void => {
     settings = s
+    const dark =
+      s.theme === 'dark' ||
+      (s.theme === 'auto' &&
+        !!doc.defaultView?.matchMedia?.('(prefers-color-scheme: dark)').matches)
+    host.setAttribute('data-theme', dark ? 'dark' : 'light')
     // Custom property inherits through the shadow boundary onto `.qf-fill-btn`.
     host.style.setProperty('--qf-d', `${buttonDiameter(s.buttonSize)}px`)
   }
@@ -206,7 +215,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
 
   function removeAllButtons(): void {
     for (const [root, button] of buttons) {
-      button.el.remove()
+      button.toolbar.remove()
       button.panel.remove()
       anchorResize?.unobserve(button.panel)
       if (button.statusTimer) win.clearTimeout(button.statusTimer)
@@ -223,7 +232,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // Local filling depends only on activation preferences, never on AI budget.
     if (!shouldShowOverlay(settings, pageHostname())) {
       // A quota or setting change must not remove access to the last undo.
-      for (const button of buttons.values()) button.el.hidden = true
+      for (const button of buttons.values()) button.toolbar.hidden = true
       return
     }
     let result: ReturnType<typeof scanFormsGrouped>
@@ -255,7 +264,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       seen.add(groupRoot)
       const existing = buttons.get(groupRoot)
       if (existing) {
-        existing.el.hidden = false
+        existing.toolbar.hidden = false
         existing.anchorEl = groupRoot
         existing.formId = form.formId
         existing.el.setAttribute(
@@ -268,9 +277,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
           preferences.mode === 'saved'
             ? 'Fill from the selected record · existing values preserved'
             : 'Generate local test data · only empty fields by default'
-        existing.ai.hidden = preferences.mode === 'saved'
-        if (existing.aiInclude.parentElement)
-          existing.aiInclude.parentElement.hidden = preferences.mode === 'saved'
+        existing.ai.hidden = preferences.mode === 'saved' || pendingReview?.button === existing
+        existing.quickAi.hidden = preferences.mode === 'saved'
+        existing.sample.hidden = preferences.mode === 'saved' || pendingReview?.button === existing
+        if (existing.status === 'idle')
+          existing.label.textContent = preferences.mode === 'saved' ? 'Saved data' : 'Sample data'
       } else {
         buttons.set(groupRoot, createButton(groupRoot, form.formId, groupRoot, shadow, doc))
       }
@@ -279,7 +290,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // Drop buttons whose form is gone / no longer qualifies.
     for (const [root, button] of buttons) {
       if (!seen.has(root) || !root.isConnected) {
-        button.el.remove()
+        button.toolbar.remove()
         button.panel.remove()
         anchorResize?.unobserve(button.panel)
         if (button.statusTimer) win.clearTimeout(button.statusTimer)
@@ -300,6 +311,16 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     shadowRoot: ShadowRoot,
     ownerDoc: Document,
   ): FormButton {
+    const toolbar = ownerDoc.createElement('div')
+    toolbar.className = 'qf-toolbar'
+    toolbar.setAttribute('role', 'group')
+    toolbar.setAttribute('aria-label', 'QuikFill form actions')
+    const quickAi = ownerDoc.createElement('button')
+    quickAi.type = 'button'
+    quickAi.className = 'qf-quick-ai'
+    quickAi.textContent = 'Fill with AI'
+    quickAi.setAttribute('aria-label', 'Fill this form with AI')
+    quickAi.title = 'Generate suggestions for empty fields, then review and apply.'
     const el = ownerDoc.createElement('button')
     el.type = 'button'
     el.className = 'qf-fill-btn'
@@ -315,13 +336,23 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     mark.innerHTML = QUIKFILL_GLYPH_SVG
     const label = ownerDoc.createElement('span')
     label.className = 'qf-label'
-    label.textContent = 'QuikFill'
+    label.textContent = preferences.mode === 'saved' ? 'Saved data' : 'Sample data'
     el.append(mark, label)
     const panel = ownerDoc.createElement('section')
     panel.className = 'qf-result'
     panel.setAttribute('aria-label', 'QuikFill result')
+    const panelHeader = ownerDoc.createElement('header')
+    panelHeader.className = 'qf-panel-header'
+    const panelTitle = ownerDoc.createElement('strong')
+    panelTitle.textContent = 'QuikFill'
+    panelHeader.append(panelTitle)
+    const body = ownerDoc.createElement('div')
+    body.className = 'qf-panel-body'
+    const actions = ownerDoc.createElement('footer')
+    actions.className = 'qf-panel-actions'
     panel.hidden = true
     const summary = ownerDoc.createElement('p')
+    summary.className = 'qf-status'
     summary.setAttribute('role', 'status')
     summary.setAttribute('aria-live', 'polite')
     summary.setAttribute('aria-atomic', 'true')
@@ -337,18 +368,18 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     undo.hidden = true
     const dismiss = ownerDoc.createElement('button')
     dismiss.type = 'button'
-    dismiss.className = 'qf-undo'
-    dismiss.textContent = 'Dismiss result'
+    dismiss.className = 'qf-close'
+    dismiss.setAttribute('aria-label', 'Dismiss result')
+    dismiss.textContent = '×'
     const ai = ownerDoc.createElement('button')
     ai.type = 'button'
-    ai.className = 'qf-undo qf-ai'
-    ai.textContent = 'AI assist'
-    ai.title =
-      'Optional: sends labels and constraints for unresolved empty fields. Review suggestions before applying.'
+    ai.className = 'qf-undo qf-ai qf-primary'
+    ai.textContent = 'Fill with AI'
+    ai.title = 'Generate suggestions for empty fields. Review before applying.'
     const note = ownerDoc.createElement('p')
     note.className = 'qf-note'
     note.textContent =
-      'Local Fill works offline. AI sends field labels, options and constraints; suggestions require review.'
+      'AI receives field labels and rules, never your entered values. Review suggestions before applying.'
     const retry = ownerDoc.createElement('button')
     retry.type = 'button'
     retry.className = 'qf-undo'
@@ -356,7 +387,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     retry.hidden = true
     const accept = ownerDoc.createElement('button')
     accept.type = 'button'
-    accept.className = 'qf-undo'
+    accept.className = 'qf-undo qf-primary'
     accept.textContent = 'Apply selected suggestions'
     accept.hidden = true
     const reject = ownerDoc.createElement('button')
@@ -364,25 +395,21 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     reject.className = 'qf-undo'
     reject.textContent = 'Discard suggestions'
     reject.hidden = true
-    const aiInclude = ownerDoc.createElement('input')
-    aiInclude.type = 'checkbox'
-    const aiIncludeLabel = ownerDoc.createElement('label')
-    aiIncludeLabel.className = 'qf-note'
-    aiIncludeLabel.append(aiInclude, ' Include empty fields with local generators')
-    panel.append(
-      summary,
-      disclosure,
-      undo,
-      retry,
-      accept,
-      reject,
-      dismiss,
-      ai,
-      aiIncludeLabel,
-      note,
-    )
+    const sample = ownerDoc.createElement('button')
+    sample.type = 'button'
+    sample.className = 'qf-undo qf-sample'
+    sample.textContent = 'Use sample data'
+    sample.addEventListener('click', () => {
+      void onFill(button)
+    })
+    panelHeader.append(dismiss)
+    body.append(summary, disclosure, note)
+    actions.append(accept, reject, ai, sample, undo, retry)
+    panel.append(panelHeader, body, actions)
     ai.hidden = preferences.mode === 'saved'
-    aiIncludeLabel.hidden = preferences.mode === 'saved'
+    quickAi.hidden = preferences.mode === 'saved'
+    sample.hidden = preferences.mode === 'saved'
+    toolbar.append(el, quickAi)
     if (preferences.mode === 'saved')
       el.setAttribute('aria-label', 'Fill this form with saved data')
     const button: FormButton = {
@@ -401,15 +428,20 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       retry,
       accept,
       reject,
-      aiInclude,
+      toolbar,
+      quickAi,
+      sample,
     }
     el.addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
       void onFill(button)
     })
-    shadowRoot.appendChild(el)
+    shadowRoot.appendChild(toolbar)
     shadowRoot.appendChild(panel)
+    quickAi.addEventListener('click', () => {
+      void onFill(button, 'ai')
+    })
     ai.addEventListener('click', () => {
       void onFill(button, 'ai')
     })
@@ -423,14 +455,18 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     undo.addEventListener('click', () => {
       void onUndo(button)
     })
-    dismiss.addEventListener('click', () => {
-      button.panel.hidden = true
-    })
+    dismiss.addEventListener('click', () => dismissPanel(button))
     // Track this form's box so the button follows its edge the instant the form
     // grows/shrinks (see the ResizeObserver note below). Unobserved on removal.
     anchorResize?.observe(anchorEl)
     anchorResize?.observe(panel)
     return button
+  }
+
+  function dismissPanel(button: FormButton): void {
+    if (busy && activeRoot === button.groupRoot) {
+      activeController?.abort('Fill cancelled. Any completed changes can be undone.')
+    } else button.panel.hidden = true
   }
 
   async function onFill(
@@ -463,8 +499,8 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     activeUrl = startUrl
     setLocked(true)
     setStatus(button, 'loading')
-    button.panel.hidden = true
-    button.summary.textContent = ''
+    button.panel.hidden = false
+    progress(button, mode === 'accept' ? 'Applying suggestions…' : 'Inspecting form…')
     button.details.replaceChildren()
     try {
       await runFill(button, controller.signal, startUrl, mode)
@@ -495,6 +531,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   function setLocked(locked: boolean): void {
     for (const button of buttons.values()) {
       button.el.disabled = locked
+      button.quickAi.disabled = locked
+      for (const sample of button.panel.querySelectorAll<HTMLButtonElement>('.qf-sample'))
+        sample.disabled = locked
       button.el.setAttribute('aria-busy', String(locked && button.status === 'loading'))
       button.undo.disabled = locked
       button.ai.disabled = locked
@@ -605,7 +644,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     // Re-scan for fresh fields (the DOM may have changed since injection).
     let result: ReturnType<typeof scanFormsGrouped>
     try {
-      result = scanFormsGrouped(doc, { includeHidden: false, includeNonFillable: mode === 'local' })
+      result = scanFormsGrouped(doc, { includeHidden: false, includeNonFillable: true })
     } catch {
       setStatus(button, 'error')
       return
@@ -621,6 +660,8 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       .map((id) => fieldById.get(id))
       .filter((f): f is DetectedField => !!f && isFillableField(f))
     if (fields.length === 0) {
+      button.summary.textContent =
+        'No supported controls were found in this form. Try reopening QuikFill after the form finishes loading.'
       setStatus(button, 'error')
       return
     }
@@ -671,6 +712,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
           targets,
           signal,
           isCurrent,
+          onProgress: (done, total) => progress(button, `Filling ${done + 1} of ${total}…`),
           planField: (field) => buildSavedFillPlan([field], snapshot),
         },
       )
@@ -710,6 +752,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         signal,
         isCurrent,
         recipe,
+        onProgress: (done, total) => progress(button, `Filling ${done + 1} of ${total}…`),
       })
       lastLocal = {
         button,
@@ -725,47 +768,65 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       if (recipe) button.summary.textContent += ` · Scenario: ${recipe.name}`
       return
     }
+    progress(button, 'Reading field options…')
     await probeFields(eligible, button.groupRoot, { signal, isCurrent })
     ensureCurrent()
 
-    // Send only unresolved fields by default. The user may explicitly include
-    // locally supported empty fields; both paths always stop at review.
-    const candidates = button.aiInclude.checked
-      ? eligible
-      : eligible.filter((f) => !buildLocalFillPlan([f], options).instructions.length)
+    // An explicit AI action covers every eligible empty field. Custom selects
+    // use observed options and join the same review, without inventing choices.
+    const candidates = eligible.filter((field) => {
+      const reason = localFillSkipReason(field, options)
+      if (reason) skipped.push({ detectedFieldId: field.id, status: 'skipped', reason })
+      return !reason
+    })
     const request = buildAiFillRequest(pageGlobals(doc), candidates, {
       locale: options.locale,
       dateFormat: settings.dateFormat,
     })
-    if (!request) {
-      button.panel.hidden = false
+    const localChoices = localPickInstructions(candidates)
+    if (!request && !localChoices.length) {
+      showOutcome(
+        button,
+        fields,
+        targets,
+        { results: [], undoSnapshot: { entries: [], capturedAt: new Date().toISOString() } },
+        skipped,
+      )
       button.summary.textContent =
-        'No unresolved empty fields need AI. Local Fill remains available.'
+        'No editable empty fields are available. Check field details for what needs your input.'
       setStatus(button, 'idle')
       return
     }
-    const reply = await waitForReply(requestAiFill(request), signal)
-    ensureCurrent()
-    if (!reply.ok) {
-      const copy =
-        reply.reason === 'offline' && !isExtensionAlive()
-          ? {
-              label: 'Reload page',
-              title: 'QuikFill was updated — reload this page to keep filling.',
-            }
-          : ERROR_COPY[reply.reason]
-      button.panel.hidden = false
-      button.summary.textContent = copy.title ?? copy.label
-      setStatus(button, 'error', copy)
-      return
+    let instructions = localChoices
+    if (request) {
+      progress(button, 'Generating suggestions…')
+      const reply = await waitForReply(requestAiFill(request), signal)
+      ensureCurrent()
+      if (!reply.ok) {
+        const copy =
+          reply.reason === 'offline' && !isExtensionAlive()
+            ? {
+                label: 'Reload page',
+                title: 'QuikFill was updated — reload this page to keep filling.',
+              }
+            : ERROR_COPY[reply.reason]
+        button.summary.textContent = copy.title ?? copy.label
+        setStatus(button, 'error', copy)
+        return
+      }
+      const requested = new Set(request.fields.map((f) => f.fieldId))
+      instructions = [
+        ...localChoices,
+        ...valuesToFillInstructions(
+          reply.response.values,
+          candidates.filter((f) => requested.has(f.id)),
+        ),
+      ]
     }
-    const requested = new Set(request.fields.map((f) => f.fieldId))
-    const instructions = valuesToFillInstructions(
-      reply.response.values,
-      candidates.filter((f) => requested.has(f.id)),
-    )
     if (!instructions.length) {
-      await applyInstructions(button, [], fields, targets, signal, isCurrent, skipped)
+      button.summary.textContent =
+        'AI returned no usable suggestions. Try again or use Sample data.'
+      setStatus(button, 'error', { label: 'No suggestions' })
       return
     }
     const choices = new Map<string, HTMLInputElement>()
@@ -780,7 +841,15 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
         const name = field.labelText || field.ariaLabel || field.name || 'Field'
         check.setAttribute('aria-label', `Apply suggestion for ${name}`)
         choices.set(field.id, check)
-        label.append(check, ` ${name}: ${instruction.proposedValue}`)
+        const content = doc.createElement('span')
+        const fieldName = doc.createElement('strong')
+        fieldName.textContent = name
+        const value = doc.createElement('span')
+        value.className = 'qf-suggestion-value'
+        value.textContent = instruction.proposedValue
+        content.append(fieldName, value)
+        label.className = 'qf-suggestion'
+        label.append(check, content)
         item.append(label)
         return item
       }),
@@ -788,9 +857,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     pendingReview = { button, url: startUrl, fields, targets, instructions, choices, skipped }
     button.panel.hidden = false
     ;(button.details.parentElement as HTMLDetailsElement).open = true
-    button.summary.textContent = `${instructions.length} AI suggestions ready. Review before applying.`
+    button.summary.textContent = `${instructions.length} suggestions ready. Review before applying.`
     button.accept.hidden = false
     button.reject.hidden = false
+    button.ai.hidden = true
+    button.sample.hidden = true
     setStatus(button, 'idle')
     reposition()
   }
@@ -805,6 +876,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     isCurrent: () => boolean,
     skipped: FillResult[] = [],
   ): Promise<void> {
+    progress(button, 'Applying values…')
     const outcome = await applyFill(instructions, button.groupRoot, { targets, signal, isCurrent })
     showOutcome(button, fields, targets, outcome, skipped)
   }
@@ -828,7 +900,11 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       ...summary.results.map((result) => {
         const item = doc.createElement('li')
         const field = fields.find((field) => field.id === result.detectedFieldId)
-        item.textContent = `${field?.labelText ?? field?.ariaLabel ?? field?.name ?? 'Field'}: ${result.status}${result.reason ? ` — ${result.reason}` : ''}`
+        const name = doc.createElement('strong')
+        name.textContent = field?.labelText ?? field?.ariaLabel ?? field?.name ?? 'Field'
+        const detail = doc.createElement('span')
+        detail.textContent = `${result.status}${result.reason ? ` — ${result.reason}` : ''}`
+        item.append(name, detail)
         return item
       }),
     )
@@ -918,12 +994,23 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     if (run.recipe) button.summary.textContent += ` · Scenario: ${run.recipe.name}`
   }
 
+  function progress(button: FormButton, message: string): void {
+    button.summary.textContent = message
+    button.label.textContent = message
+    reposition()
+  }
+
   function setStatus(
     button: FormButton,
     status: ButtonStatus,
     error?: { label: string; title?: string },
   ): void {
     button.status = status
+    button.panel.setAttribute('aria-busy', String(status === 'loading'))
+    button.dismiss.setAttribute(
+      'aria-label',
+      status === 'loading' ? 'Cancel fill' : 'Dismiss result',
+    )
     if (button.statusTimer) win.clearTimeout(button.statusTimer)
     button.el.classList.remove('is-loading', 'is-success', 'is-partial', 'is-error')
     button.el.setAttribute('aria-busy', String(status === 'loading'))
@@ -941,7 +1028,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       button.label.textContent = error?.label ?? 'Try again'
       if (error?.title) button.el.setAttribute('title', error.title)
     } else {
-      button.label.textContent = 'QuikFill'
+      button.label.textContent = preferences.mode === 'saved' ? 'Saved data' : 'Sample data'
     }
     // Auto-return to idle so the button is reusable; let an error linger longer so
     // an actionable message (e.g. "AI limit reached") is readable before it clears.
@@ -961,14 +1048,14 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     for (const button of buttons.values()) {
       const anchor = button.anchorEl
       if (!anchor || !anchor.isConnected) {
-        button.el.style.display = 'none'
+        button.toolbar.style.display = 'none'
         button.panel.style.display = 'none'
         continue
       }
       const rect = anchor.getBoundingClientRect()
       // Hidden / zero-box anchor (e.g. inside a closed tab) → hide the button.
       if (rect.width === 0 && rect.height === 0) {
-        button.el.style.display = 'none'
+        button.toolbar.style.display = 'none'
         button.panel.style.display = 'none'
         continue
       }
@@ -981,31 +1068,35 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), vw - 1)
       const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), vh - 1)
       if (isOccludingHit(anchor, host, doc.elementFromPoint(cx, cy))) {
-        button.el.style.display = 'none'
+        button.toolbar.style.display = 'none'
         button.panel.style.display = 'none'
         continue
       }
-      button.el.style.display = ''
+      button.toolbar.style.display = ''
       button.panel.style.display = ''
-      // Pin the button just inside the form's chosen corner. `position: fixed`
-      // uses viewport coordinates, so re-anchoring on scroll/resize keeps it glued
-      // whether the form lives in normal flow or a fixed modal. Clamp so it stays
-      // on-screen when the form runs past the viewport edge. The default
-      // bottom-right anchors by `right`/`bottom`, so the resting circle never
-      // moves and the label unfurls leftwards on hover.
+      // Anchor to the chosen form corner, then clamp the entire toolbar and
+      // panel to the viewport (including narrow forms near either screen edge).
       const INSET = 12
       const pos = settings.buttonPosition
-      button.el.style.left = pos.endsWith('left') ? `${Math.max(8, rect.left + INSET)}px` : 'auto'
-      button.el.style.right = pos.endsWith('right')
-        ? `${Math.max(8, vw - rect.right + INSET)}px`
-        : 'auto'
-      button.el.style.top = pos.startsWith('top') ? `${Math.max(8, rect.top + INSET)}px` : 'auto'
-      button.el.style.bottom = pos.startsWith('bottom')
-        ? `${Math.max(8, vh - rect.bottom + INSET)}px`
-        : 'auto'
-      button.panel.style.left = button.el.style.left
-      button.panel.style.right = button.el.style.right
-      const buttonRect = button.el.getBoundingClientRect()
+      const toolbarSize = button.toolbar.getBoundingClientRect()
+      const desiredLeft = pos.endsWith('left')
+        ? rect.left + INSET
+        : rect.right - INSET - toolbarSize.width
+      const desiredTop = pos.startsWith('top')
+        ? rect.top + INSET
+        : rect.bottom - INSET - toolbarSize.height
+      button.toolbar.style.left = `${Math.max(8, Math.min(desiredLeft, vw - toolbarSize.width - 8))}px`
+      button.toolbar.style.top = `${Math.max(8, Math.min(desiredTop, vh - toolbarSize.height - 8))}px`
+      button.toolbar.style.right = 'auto'
+      button.toolbar.style.bottom = 'auto'
+      const buttonRect = button.toolbar.getBoundingClientRect()
+      const panelWidth = button.panel.getBoundingClientRect().width
+      const panelLeft = pos.endsWith('left') ? buttonRect.left : buttonRect.right - panelWidth
+      button.panel.style.left = `${Math.max(8, Math.min(panelLeft, vw - panelWidth - 8))}px`
+      button.panel.style.right = 'auto'
+      const availableAbove = Math.max(0, buttonRect.top - 16)
+      const availableBelow = Math.max(0, vh - buttonRect.bottom - 16)
+      button.panel.style.maxHeight = `${Math.min(520, Math.max(availableAbove, availableBelow))}px`
       const panelHeight = button.panel.getBoundingClientRect().height
       const above = buttonRect.top - panelHeight - 8
       const below = buttonRect.bottom + 8
@@ -1018,6 +1109,9 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
   }
 
   const win = doc.defaultView ?? window
+  const colorScheme = win.matchMedia?.('(prefers-color-scheme: dark)')
+  const onColorScheme = () => applySettings(settings)
+  colorScheme?.addEventListener('change', onColorScheme)
 
   // Debounced re-scan on DOM changes. childList+subtree only (NOT attributes) so
   // the scanner's own data-qf-id / data-qf-form stamping can't feed the loop.
@@ -1094,8 +1188,14 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     if (e.type === 'click') {
       const pressed = [...buttons.values()].find((b) => path.includes(b.el))
       if (pressed) void onFill(pressed)
-      const ai = [...buttons.values()].find((b) => path.includes(b.ai))
+      const ai = [...buttons.values()].find((b) => path.includes(b.ai) || path.includes(b.quickAi))
       if (ai) void onFill(ai, 'ai')
+      const sample = [...buttons.values()].find((b) =>
+        path.some(
+          (el) => el instanceof win.Element && el.matches('.qf-sample') && b.panel.contains(el),
+        ),
+      )
+      if (sample) void onFill(sample)
       const accept = [...buttons.values()].find((b) => path.includes(b.accept))
       if (accept) void onFill(accept, 'accept')
       const reject = [...buttons.values()].find((b) => path.includes(b.reject))
@@ -1105,7 +1205,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
       const undo = [...buttons.values()].find((b) => path.includes(b.undo))
       if (undo) void onUndo(undo)
       const dismiss = [...buttons.values()].find((b) => path.includes(b.dismiss))
-      if (dismiss) dismiss.panel.hidden = true
+      if (dismiss) dismissPanel(dismiss)
       // Native disclosure activation still runs; capture only shields the host
       // page's outside-dismiss handlers, not the browser's default action.
     }
@@ -1164,6 +1264,7 @@ export function mountOverlay(doc: Document = document): OverlayHandle {
     destroy() {
       disposed = true
       activeController?.abort('QuikFill was closed.')
+      colorScheme?.removeEventListener('change', onColorScheme)
       win.removeEventListener('pagehide', cancel)
       win.removeEventListener('popstate', cancel)
       observer.disconnect()
@@ -1244,118 +1345,93 @@ function waitForReply<T>(reply: Promise<T>, signal: AbortSignal): Promise<T> {
 }
 
 const OVERLAY_CSS = `
-:host { all: initial; }
+:host { all: initial; --qf-surface: #fff; --qf-text: #1c274c; --qf-border: #dfe4ea; --qf-muted: #f3f4f6; --qf-hover: #e6ebf5; --qf-secondary-text: #637381; --qf-primary: #3056d3; --qf-primary-hover: #2748c3; }
+:host([data-theme=dark]) { --qf-surface: #24303f; --qf-text: #fff; --qf-border: #2e3a47; --qf-muted: #313d4a; --qf-hover: #3b4a5b; --qf-secondary-text: #aeb7c0; --qf-primary: #4a6cf7; --qf-primary-hover: #5d7bf8; }
+*, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-.qf-result {
+.qf-toolbar, .qf-result {
   position: fixed;
   z-index: 2147483646;
-  box-sizing: border-box;
-  width: min(320px, calc(100vw - 16px));
-  max-height: min(320px, 40vh);
-  overflow: auto;
-  padding: 12px;
-  border: 1px solid #cbd5e1;
+  color: var(--qf-text);
+  font: 13px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+}
+.qf-toolbar {
+  display: flex;
+  align-items: stretch;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  padding: 4px;
+  gap: 4px;
+  background: var(--qf-surface);
+  border: 1px solid var(--qf-border);
   border-radius: 12px;
-  background: #fff;
-  color: #172033;
-  font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
-  box-shadow: 0 4px 14px #0002;
+  box-shadow: 0 4px 16px #1b2b5026;
 }
-.qf-result .qf-note { font-size: 12px; color: #475569; margin-top: 10px; }
-.qf-result p { margin: 0 0 8px; }
-.qf-result ul { margin: 8px 0; padding-left: 20px; overflow-wrap: anywhere; }
-.qf-result summary { cursor: pointer; min-height: 44px; }
-.qf-undo { min-height: 44px; padding: 8px 12px; margin: 8px 8px 0 0; border: 1px solid #94a3b8; border-radius: 8px; background: #fff; color: #172033; cursor: pointer; font: inherit; }
-.qf-fill-btn:focus-visible, .qf-undo:focus-visible, .qf-result summary:focus-visible { outline: 3px solid #3f66e0; outline-offset: 3px; }
-.qf-fill-btn:disabled, .qf-undo:disabled { cursor: wait; }
-.qf-fill-btn {
-  position: fixed;
-  z-index: 2147483646;
-  box-sizing: border-box;
+.qf-toolbar button {
   display: inline-flex;
-  /* Glyph (DOM-first child) renders on the RIGHT — the pinned corner — and the
-     label unfurls to its LEFT, so the resting circle never moves on hover. */
-  flex-direction: row-reverse;
   align-items: center;
   justify-content: center;
-  /* Diameter is driven by the user's buttonSize setting via the --qf-d custom
-     property (set on the host element, inherited across the shadow boundary);
-     defaults to 46px. */
-  height: var(--qf-d, 46px);
-  min-width: var(--qf-d, 46px);
-  /* (d - 24px glyph) / 2 on each side → the glyph sits dead-centre in the resting
-     circle. padding-right stays fixed so the glyph keeps its place when the pill opens. */
-  padding: 0 calc((var(--qf-d, 46px) - 24px) / 2);
-  border: none;
-  border-radius: calc(var(--qf-d, 46px) / 2); /* = d/2: a circle when resting, a pill once the label opens */
-  background: linear-gradient(135deg, #3f66e0, #2544c0);
-  color: #ffffff;
-  font: 600 14px/1 system-ui, -apple-system, Segoe UI, sans-serif;
+  gap: 7px;
+  min-height: max(36px, var(--qf-d, 40px));
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  font: 600 12px/1.4 system-ui, -apple-system, Segoe UI, sans-serif;
+  white-space: normal;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(37, 68, 192, 0.36);
+  transition: background 150ms ease;
+}
+.qf-fill-btn { background: var(--qf-muted); color: var(--qf-text); min-width: 0; }
+.qf-fill-btn:hover { background: var(--qf-hover); }
+.qf-quick-ai { background: var(--qf-primary); color: #fff; flex-shrink: 0; }
+.qf-quick-ai:hover { background: var(--qf-primary-hover); }
+.qf-mark { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: 0 0 20px; border-radius: 6px; background: var(--qf-primary); }
+.qf-mark svg { width: 18px; height: 18px; }
+.qf-label { display: block; overflow-wrap: anywhere; }
+.qf-fill-btn.is-loading .qf-mark { background: transparent; border: 2px solid var(--qf-border); border-top-color: var(--qf-primary); border-radius: 50%; animation: qf-spin 800ms linear infinite; }
+.qf-fill-btn.is-loading .qf-mark svg { display: none; }
+.qf-fill-btn.is-error { color: #a62340; background: #fff0f3; }
+.qf-fill-btn.is-partial { color: #79520b; background: #fff7e6; }
+.qf-fill-btn.is-success { color: #176b54; background: #eaf8f2; }
+.qf-result {
+  display: flex;
+  flex-direction: column;
+  width: min(360px, calc(100vw - 16px));
+  max-height: min(520px, calc(100dvh - 92px));
+  border: 1px solid var(--qf-border);
+  border-radius: 12px;
+  background: var(--qf-surface);
+  box-shadow: 0 6px 24px #1b2b5026;
   overflow: hidden;
-  white-space: nowrap;
-  /* Animate ONLY interpolable properties — never width:auto, which snaps. The
-     button is content-sized: it eases into a pill because the LABEL's max-width
-     opens and the button reflows leftwards to follow it. Depth comes from the
-     shadow, not a translate, so the button itself never moves. */
-  transition:
-    padding-left 0.2s ease,
-    box-shadow 0.2s ease,
-    background 0.15s ease;
-  animation: qf-pulse 2.4s ease-in-out infinite;
 }
-/* Resting attention pulse — a soft halo that breathes out and fades. Pauses while
-   hovered / busy so the open pill reads as steady. */
-@keyframes qf-pulse {
-  0%   { box-shadow: 0 4px 14px rgba(37, 68, 192, 0.36), 0 0 0 0 rgba(63, 102, 224, 0.5); }
-  70%  { box-shadow: 0 4px 14px rgba(37, 68, 192, 0.36), 0 0 0 12px rgba(63, 102, 224, 0); }
-  100% { box-shadow: 0 4px 14px rgba(37, 68, 192, 0.36), 0 0 0 0 rgba(63, 102, 224, 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .qf-fill-btn { animation: none; }
-}
-.qf-fill-btn:hover,
-.qf-fill-btn.is-loading,
-.qf-fill-btn.is-success,
-.qf-fill-btn.is-partial,
-.qf-fill-btn.is-error {
-  padding-left: calc((var(--qf-d, 46px) - 24px) / 2 + 7px);
-  box-shadow: 0 8px 22px rgba(37, 68, 192, 0.45);
-  animation: none;
-}
-.qf-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 auto;
-}
-.qf-mark svg { width: 24px; height: 24px; display: block; }
-.qf-label {
-  max-width: 0;
-  margin-right: 0; /* gap toward the glyph on its right (row-reverse) — eases open with the label */
-  opacity: 0;
-  overflow: hidden;
-  transition:
-    max-width 0.2s ease,
-    margin-right 0.2s ease,
-    opacity 0.15s ease;
-}
-.qf-fill-btn:hover .qf-label,
-.qf-fill-btn.is-loading .qf-label,
-.qf-fill-btn.is-success .qf-label,
-.qf-fill-btn.is-partial .qf-label,
-.qf-fill-btn.is-error .qf-label {
-  max-width: 150px;
-  margin-right: 8px;
-  opacity: 1;
-}
-.qf-fill-btn.is-success { background: #13c296; box-shadow: 0 8px 22px rgba(19, 194, 150, 0.45); }
-.qf-fill-btn.is-error { background: #e11d48; box-shadow: 0 8px 22px rgba(225, 29, 72, 0.45); }
-.qf-fill-btn.is-partial { background: #855000; }
-.qf-fill-btn.is-loading { cursor: default; }
+.qf-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--qf-border); flex-shrink: 0; }
+.qf-panel-header strong { font-size: 13px; }
+.qf-close { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--qf-secondary-text); font: 22px/1 system-ui; cursor: pointer; }
+.qf-close:hover { background: var(--qf-muted); }
+.qf-panel-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px; }
+.qf-status { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.qf-result[aria-busy=true] .qf-status::before { content: ''; display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px; border: 2px solid var(--qf-border); border-top-color: var(--qf-primary); border-radius: 50%; animation: qf-spin 800ms linear infinite; }
+.qf-result details { margin-top: 12px; }
+.qf-result details:not(:has(li)) { display: none; }
+.qf-result summary { cursor: pointer; padding: 8px 0; color: var(--qf-secondary-text); font-size: 12px; }
+.qf-result ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.qf-result li { padding: 12px 0; border-top: 1px solid var(--qf-border); overflow-wrap: anywhere; }
+.qf-result li > strong { display: block; font-size: 12px; font-weight: 600; }
+.qf-result li > span { display: block; color: var(--qf-secondary-text); font-size: 12px; margin-top: 4px; }
+.qf-result .qf-note { margin: 16px 0 0; font-size: 11px; line-height: 1.5; color: var(--qf-secondary-text); }
+.qf-panel-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px 16px; border-top: 1px solid var(--qf-border); flex-shrink: 0; }
+.qf-undo { min-height: 40px; padding: 8px 10px; border: 1px solid var(--qf-border); border-radius: 8px; background: var(--qf-surface); color: var(--qf-text); cursor: pointer; font: 500 12px/1.4 system-ui; overflow-wrap: anywhere; transition: background 150ms ease; }
+.qf-undo:hover { background: var(--qf-muted); }
+.qf-primary { background: var(--qf-primary); border-color: var(--qf-primary); color: #fff; }
+.qf-primary:hover { background: var(--qf-primary-hover); }
+.qf-suggestion { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.qf-suggestion input { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--qf-primary); flex-shrink: 0; }
+.qf-suggestion strong { display: block; font-size: 12px; font-weight: 600; }
+.qf-suggestion-value { display: block; margin-top: 4px; color: var(--qf-secondary-text); }
+button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--qf-primary); outline-offset: 2px; }
+button:disabled { opacity: 0.65; cursor: wait; }
+@keyframes qf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .qf-fill-btn.is-loading .qf-mark, .qf-result[aria-busy=true] .qf-status::before { animation-duration: 1800ms; } }
 `
 
 /**

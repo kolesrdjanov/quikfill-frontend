@@ -66,3 +66,33 @@ describe('classifySensitive', () => {
     expect(classifySensitive(field({ id: 'n3', labelText: 'Street address' }))).toBeNull()
   })
 })
+
+describe('field identity is not an authentication signal', () => {
+  it.each([
+    'Retailer Contact Name',
+    'Retailer Contact Email',
+    'Retailer Contact Phone',
+    'Conversation Replies Sent To',
+    'Legal Company Name',
+    'Website/URL',
+  ])('does not treat a generated ID containing 2fa as OTP: %s', (labelText) => {
+    expect(
+      classifySensitive(
+        field({ id: 'normal', domId: 'input-82fa7c31-b653-412d-9db7-0155a43c6060', labelText }),
+      ),
+    ).toBeNull()
+  })
+  it('does not combine independent metadata into a sensitive phrase', () => {
+    expect(
+      classifySensitive(
+        field({ id: 'normal', name: 'credit', domId: 'cardinal', labelText: 'Credit allowance' }),
+      ),
+    ).toBeNull()
+  })
+  it('keeps real sensitive identifiers protected after normalizing camelCase and separators', () => {
+    for (const name of ['verificationCode', 'two_factor_code', '2fa-code'])
+      expect(classifySensitive(field({ id: 'otp', name }))).toBe('otp')
+    expect(classifySensitive(field({ id: 'tax', name: 'taxId' }))).toBe('governmentId')
+    expect(classifySensitive(field({ id: 'card', name: 'card_number' }))).toBe('payment')
+  })
+})

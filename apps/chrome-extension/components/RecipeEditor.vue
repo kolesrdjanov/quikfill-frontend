@@ -33,7 +33,7 @@ const save = handleSubmit(async (recipe) => {
 </script>
 <template>
   <form @submit="save">
-    <fieldset class="space-y-3" :disabled="isSubmitting || saving">
+    <fieldset class="space-y-4" :disabled="isSubmitting || saving">
       <p class="text-muted-foreground text-xs break-all">
         {{ recipe.origin }}{{ recipe.pathname }}
       </p>
@@ -84,7 +84,7 @@ const save = handleSubmit(async (recipe) => {
         Turn off to replay over existing values. Fixed values stay on this device and are included
         in exports. Unsupported boundary cases are skipped.
       </p>
-      <div class="max-h-80 space-y-3 overflow-y-auto">
+      <div class="space-y-4">
         <RecipeRuleEditor
           v-for="(rule, index) in rules"
           :key="rule.fieldKey"

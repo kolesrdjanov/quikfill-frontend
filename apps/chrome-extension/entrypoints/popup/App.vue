@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ArrowUpRight, Check, Globe, LogOut, Mail, RefreshCw } from 'lucide-vue-next'
-import { Badge, Button } from '@quikfill/ui'
+import { Badge, Button, Disclosure } from '@quikfill/ui'
 import {
   onExtensionSettingsChange,
   ensureActiveContentScript,
@@ -172,21 +172,19 @@ function openDashboard() {
 
       <main class="min-h-0 overflow-y-auto px-5 pb-4">
         <section class="pt-5 pb-4">
-          <h1 class="text-lg font-semibold tracking-tight">Ready to fill</h1>
+          <h1 class="text-lg font-semibold tracking-tight">Choose how to fill</h1>
           <p class="text-muted-foreground mt-1.5 text-[13px] leading-relaxed">
-            Click the QuikFill button beside a form to fill it with sample data. No account needed.
+            Beside each form, choose Sample data for an instant fill or Fill with AI to review
+            generated suggestions.
           </p>
         </section>
-        <section aria-label="Fill settings" class="divide-y border-y">
+        <section aria-label="Fill settings" class="space-y-3">
           <LocalFillCard />
           <SavedDataCard />
           <RecipesCard />
-          <details>
-            <summary class="min-h-11 cursor-pointer py-3.5 text-[13px] font-medium">
-              Site activation and exclusions
-            </summary>
+          <Disclosure title="Site activation and exclusions">
             <ThisSiteCard />
-          </details>
+          </Disclosure>
         </section>
 
         <div v-if="gate.isAppReady.value" class="mt-4 flex flex-col gap-2">

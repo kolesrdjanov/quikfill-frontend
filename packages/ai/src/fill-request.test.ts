@@ -258,6 +258,7 @@ describe('localPickInstructions', () => {
     const instructions = localPickInstructions(fields)
     expect(instructions).toHaveLength(1)
     expect(options.map((o) => o.label)).toContain(instructions[0].proposedValue)
+    expect(instructions[0].proposedValues).toEqual([instructions[0].proposedValue])
   })
 })
 

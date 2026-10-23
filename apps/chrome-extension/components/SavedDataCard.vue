@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { Button, Input, Label, Select, useFormValidation } from '@quikfill/ui'
+import { Button, Disclosure, Input, Label, Select, useFormValidation } from '@quikfill/ui'
 import { savedSelectionSchema } from '@quikfill/schemas'
 import { onAccountChange } from '@quikfill/browser-adapter'
 import { useSavedDataStore } from '../stores/saved-data'
@@ -45,9 +45,8 @@ function manage() {
 }
 </script>
 <template>
-  <details>
-    <summary class="min-h-11 cursor-pointer py-3.5 text-[13px] font-medium">Saved data</summary>
-    <div class="space-y-3 pb-4">
+  <Disclosure title="Saved data">
+    <div class="space-y-4">
       <p class="text-muted-foreground text-xs">
         Fill from one saved record. Existing values are preserved and missing values stay empty.
         Sign in to sync; cached data stays available for 24 hours on this device.
@@ -82,5 +81,5 @@ function manage() {
       <p v-if="store.message" role="status" class="text-xs">{{ store.message }}</p>
       <p v-if="error" role="alert" class="text-destructive text-xs">{{ error }}</p>
     </div>
-  </details>
+  </Disclosure>
 </template>

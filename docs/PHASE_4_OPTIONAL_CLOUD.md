@@ -7,9 +7,9 @@ version bump. Backend work is in the sibling `services` repository.
 
 - Sample Fill remains the default and works signed out/offline. Existing QA
   scenarios, widgets, seeds, guarded results and Undo keep using the local engine.
-- AI assist is an explicit action in the result panel. By default it requests only
-  fields that the local planner cannot fill. A checkbox explicitly includes fields
-  supported by local generators. AI always preserves existing values, including when
+- **Fill with AI** is an explicit action beside the form and in the result panel.
+  It covers every eligible empty field without requiring a local fill first.
+  Custom dropdown choices use observed enabled options and join the same review. AI always preserves existing values, including when
   sample overwrite is enabled. AI returns a checklist of proposed values; nothing
   is written until **Apply selected suggestions**. Unchecked suggestions are skipped;
   Discard removes the review. Existing edits, replacement controls, navigation,

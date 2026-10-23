@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { X } from 'lucide-vue-next'
-import { Button, Card, CardHeader, CardTitle, Select, Switch } from '@quikfill/ui'
+import { Button, Label, Select, Switch } from '@quikfill/ui'
 import {
   getActiveTab,
   onExtensionSettingsChange,
@@ -15,7 +15,6 @@ import {
   type ExtensionSettings,
 } from '@quikfill/schemas'
 import { activeHostList, isHostActive, removeActiveHost, setHostEnabled } from '../lib/overlay-gate'
-import OptionRow from './options/OptionRow.vue'
 
 // Per-site activation, right in the popup. The toggle acts on the CURRENT tab's
 // hostname; the mode switch flips between "all sites except exclusions" and "only
@@ -84,54 +83,57 @@ function onRemove(host: string): void {
 </script>
 
 <template>
-  <Card>
-    <CardHeader><CardTitle>This site</CardTitle></CardHeader>
-    <p v-if="saveError" role="alert" class="text-destructive px-4 text-sm">{{ saveError }}</p>
-    <OptionRow title="QuikFill enabled">
+  <div class="space-y-4">
+    <p v-if="saveError" role="alert" class="text-destructive text-xs">{{ saveError }}</p>
+    <div class="flex items-center justify-between gap-4">
+      <Label for="site-global">QuikFill enabled</Label>
       <Switch
+        id="site-global"
         :model-value="settings.globalEnabled"
         aria-label="QuikFill enabled"
         @update:model-value="(v) => commit({ ...settings, globalEnabled: !!v })"
       />
-    </OptionRow>
-
-    <OptionRow v-if="hostname" stacked :title="hostname" :subtitle="switchHint">
+    </div>
+    <div v-if="hostname" class="flex items-start justify-between gap-4">
+      <div class="min-w-0 space-y-1">
+        <Label for="site-enabled" class="break-all">{{ hostname }}</Label>
+        <p class="text-muted-foreground text-xs leading-relaxed">{{ switchHint }}</p>
+      </div>
       <Switch
+        id="site-enabled"
         :model-value="enabledHere"
         :aria-label="`QuikFill on ${hostname}`"
         @update:model-value="(v) => onToggle(!!v)"
       />
-    </OptionRow>
-    <div v-else class="text-muted-foreground border-b px-4 py-3.5 text-[12.5px]">
-      QuikFill can’t run on this page.
     </div>
-
-    <OptionRow stacked title="Where QuikFill runs" subtitle="Pick how sites are matched.">
+    <p v-else class="text-muted-foreground text-xs">QuikFill can’t run on this page.</p>
+    <div class="space-y-1.5">
+      <Label for="site-mode">Where QuikFill runs</Label>
       <Select
+        id="site-mode"
         :model-value="mode"
-        class="w-full"
+        class="min-h-11 w-full"
         aria-label="Where QuikFill runs"
         @update:model-value="(v) => onMode(String(v))"
       >
         <option value="all">Run on all sites</option>
         <option value="allowlist">Only sites I choose</option>
       </Select>
-    </OptionRow>
-
-    <div class="border-b px-4 py-3.5 last:border-b-0">
-      <div class="text-[14px] font-semibold">{{ listTitle }}</div>
-      <ul v-if="hosts.length" class="mt-2 flex flex-col gap-1.5">
+    </div>
+    <div class="space-y-2">
+      <p class="text-[13px] font-medium">{{ listTitle }}</p>
+      <ul v-if="hosts.length" class="space-y-2">
         <li
           v-for="h in hosts"
           :key="h"
-          class="bg-muted/40 flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5"
+          class="bg-muted/40 flex items-center justify-between gap-2 rounded-lg px-3 py-2"
         >
-          <span class="truncate text-[12.5px]">{{ h }}</span>
+          <span class="min-w-0 text-xs break-all">{{ h }}</span>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            class="text-muted-foreground hover:text-foreground size-11 shrink-0"
+            class="size-8 shrink-0"
             :aria-label="`Remove ${h}`"
             @click="onRemove(h)"
           >
@@ -139,7 +141,7 @@ function onRemove(host: string): void {
           </Button>
         </li>
       </ul>
-      <p v-else class="text-muted-foreground mt-1 text-[12.5px]">{{ listEmptyHint }}</p>
+      <p v-else class="text-muted-foreground text-xs leading-relaxed">{{ listEmptyHint }}</p>
     </div>
-  </Card>
+  </div>
 </template>

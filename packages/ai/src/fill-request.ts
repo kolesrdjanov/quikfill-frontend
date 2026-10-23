@@ -153,6 +153,7 @@ function toInstruction(field: DetectedField, value: string): FillInstruction {
     fillStrategy: strategyFor(field),
     ...(field.customWidget ? { customWidget: field.customWidget } : {}),
     proposedValue: value,
+    ...(field.customWidget?.kind === 'multiselect' ? { proposedValues: [value] } : {}),
   })
 }
 
@@ -169,7 +170,10 @@ export function localPickInstructions(fields: DetectedField[]): FillInstruction[
     const widget = field.customWidget
     if (!widget || (widget.kind !== 'select' && widget.kind !== 'multiselect')) continue
     if (widget.remoteOptions) continue
-    const labels = (field.options ?? []).map((o) => o.label).filter((l) => l.trim() !== '')
+    const labels = (field.options ?? [])
+      .filter((o) => !o.disabled && o.value.trim() !== '')
+      .map((o) => o.label)
+      .filter((l) => l.trim() !== '')
     if (labels.length === 0) continue
     const pick = labels[Math.floor(Math.random() * labels.length)]
     instructions.push(toInstruction(field, pick))

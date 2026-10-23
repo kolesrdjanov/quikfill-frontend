@@ -1,6 +1,14 @@
-# Chrome Extension — In-Page Fill Flow (current)
+# Chrome Extension — In-Page Fill Flow
 
-> **Current behavior (2026-10-22):** [Phase 1](./PHASE_1_LOCAL_FILL.md) supersedes
+> **Current behavior (2026-10-23):** the toolbar exposes **Sample data** and
+> **Fill with AI** directly. AI covers all eligible empty fields and waits for
+> explicit review before writing. Progress is animated and cancellable; review
+> actions remain visible while field details scroll. See the
+> [usability audit](./EXTENSION_UX_AUDIT_2026-10-23.md) and
+> [optional cloud flow](./PHASE_4_OPTIONAL_CLOUD.md). The older design below is
+> historical; its direct-AI-write exception no longer applies.
+>
+> **2026-10-22 behavior:** [Phase 1](./PHASE_1_LOCAL_FILL.md) supersedes
 > the AI-first/auth-first flow below. Main Fill is local, only-empty by default,
 > with no account/network/quota requirement. Popup local preferences are always
 > available; AI assist and sign-in are explicit optional actions. The Phase 0
